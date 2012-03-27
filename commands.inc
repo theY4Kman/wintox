@@ -4,10 +4,16 @@
  * Copyright 2012 Zach "theY4Kman" Kanzler
  */
 
+#if defined _wintox_commands_included
+ #endinput
+#endif
+#define _wintox_commands_included
+
 #pragma semicolon 1
 
 #include <sourcemod>
 #include "./stocks"
+#include "./version"
 
 new Handle:g_PublicCommands = INVALID_HANDLE;
 new Handle:g_AdminCommands = INVALID_HANDLE;
