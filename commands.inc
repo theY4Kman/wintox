@@ -17,11 +17,19 @@
 
 new Handle:g_PublicCommands = INVALID_HANDLE;
 new Handle:g_AdminCommands = INVALID_HANDLE;
+new Handle:g_CommandDescriptions = INVALID_HANDLE;
+
+new Handle:g_PubCmdsMenu = INVALID_HANDLE;
+new Handle:g_AdmCmdsMenu = INVALID_HANDLE;
+
+new Handle:g_ClientPrevMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
+new g_ClientPrevMenuIndex[MAXPLAYERS] = { 0, ... };
 
 Commands_Init()
 {
     g_PublicCommands = CreateArray();
     g_AdminCommands = CreateArray();
+    g_CommandDescriptions = CreateTrie();
     
     RegisterCommand("sm_commands", Command_Commands, "Displays all the public commands");
     RegisterCommand("sm_admcommands", Command_AdmCommands, "Displays all the admin commands", 0, ADMFLAG_GENERIC);
@@ -33,6 +41,8 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
     WritePackString(pack, cmd);
     WritePackString(pack, description);
     ResetPack(pack);
+    
+    SetTrieString(g_CommandDescriptions, cmd, description);
     
     if (adminflags == 0)
     {
@@ -48,24 +58,28 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
 
 public Action:Command_Commands(client, args)
 {
-    DisplayCommands(client, g_PublicCommands);
+    DisplayCommands(client);
     return Plugin_Handled;
 }
 
 public Action:Command_AdmCommands(client, args)
 {
-    DisplayCommands(client, g_AdminCommands);
+    DisplayCommands(client, false);
     return Plugin_Handled;
 }
 
-DisplayCommands(client, Handle:commands)
+DisplayCommands(client, bool:pub=true)
 {
-    new length = GetArraySize(commands);
+    new Handle:commands = pub ? g_PublicCommands : g_AdminCommands;
+    decl String:title[16];
+    Format(title, sizeof(title), "%s Commands", pub ? "Public" : "Admin");
     
     // Output a text list of the commands
     if (client == 0)
     {
-        PrintToServer("[Wintox] Public Commands");
+        PrintToServer("[Wintox] %s", title);
+        
+        new length = GetArraySize(commands);
         for (new i=0; i<length; i++)
         {
             decl String:cmd[256];
@@ -80,4 +94,86 @@ DisplayCommands(client, Handle:commands)
             PrintToServer("  %s - %s", cmd, description);
         }
     }
+    else
+    {
+        decl Handle:menu;
+        
+        if (pub)
+        {
+            if (g_PubCmdsMenu == INVALID_HANDLE)
+                g_PubCmdsMenu = BuildCommandsMenu(commands, title);
+            menu = g_PubCmdsMenu;
+        }
+        else
+        {
+            if (g_AdmCmdsMenu == INVALID_HANDLE)
+                g_AdmCmdsMenu = BuildCommandsMenu(commands, title);
+            menu = g_AdmCmdsMenu;
+        }
+        
+        DisplayMenu(menu, client, MENU_TIME_FOREVER);
+    }
+}
+
+Handle:BuildCommandsMenu(Handle:commands, const String:title[])
+{
+    new Handle:menu = CreateMenu(MenuHandler_DisplayCommands);
+    SetMenuTitle(menu, title);
+    
+    new length = GetArraySize(commands);
+    for (new i=0; i<length; i++)
+    {
+        decl String:cmd[256];
+        decl String:description[512];
+        
+        new Handle:pack = GetArrayCell(commands, i);
+        ResetPack(pack);
+        ReadPackString(pack, cmd, sizeof(cmd));
+        ReadPackString(pack, description, sizeof(description));
+        ResetPack(pack);
+        
+        AddMenuItem(menu, cmd, cmd);
+    }
+    
+    return menu;
+}
+
+public MenuHandler_DisplayCommands(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:description[512];
+        decl String:info[256];
+        
+        GetMenuItem(menu, param2, info, sizeof(info));
+        GetTrieString(g_CommandDescriptions, info, description, sizeof(description));
+        
+        new Handle:descmenu = CreateMenu(MenuHandler_DisplayDescription);
+        SetMenuTitle(descmenu, "%s Description", info);
+        SetMenuExitButton(descmenu, true);
+        SetMenuExitBackButton(descmenu, true);
+        AddMenuItem(descmenu, info, description, ITEMDRAW_DISABLED);
+        
+        g_ClientPrevMenu[param1] = menu;
+        g_ClientPrevMenuIndex[param1] = GetMenuSelectionPosition();
+        
+        DisplayMenu(descmenu, param1, MENU_TIME_FOREVER);
+    }
+    else if (action == MenuAction_Cancel)
+        g_ClientPrevMenu[param1] = INVALID_HANDLE;
+}
+
+public MenuHandler_DisplayDescription(Handle:menu, MenuAction:action, param1, param2)
+{
+    // Redisplay the menu if the description item was selected
+    if (action == MenuAction_Select)
+        DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+    
+    // Redisplay the commands menu if Back was selected
+    else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack)
+        DisplayMenuAtItem(g_ClientPrevMenu[param1], param1, g_ClientPrevMenuIndex[param1], MENU_TIME_FOREVER);
+    
+    // Only close the handle if the description item wasn't selected
+    else if (action == MenuAction_End && param1 != MenuEnd_Selected)
+            CloseHandle(menu);
 }
