@@ -18,6 +18,7 @@ Commands_Init()
     g_AdminCommands = CreateArray();
     
     RegisterCommand("sm_commands", Command_Commands, "Displays all the public commands");
+    RegisterCommand("sm_admcommands", Command_AdmCommands, "Displays all the admin commands", 0, ADMFLAG_GENERIC);
 }
 
 RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
@@ -42,6 +43,12 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
 public Action:Command_Commands(client, args)
 {
     DisplayCommands(client, g_PublicCommands);
+    return Plugin_Handled;
+}
+
+public Action:Command_AdmCommands(client, args)
+{
+    DisplayCommands(client, g_AdminCommands);
     return Plugin_Handled;
 }
 
