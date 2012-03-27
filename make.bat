@@ -1,0 +1,1 @@
+..\spcomp wintox_bhop.sp && copy /Y wintox_bhop.smx ..\..\plugins
