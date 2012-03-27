@@ -132,7 +132,9 @@ Handle:BuildCommandsMenu(Handle:commands, const String:title[])
         ReadPackString(pack, description, sizeof(description));
         ResetPack(pack);
         
-        AddMenuItem(menu, cmd, cmd);
+        decl String:display[256];
+        Format(display, sizeof(display), "/%s", cmd[3]);
+        AddMenuItem(menu, cmd, display);
     }
     
     return menu;
