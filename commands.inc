@@ -9,11 +9,15 @@
 #include <sourcemod>
 #include "./stocks"
 
-new Handle:g_PublicCommands = CreateArray();
-new Handle:g_AdminCommands = CreateArray();
+new Handle:g_PublicCommands = INVALID_HANDLE;
+new Handle:g_AdminCommands = INVALID_HANDLE;
 
 Commands_Init()
 {
+    g_PublicCommands = CreateArray();
+    g_AdminCommands = CreateArray();
+    
+    RegisterCommand("sm_commands", Command_Commands, "Displays all the public commands");
 }
 
 RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
@@ -31,5 +35,36 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
     else
     {
         RegAdminCmd(cmd, callback, adminflags, description, group, flags);
+        PushArrayCell(g_AdminCommands, pack);
+    }
+}
+
+public Action:Command_Commands(client, args)
+{
+    DisplayCommands(client, g_PublicCommands);
+    return Plugin_Handled;
+}
+
+DisplayCommands(client, Handle:commands)
+{
+    new length = GetArraySize(commands);
+    
+    // Output a text list of the commands
+    if (client == 0)
+    {
+        PrintToServer("[Wintox] Public Commands");
+        for (new i=0; i<length; i++)
+        {
+            decl String:cmd[256];
+            decl String:description[512];
+            
+            new Handle:pack = GetArrayCell(commands, i);
+            ResetPack(pack);
+            ReadPackString(pack, cmd, sizeof(cmd));
+            ReadPackString(pack, description, sizeof(description));
+            ResetPack(pack);
+            
+            PrintToServer("  %s - %s", cmd, description);
+        }
     }
 }
