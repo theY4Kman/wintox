@@ -9,6 +9,7 @@
 #include <sourcemod>
 #include "./commands"
 #include "./version"
+#include "./sql"
 
 #define WINTOX_BHOP_VERSION "0.1dev"
 
