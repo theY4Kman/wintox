@@ -25,6 +25,14 @@ public Plugin:myinfo =
 public OnPluginStart()
 {
     Commands_Init();
+    win_SQL_Init();
+    
+    AutoExecConfig(true, "wintox");
+}
+
+public OnConfigsExecuted()
+{
+    win_SQL_Connect();
 }
 
 public OnGameFrame()
