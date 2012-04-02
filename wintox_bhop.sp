@@ -26,3 +26,7 @@ public OnPluginStart()
 {
     Commands_Init();
 }
+
+public OnGameFrame()
+{
+}
