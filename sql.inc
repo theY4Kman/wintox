@@ -75,7 +75,7 @@ NEW_SQL_QUERY(CreatePlayers) = {
 NEW_SQL_QUERY(CreateMaps) = {
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
-       bsp_name         TEXT NOT NULL, \
+       bsp_name         TEXT NOT NULL UNIQUE, \
        human_name       TEXT NULL, \
        tier             TINYINT DEFAULT 1 NOT NULL, \
        is_staged        BOOLEAN DEFAULT 0 NOT NULL \
@@ -110,12 +110,12 @@ NEW_SQL_QUERY(CreateZonePoints) = {
 };
 
 NEW_SQL_QUERY(InsertMap) = {
-    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES(?,?,?,?)",
+    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d')",
     ""
 };
 
 NEW_SQL_QUERY_PARAMS(GetMap,1) = {
-    "SELECT * FROM wintox_maps WHERE bsp_name = ?",
+    "SELECT * FROM `wintox_maps` WHERE `bsp_name` = '%s'",
     ""
 };
 

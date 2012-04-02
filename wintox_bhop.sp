@@ -13,6 +13,7 @@
 #include "./commands"
 #include "./version"
 #include "./sql"
+#include "./events"
 
 public Plugin:myinfo = 
 {
@@ -35,6 +36,8 @@ public OnConfigsExecuted()
 {
     win_SQL_Connect();
     win_SQL_CreateTables();
+    
+    GetOrInsertMap(g_CurMapName);
 }
 
 public OnGameFrame()

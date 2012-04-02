@@ -11,6 +11,7 @@
 
 // Current map info
 new String:g_CurMapName[256];
+new String:g_CurMapHumanName[256];
 new bool:g_CurMapStaged;
 new g_CurMapTier = 1;
 
