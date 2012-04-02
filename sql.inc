@@ -30,8 +30,8 @@
  * TABLE wintox_zones
  *   id                 pk
  *   fk_map             INT,FK(wintox_maps)
- *   index              INT
- *   name               VARCHAR(255)
+ *   number             INT
+ *   name               VARCHAR(255),NULL
  * 
  * TABLE wintox_zone_points
  *   id                 pk
@@ -56,15 +56,53 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 
 
 // SQL Queries
-#define SQL_QUERY(%1) new sql_%1[DatabaseType][]
+#define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
+#define SQL_QUERY(%1) sql_%1[g_DatabaseType]
 
-SQL_QUERY(CreatePlayers) = {
+NEW_SQL_QUERY(CreatePlayers) = {
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
-       id               INTEGER PRIMARY KEY ASC, \
-       latest_name      TEXT, \
-       latest_ip        TEXT, \
-       steamid          TEXT, \
-       country          TEXT \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       latest_name      TEXT NOT NULL, \
+       latest_ip        TEXT NOT NULL, \
+       steamid          TEXT NOT NULL, \
+       country          TEXT NOT NULL \
+     );",
+    
+    ""
+};
+
+NEW_SQL_QUERY(CreateMaps) = {
+    "CREATE TABLE IF NOT EXISTS wintox_maps ( \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       bsp_name         TEXT NOT NULL, \
+       human_name       TEXT NULL, \
+       tier             TINYINT NOT NULL, \
+       is_staged        BOOLEAN DEFAULT 0 NOT NULL \
+     );",
+    
+    ""
+};
+
+NEW_SQL_QUERY(CreateZones) = {
+    "CREATE TABLE IF NOT EXISTS wintox_zones ( \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       number           INTEGER NOT NULL, \
+       name             TEXT DEFAULT 'Zone' NOT NULL, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) \
+     );",
+    
+    ""
+};
+
+NEW_SQL_QUERY(CreateZonePoints) = {
+    "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       fk_zone          INTEGER NOT NULL, \
+       x                FLOAT NOT NULL, \
+       y                FLOAT NOT NULL, \
+       z                FLOAT NOT NULL, \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) \
      );",
     
     ""
@@ -100,7 +138,17 @@ win_SQL_Connect()
     LogMessage("Successfully connected to DB config \"%s\" of type \"%s\"", buffer, driver);
 }
 
-CreateTables()
+win_SQL_CreateTables()
 {
+    decl String:buffer[256];
     
+    #define CREATE_TABLE(%1,%2) if (!SQL_FastQuery(g_Database, SQL_QUERY(%1))) { \
+        SQL_GetError(g_Database, STR(buffer)); \
+        SetFailState("Error executing %s: %s", %2, buffer); \
+    }
+    
+    CREATE_TABLE(CreatePlayers,"CreatePlayers")
+    CREATE_TABLE(CreateMaps,"CreateMaps")
+    CREATE_TABLE(CreateZones,"CreateZones")
+    CREATE_TABLE(CreateZonePoints,"CreateZonePoints")
 }

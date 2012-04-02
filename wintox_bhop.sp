@@ -33,6 +33,7 @@ public OnPluginStart()
 public OnConfigsExecuted()
 {
     win_SQL_Connect();
+    win_SQL_CreateTables();
 }
 
 public OnGameFrame()
