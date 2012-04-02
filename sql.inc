@@ -57,6 +57,7 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 
 // SQL Queries
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
+#define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
 #define SQL_QUERY(%1) sql_%1[g_DatabaseType]
 
 NEW_SQL_QUERY(CreatePlayers) = {
@@ -76,7 +77,7 @@ NEW_SQL_QUERY(CreateMaps) = {
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
        bsp_name         TEXT NOT NULL, \
        human_name       TEXT NULL, \
-       tier             TINYINT NOT NULL, \
+       tier             TINYINT DEFAULT 1 NOT NULL, \
        is_staged        BOOLEAN DEFAULT 0 NOT NULL \
      );",
     
@@ -108,6 +109,16 @@ NEW_SQL_QUERY(CreateZonePoints) = {
     ""
 };
 
+NEW_SQL_QUERY(InsertMap) = {
+    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES(?,?,?,?)",
+    ""
+};
+
+NEW_SQL_QUERY_PARAMS(GetMap,1) = {
+    "SELECT * FROM wintox_maps WHERE bsp_name = ?",
+    ""
+};
+
 
 // SQL helper functions
 win_SQL_Init()
@@ -135,7 +146,7 @@ win_SQL_Connect()
     else
         SetFailState("Unknown DB type \"%s\"", driver);
     
-    LogMessage("Successfully connected to DB config \"%s\" of type \"%s\"", buffer, driver);
+    LogMessage("Successfully connected to %s database \"%s\"", driver, buffer);
 }
 
 win_SQL_CreateTables()

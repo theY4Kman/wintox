@@ -6,12 +6,13 @@
 
 #pragma semicolon 1
 
+#define WINTOX_BHOP
+#define WINTOX_BHOP_VERSION "0.1dev"
+
 #include <sourcemod>
 #include "./commands"
 #include "./version"
 #include "./sql"
-
-#define WINTOX_BHOP_VERSION "0.1dev"
 
 public Plugin:myinfo = 
 {
