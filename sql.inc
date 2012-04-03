@@ -109,13 +109,28 @@ NEW_SQL_QUERY(CreateZonePoints) = {
     ""
 };
 
-NEW_SQL_QUERY(InsertMap) = {
-    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d')",
+NEW_SQL_QUERY_PARAMS(InsertMap,4) = {
+    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d');",
     ""
 };
 
 NEW_SQL_QUERY_PARAMS(GetMap,1) = {
-    "SELECT * FROM `wintox_maps` WHERE `bsp_name` = '%s'",
+    "SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s';",
+    ""
+};
+
+NEW_SQL_QUERY_PARAMS(InsertPlayer,4) = {
+    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country) VALUES('%s','%s','%s','%s');",
+    ""
+};
+
+NEW_SQL_QUERY_PARAMS(UpdatePlayer,4) = {
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid='%s';",
+    ""
+};
+
+NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
+    "SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';",
     ""
 };
 
