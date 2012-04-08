@@ -35,7 +35,7 @@ Commands_Init()
     CreateConVar("wintox_version", WINTOX_VERSION, "Version of Wintox core", FCVAR_SPONLY|FCVAR_DONTRECORD);
 }
 
-RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
+stock RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
 {
     new Handle:pack = CreateDataPack();
     WritePackString(pack, cmd);
@@ -54,6 +54,20 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
         RegAdminCmd(cmd, callback, adminflags, description, group, flags);
         PushArrayCell(g_AdminCommands, pack);
     }
+}
+
+/**
+ * Inside a concommand callback, uses ReplyToCommand to display the command
+ * description to the client.
+ */
+stock ReplyWithDescription(client)
+{
+    decl String:buffer[512];
+    
+    GetCmdArg(0, STR(buffer));
+    GetTrieString(g_CommandDescriptions, buffer, STR(buffer));
+    
+    ReplyToCommand(client, "%s", buffer);
 }
 
 public Action:Command_Commands(client, args)
@@ -154,21 +168,31 @@ public MenuHandler_DisplayCommands(Handle:menu, MenuAction:action, param1, param
         SetMenuTitle(descmenu, "%s Description", info);
         SetMenuExitButton(descmenu, true);
         SetMenuExitBackButton(descmenu, true);
-        AddMenuItem(descmenu, info, description, ITEMDRAW_DISABLED);
+        AddMenuItem(descmenu, "", description, ITEMDRAW_DISABLED);
+        AddMenuItem(descmenu, info, "Execute this command");
         
         DisplaySubmenu(descmenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
     }
     else if (action == MenuAction_Cancel)
-        CancelSubmenus(param1);
+        HANDLE_CANCEL();
 }
 
 public MenuHandler_DisplayDescription(Handle:menu, MenuAction:action, param1, param2)
 {
     // Redisplay the menu if the description item was selected
     if (action == MenuAction_Select)
-        DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+    {
+        decl String:cmd[256];
+        GetMenuItem(menu, param2, STR(cmd));
+        
+        // The client selected "Execute this command"
+        if (strlen(cmd) > 0)
+            FakeClientCommand(param1, "say \"/%s\"", cmd[3]);
+        else
+            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+    }
     
     // Redisplay the commands menu if Back was selected
-    else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack)
-        PrevSubmenu(param1);
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
 }

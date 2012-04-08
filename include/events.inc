@@ -36,7 +36,7 @@ GetOrInsertMap(const String:mapname[], bool:curmap=true)
     decl String:query[512];
     decl String:buffer[256];
     SQL_EscapeString(g_Database, mapname, STR(buffer));
-    Format(STR(query), SQL_QUERY(GetMap), buffer);
+    Format(STR(query), SQL_QUERY[GetMap], buffer);
     
     new Handle:pack = CreateDataPack();
     WritePackCell(pack, _:curmap);
@@ -80,7 +80,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     }
     else
     {
-        Format(STR(buffer), SQL_QUERY(InsertMap), mapname, human_name, tier, is_staged);
+        Format(STR(buffer), SQL_QUERY[InsertMap], mapname, human_name, tier, is_staged);
         
         if (!SQL_FastQuery(g_Database, buffer))
         {
@@ -104,7 +104,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
 InsertOrUpdatePlayerInfo(client, const String:steamid[])
 {
     decl String:query[256];
-    Format(STR(query), SQL_QUERY(GetPlayer), steamid);
+    Format(STR(query), SQL_QUERY[GetPlayer], steamid);
     
     SQL_TQuery(g_Database, T_GetPlayerInfo, query, client);
 }
@@ -159,7 +159,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
             !StrEqual(country, db_country))
         {
             SQL_EscapeString(g_Database, latest_name, STR(db_latest_name));
-            Format(STR(buffer), SQL_QUERY(UpdatePlayer), db_latest_name, latest_ip, country, steamid);
+            Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid);
             
             if (!SQL_FastQuery(g_Database, buffer))
             {
@@ -178,7 +178,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         
         GeoipCode3(latest_ip, country);
         SQL_EscapeString(g_Database, latest_name, STR(escaped_name));
-        Format(STR(buffer), SQL_QUERY(InsertPlayer), escaped_name, latest_ip, steamid, country);
+        Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country);
         
         if (!SQL_FastQuery(g_Database, buffer))
         {

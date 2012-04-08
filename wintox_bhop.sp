@@ -26,8 +26,10 @@ public Plugin:myinfo =
 
 public OnPluginStart()
 {
+    Menus_Init();
     Commands_Init();
     win_SQL_Init();
+    Zones_Init();
     
     AutoExecConfig(true, "wintox");
 }

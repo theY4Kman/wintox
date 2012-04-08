@@ -54,11 +54,16 @@ new Handle:g_cv_DBConfig = INVALID_HANDLE;
 new Handle:g_Database = INVALID_HANDLE;
 new Handle:g_DatabaseDriver = INVALID_HANDLE;
 
+//////////////////////////////////////////////////////
+// This may be needed later (heh), and I hate warnings
+//////////////////////////////////////////////////////
+#pragma unused g_DatabaseDriver
+
 
 // SQL Queries
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
-#define SQL_QUERY(%1) sql_%1[g_DatabaseType]
+#define SQL_QUERY[%1] sql_%1[g_DatabaseType]
 
 NEW_SQL_QUERY(CreatePlayers) = {
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
@@ -168,7 +173,7 @@ win_SQL_CreateTables()
 {
     decl String:buffer[256];
     
-    #define CREATE_TABLE(%1,%2) if (!SQL_FastQuery(g_Database, SQL_QUERY(%1))) { \
+    #define CREATE_TABLE(%1,%2) if (!SQL_FastQuery(g_Database, SQL_QUERY[%1])) { \
         SQL_GetError(g_Database, STR(buffer)); \
         SetFailState("Error executing %s: %s", %2, buffer); \
     }

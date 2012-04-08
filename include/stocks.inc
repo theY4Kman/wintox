@@ -43,3 +43,20 @@ stock String_ToLower(const String:input[], String:output[], size)
 
 	output[x] = '\0';
 }
+
+// For debugging stacks
+stock PrintStack(Handle:stack)
+{
+    new Handle:temp = CreateStack();
+    decl data;
+    new length = 0;
+    
+    while (PopStackCell(stack, data) && ++length)
+        PushStackCell(temp, data);
+    
+    for (new i=0; PopStackCell(temp, data); i++)
+    {
+        PrintToServer("%3d %d", i, data);
+        PushStackCell(stack, data);
+    }
+}

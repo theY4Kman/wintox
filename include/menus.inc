@@ -19,6 +19,14 @@
  */
 new Handle:g_ClientSubmenus[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
+enum Submenu
+{
+    Submenu_Handle = 0,
+    Submenu_CloseHandle,
+    Submenu_Time,
+    Submenu_LastIndex
+};
+
 #define MENU_STACK[%1] g_ClientSubmenus[(%1)]
 #define MENUS_NO_LAST_INDEX -1
 #define MENUS_EMPTY(%1) (MENU_STACK[%1] == INVALID_HANDLE || IsStackEmpty(MENU_STACK[%1]))
@@ -29,20 +37,23 @@ Menus_Init()
 
 stock __InitSubmenuStack(client)
 {
-    if (g_ClientSubmenus[client] != INVALID_HANDLE)
+    if (MENU_STACK[client] != INVALID_HANDLE)
         return;
     
-    g_ClientSubmenus[client] = CreateStack();
+    MENU_STACK[client] = CreateStack(4);
 }
 
 stock __PushSubmenu(Handle:menu, client, time, close_handle, last_index)
 {
     __InitSubmenuStack(client);
-    if (last_index != MENUS_NO_LAST_INDEX)
-        PushStackCell(MENU_STACK[client], last_index);
-    PushStackCell(MENU_STACK[client], time);
-    PushStackCell(MENU_STACK[client], _:close_handle);
-    PushStackCell(MENU_STACK[client], _:menu);
+    
+    decl submenu[Submenu];
+    submenu[Submenu_Handle] = _:menu;
+    submenu[Submenu_CloseHandle] = _:close_handle;
+    submenu[Submenu_Time] = time;
+    submenu[Submenu_LastIndex] = last_index;
+    
+    PushStackArray(MENU_STACK[client], submenu[0]);
 }
 
 stock DisplaySubmenu(Handle:menu, client, time, bool:close_handle=true, last_index=MENUS_NO_LAST_INDEX)
@@ -51,41 +62,36 @@ stock DisplaySubmenu(Handle:menu, client, time, bool:close_handle=true, last_ind
     DisplayMenu(menu, client, time);
 }
 
-stock PrevSubmenu(client)
+stock PrevSubmenu(client, bool:redisplay=true)
 {
     if (MENUS_EMPTY(client))
         return;
     
     // Pop the info of the menu currently being displayed, so we can close its
     // handle if need be
-    decl Handle:menu;
-    decl bool:close_handle;
-    decl last_index;
+    decl submenu[Submenu];
+    PopStackArray(MENU_STACK[client], submenu[0]);
     
-    PopStackCell(MENU_STACK[client], menu);
-    PopStackCell(MENU_STACK[client], close_handle);
-    PopStack(MENU_STACK[client]); // time
-    PopStackCell(MENU_STACK[client], last_index);
-    
-    if (close_handle)
-        CloseHandle(menu);
+    if (submenu[Submenu_CloseHandle])
+        CloseHandle(Handle:submenu[Submenu_Handle]);
     
     // Check if the menu that was just displayed was the root menu
     if (IsStackEmpty(MENU_STACK[client]))
         return;
     
+    // Used to simply pop a menu from the stack and display a different one
+    // For instance, the zone index selection menu (see zones.inc)
+    if (!redisplay)
+        return;
+    
     // Pop the info of the previous menu to redisplay it at the right index
-    decl time;
+    PopStackArray(MENU_STACK[client], submenu[0]);
     
-    PopStackCell(MENU_STACK[client], menu);
-    PopStackCell(MENU_STACK[client], close_handle);
-    PopStackCell(MENU_STACK[client], time);
+    DisplayMenuAtItem(Handle:submenu[Submenu_Handle], client, submenu[Submenu_LastIndex], submenu[Submenu_Time]);
     
-    DisplayMenuAtItem(menu, client, last_index, time);
-    
-    // Reinsert the current menu to the stack, keeping the last index of the
-    // previous menu
-    __PushSubmenu(menu, client, time, close_handle, MENUS_NO_LAST_INDEX);
+    // Reinsert the now current menu to the stack, keeping the last index of
+    // the previous menu
+    PushStackArray(MENU_STACK[client], submenu[0]);
 }
 
 stock CancelSubmenus(client)
@@ -95,15 +101,19 @@ stock CancelSubmenus(client)
     
     while (!IsStackEmpty(MENU_STACK[client]))
     {
-        decl Handle:menu;
-        decl bool:close_handle;
+        decl submenu[Submenu];
+        PopStackArray(MENU_STACK[client], submenu[0]);
         
-        PopStackCell(MENU_STACK[client], menu);
-        PopStackCell(MENU_STACK[client], close_handle);
-        PopStack(MENU_STACK[client]); // time
-        PopStack(MENU_STACK[client]); // last_index
-        
-        if (close_handle)
-            CloseHandle(menu);
+        if (submenu[Submenu_CloseHandle])
+            CloseHandle(Handle:submenu[Submenu_Handle]);
     }
+}
+
+#define HANDLE_CANCEL() HandleCancel(param1, param2)
+stock HandleCancel(client, reason)
+{
+    if (reason == MenuCancel_Exit)
+        CancelSubmenus(client);
+    else
+        PrevSubmenu(client);
 }
