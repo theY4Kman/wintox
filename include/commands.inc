@@ -12,8 +12,9 @@
 #pragma semicolon 1
 
 #include <sourcemod>
-#include "./stocks"
-#include "./version"
+#include "./include/stocks"
+#include "./include/version"
+#include "./include/menus"
 
 new Handle:g_PublicCommands = INVALID_HANDLE;
 new Handle:g_AdminCommands = INVALID_HANDLE;
@@ -21,9 +22,6 @@ new Handle:g_CommandDescriptions = INVALID_HANDLE;
 
 new Handle:g_PubCmdsMenu = INVALID_HANDLE;
 new Handle:g_AdmCmdsMenu = INVALID_HANDLE;
-
-new Handle:g_ClientPrevMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
-new g_ClientPrevMenuIndex[MAXPLAYERS] = { 0, ... };
 
 Commands_Init()
 {
@@ -113,7 +111,7 @@ DisplayCommands(client, bool:pub=true)
             menu = g_AdmCmdsMenu;
         }
         
-        DisplayMenu(menu, client, MENU_TIME_FOREVER);
+        DisplaySubmenu(menu, client, MENU_TIME_FOREVER, false);
     }
 }
 
@@ -158,13 +156,10 @@ public MenuHandler_DisplayCommands(Handle:menu, MenuAction:action, param1, param
         SetMenuExitBackButton(descmenu, true);
         AddMenuItem(descmenu, info, description, ITEMDRAW_DISABLED);
         
-        g_ClientPrevMenu[param1] = menu;
-        g_ClientPrevMenuIndex[param1] = GetMenuSelectionPosition();
-        
-        DisplayMenu(descmenu, param1, MENU_TIME_FOREVER);
+        DisplaySubmenu(descmenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
     }
     else if (action == MenuAction_Cancel)
-        g_ClientPrevMenu[param1] = INVALID_HANDLE;
+        CancelSubmenus(param1);
 }
 
 public MenuHandler_DisplayDescription(Handle:menu, MenuAction:action, param1, param2)
@@ -175,9 +170,5 @@ public MenuHandler_DisplayDescription(Handle:menu, MenuAction:action, param1, pa
     
     // Redisplay the commands menu if Back was selected
     else if (action == MenuAction_Cancel && param2 == MenuCancel_ExitBack)
-        DisplayMenuAtItem(g_ClientPrevMenu[param1], param1, g_ClientPrevMenuIndex[param1], MENU_TIME_FOREVER);
-    
-    // Only close the handle if the description item wasn't selected
-    else if (action == MenuAction_End && param1 != MenuEnd_Selected)
-            CloseHandle(menu);
+        PrevSubmenu(param1);
 }

@@ -21,7 +21,7 @@ new Handle:g_ClientSubmenus[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 #define MENU_STACK[%1] g_ClientSubmenus[(%1)]
 #define MENUS_NO_LAST_INDEX -1
-#define MENUS_EMPTY(%1) (MENU_STACK[%1] == INVALID_HANDLE || IsStackEmpty(MENU_STACK[%1])
+#define MENUS_EMPTY(%1) (MENU_STACK[%1] == INVALID_HANDLE || IsStackEmpty(MENU_STACK[%1]))
 
 Menus_Init()
 {
@@ -45,7 +45,7 @@ stock __PushSubmenu(Handle:menu, client, time, close_handle, last_index)
     PushStackCell(MENU_STACK[client], _:menu);
 }
 
-stock DisplaySubmenu(Handle:menu, client, time, bool:close_handle=true, last_index=0)
+stock DisplaySubmenu(Handle:menu, client, time, bool:close_handle=true, last_index=MENUS_NO_LAST_INDEX)
 {
     __PushSubmenu(menu, client, time, close_handle, last_index);
     DisplayMenu(menu, client, time);
@@ -58,10 +58,14 @@ stock PrevSubmenu(client)
     
     // Pop the info of the menu currently being displayed, so we can close its
     // handle if need be
-    new Handle:menu = Handle:PopStackCell(MENU_STACK[client]);
-    new bool:close_handle = bool:PopStackCell(MENU_STACK[client]);
+    decl Handle:menu;
+    decl bool:close_handle;
+    decl last_index;
+    
+    PopStackCell(MENU_STACK[client], menu);
+    PopStackCell(MENU_STACK[client], close_handle);
     PopStack(MENU_STACK[client]); // time
-    new last_index = PopStackCell(MENU_STACK[client]);
+    PopStackCell(MENU_STACK[client], last_index);
     
     if (close_handle)
         CloseHandle(menu);
@@ -71,9 +75,11 @@ stock PrevSubmenu(client)
         return;
     
     // Pop the info of the previous menu to redisplay it at the right index
-    Handle:menu = Handle:PopStackCell(MENU_STACK[client]);
-    close_handle = bool:PopStackCell(MENU_STACK[client]);
-    new time = PopStackCell(MENU_STACK[client]);
+    decl time;
+    
+    PopStackCell(MENU_STACK[client], menu);
+    PopStackCell(MENU_STACK[client], close_handle);
+    PopStackCell(MENU_STACK[client], time);
     
     DisplayMenuAtItem(menu, client, last_index, time);
     
@@ -89,8 +95,11 @@ stock CancelSubmenus(client)
     
     while (!IsStackEmpty(MENU_STACK[client]))
     {
-        new Handle:menu = Handle:PopStackCell(MENU_STACK[client]);
-        new bool:close_handle = bool:PopStackCell(MENU_STACK[client]);
+        decl Handle:menu;
+        decl bool:close_handle;
+        
+        PopStackCell(MENU_STACK[client], menu);
+        PopStackCell(MENU_STACK[client], close_handle);
         PopStack(MENU_STACK[client]); // time
         PopStack(MENU_STACK[client]); // last_index
         

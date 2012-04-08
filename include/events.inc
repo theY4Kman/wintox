@@ -13,9 +13,9 @@
 
 #include <sourcemod>
 #include <geoip>
-#include "./sql"
-#include "./stocks"
-#include "./zones"
+#include "./include/sql"
+#include "./include/stocks"
+#include "./include/zones"
 
 public OnMapStart()
 {
