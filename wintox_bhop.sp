@@ -10,10 +10,10 @@
 #define WINTOX_BHOP_VERSION "0.1dev"
 
 #include <sourcemod>
-#include "./commands"
-#include "./version"
-#include "./sql"
-#include "./events"
+#include "./include/commands"
+#include "./include/version"
+#include "./include/sql"
+#include "./include/events"
 
 public Plugin:myinfo = 
 {
@@ -34,9 +34,11 @@ public OnPluginStart()
 
 public OnConfigsExecuted()
 {
+    // Initialize database connections and the such
     win_SQL_Connect();
     win_SQL_CreateTables();
     
+    // Cache map info from database
     GetOrInsertMap(g_CurMapName);
 }
 
