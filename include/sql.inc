@@ -22,20 +22,20 @@
  * 
  * TABLE wintox_maps
  *   id                 pk
- *   bsp_name           VARCHAR(255)        NOTE: filename of map, without ".bsp"
+ *   bsp_name           VARCHAR(255),UNIQUE NOTE: filename of map, without ".bsp"
  *   human_name         VARCHAR(255),NULL   NOTE: optional human readable name
  *   tier               TINYINT             NOTE: ranges from 1-6
  *   is_staged          BOOLEAN             NOTE: whether map is linear or staged
  * 
  * TABLE wintox_zones
  *   id                 pk
- *   fk_map             INT,FK(wintox_maps)
+ *   fk_map             INT,FK(wintox_maps),UNIQUE
  *   number             INT
  *   name               VARCHAR(255),NULL
  * 
  * TABLE wintox_zone_points
  *   id                 pk
- *   fk_zone            INT,FK(wintox_zones)
+ *   fk_zone            INT,FK(wintox_zones),UNIQUE
  *   x                  FLOAT
  *   y                  FLOAT
  *   z                  FLOAT
@@ -65,6 +65,9 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
 
+// ===========================================================================
+//   Table Creation
+// ===========================================================================
 NEW_SQL_QUERY(CreatePlayers) = {
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
@@ -76,7 +79,6 @@ NEW_SQL_QUERY(CreatePlayers) = {
     
     ""
 };
-
 NEW_SQL_QUERY(CreateMaps) = {
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
@@ -88,54 +90,76 @@ NEW_SQL_QUERY(CreateMaps) = {
     
     ""
 };
-
 NEW_SQL_QUERY(CreateZones) = {
     "CREATE TABLE IF NOT EXISTS wintox_zones ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
        fk_map           INTEGER NOT NULL, \
        number           INTEGER NOT NULL, \
        name             TEXT DEFAULT 'Zone' NOT NULL, \
-       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE \
+       UNIQUE(fk_map, number) \
      );",
     
     ""
 };
-
 NEW_SQL_QUERY(CreateZonePoints) = {
     "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
-       fk_zone          INTEGER NOT NULL, \
+       fk_zone          INTEGER NOT NULL UNIQUE, \
        x                FLOAT NOT NULL, \
        y                FLOAT NOT NULL, \
        z                FLOAT NOT NULL, \
-       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE \
      );",
     
     ""
 };
 
+// ===========================================================================
+//   Map records
+// ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertMap,4) = {
     "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d');",
     ""
 };
-
 NEW_SQL_QUERY_PARAMS(GetMap,1) = {
     "SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s';",
     ""
 };
 
+// ===========================================================================
+//   Player records
+// ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertPlayer,4) = {
     "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country) VALUES('%s','%s','%s','%s');",
     ""
 };
-
 NEW_SQL_QUERY_PARAMS(UpdatePlayer,4) = {
-    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid='%s';",
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s';",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
+    "SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';",
     ""
 };
 
-NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
-    "SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';",
+// ===========================================================================
+//   Zones and points
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(InsertZone,3) = {
+    "INSERT OR REPLACE INTO wintox_zones (fk_map, number, name) VALUES(%d, %d, '%s');",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(DeleteZone,2) = {
+    "DELETE FROM wintox_zones WHERE fk_map = %d AND number = %d;",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(ClearAllZones,1) = {
+    "DELETE FROM wintox_zones WHERE fk_map = %d;",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
+    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );",
     ""
 };
 

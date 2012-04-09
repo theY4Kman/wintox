@@ -19,6 +19,7 @@
 #define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
 
 // Current map info
+new g_CurMapID = -1;
 new String:g_CurMapName[256];
 new String:g_CurMapHumanName[256];
 new bool:g_CurMapStaged;
@@ -255,7 +256,7 @@ BuildZoneMenu()
 {
     g_ZoneMenu = CreateMenu(MenuHandler_RootZoneMenu);
     
-    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
+    SetZoneMenuTitle();
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_NEW_ZONE, "Create or edit zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_REMOVE_ZONE, "Remove zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
@@ -453,6 +454,11 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         HANDLE_CANCEL();
 }
 
+SetZoneMenuTitle()
+{
+    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
+}
+
 
 /* ========================================================================
                         ZONE MANIPULATION FUNCTIONS
@@ -482,6 +488,9 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
     g_ClientEditZone[client] = zone_id;
     ZONE_HEIGHT[zone_id] = DEFAULT_ZONE_HEIGHT;
     ZONE_EDITING[zone_id] = true;
+    
+    // TODO: zone name
+    win_SQL_UpsertZone(zone_id, "Zone");
 }
 
 Zone_NewZonePoint(client)
@@ -572,7 +581,7 @@ Zone_FinishZone(client)
     ZONE_EDITING[zone_id] = false;
     g_ClientEditZone[client] = INVALID_ZONE;
     
-    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
+    SetZoneMenuTitle();
     
     // SYNC WITH DB /////////////////////////////////////
 }
@@ -586,7 +595,7 @@ Zone_RemoveZone(client, zone_id)
         g_ZonesCache[zone_id][i][2] = 0.0;
     }
     
-    // SYNC WITH DB /////////////////////////////////////
+    win_SQL_DeleteZone(zone_id);
     
     ReplyToCommand(client, "Removed zone %d.", zone_id);
 }
@@ -603,7 +612,12 @@ Zone_ClearAllZones(client)
         }
     }
     
-    // SYNC WITH DB /////////////////////////////////////
+    g_ZonesCount = 0;
+    g_NextZone = 0;
+    SetZoneMenuTitle();
+    
+    win_SQL_ClearAllZonePoints();
+    win_SQL_ClearAllZones();
     
     ReplyToCommand(client, "Cleared all zones! Phew, that's a load off.");
 }
@@ -641,4 +655,72 @@ public Action:Timer_DrawZones(Handle:timer)
             BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][1]);
         }
     }
+}
+
+
+/* ========================================================================
+                            SQL SHIT. GURGLE.
+   ======================================================================== */
+
+bool:win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
+{
+    decl String:buffer[256];
+    decl String:esc_name[256];
+    
+    SQL_EscapeString(g_Database, name, STR(esc_name));
+    Format(STR(buffer), SQL_QUERY[InsertZone], g_CurMapID, zone_id, esc_name);
+    
+    if (!SQL_FastQuery(g_Database, buffer))
+    {
+        SQL_GetError(g_Database, STR(buffer));
+        LogError("Error upserting zone %d to database: %s", zone_id, buffer);
+        return false;
+    }
+    
+    return true;
+}
+
+bool:win_SQL_DeleteZone(zone_id)
+{
+    decl String:buffer[256];
+    Format(STR(buffer), SQL_QUERY[DeleteZone], g_CurMapID, zone_id);
+    
+    if (!SQL_FastQuery(g_Database, buffer))
+    {
+        SQL_GetError(g_Database, STR(buffer));
+        LogError("Error deleting zone %d from database: %s", zone_id, buffer);
+        return false;
+    }
+    
+    return true;
+}
+
+bool:win_SQL_ClearAllZonePoints()
+{
+    decl String:buffer[256];
+    Format(STR(buffer), SQL_QUERY[ClearAllZonePoints], g_CurMapID);
+    
+    if (!SQL_FastQuery(g_Database, buffer))
+    {
+        SQL_GetError(g_Database, STR(buffer));
+        LogError("Error clearing all zone points from database: %s", buffer);
+        return false;
+    }
+    
+    return true;
+}
+
+bool:win_SQL_ClearAllZones()
+{
+    decl String:buffer[256];
+    Format(STR(buffer), SQL_QUERY[ClearAllZones], g_CurMapID);
+    
+    if (!SQL_FastQuery(g_Database, buffer))
+    {
+        SQL_GetError(g_Database, STR(buffer));
+        LogError("Error clearing all zones from database: %s", buffer);
+        return false;
+    }
+    
+    return true;
 }

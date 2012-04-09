@@ -68,12 +68,14 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     human_name[0] = '\0';
     new tier = 1;
     new bool:is_staged = false;
+    new map_id = -1;
     
     if (SQL_GetRowCount(hndl) >= 1)
     {
         // row (bsp_name, human_name, tier, is_staged)
         SQL_FetchRow(hndl);
         
+        map_id = SQL_FetchInt(hndl, 0);
         SQL_FetchString(hndl, 2, STR(human_name));
         tier = SQL_FetchInt(hndl, 3);
         is_staged = bool:SQL_FetchInt(hndl, 4);
@@ -94,6 +96,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     
     if (curmap)
     {
+        g_CurMapID = map_id;
         strcopy(STR(g_CurMapHumanName), human_name);
         g_CurMapTier = tier;
         g_CurMapStaged = is_staged;
