@@ -69,6 +69,7 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 // ===========================================================================
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
+
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
 #define SQLF(%1) SQL_FastQuery(g_Database, (%1))
 #define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
