@@ -29,16 +29,19 @@
  * 
  * TABLE wintox_zones
  *   id                 pk
- *   fk_map             INT,FK(wintox_maps),UNIQUE
+ *   fk_map             INT,FK(wintox_maps)
  *   number             INT
- *   name               VARCHAR(255),NULL
+ *   name               VARCHAR(64),NULL
+ *   UNIQUE(fk_map, number)
  * 
  * TABLE wintox_zone_points
  *   id                 pk
  *   fk_zone            INT,FK(wintox_zones),UNIQUE
+ *   number             INT
  *   x                  FLOAT
  *   y                  FLOAT
  *   z                  FLOAT
+ *   UNIQUE(fk_zone, number)
  */
 
 enum DatabaseType
@@ -60,10 +63,16 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #pragma unused g_DatabaseDriver
 
 
-// SQL Queries
+
+// ===========================================================================
+//   Helper Macros
+// ===========================================================================
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
+#define SQL(%1).sqlt(%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
+#define SQL(%1).fastq() SQL_FastQuery(g_Database, (%1))
+
 
 // ===========================================================================
 //   Table Creation
@@ -105,11 +114,13 @@ NEW_SQL_QUERY(CreateZones) = {
 NEW_SQL_QUERY(CreateZonePoints) = {
     "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
-       fk_zone          INTEGER NOT NULL UNIQUE, \
+       fk_zone          INTEGER NOT NULL, \
+       number           INTEGER NOT NULL, \
        x                FLOAT NOT NULL, \
        y                FLOAT NOT NULL, \
        z                FLOAT NOT NULL, \
        FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE \
+       UNIQUE(fk_zone, number) \
      );",
     
     ""
@@ -161,6 +172,13 @@ NEW_SQL_QUERY_PARAMS(ClearAllZones,1) = {
 NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
     "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );",
     ""
+};
+NEW_SQL_QUERY_PARAMS(GetZones,1) = {
+    "SELECT id,number,name FROM wintox_zones WHERE fk_map = %d;",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(GetZonePoints,1) = {
+    "SELECT wzp.id,wzp.number,x,y,z,wz.number AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);"
 };
 
 

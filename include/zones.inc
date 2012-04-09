@@ -11,6 +11,7 @@
 
 #include <sdktools>
 #include "./include/commands"
+#include "./include/sql"
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
@@ -32,6 +33,8 @@ new g_CurMapTier = 1;
 #define MAX_ZONES 32
 #define MAX_POINTS 31
 new Float:g_ZonesCache[MAX_ZONES][MAX_POINTS+1][3];
+new g_ZoneIDs[MAX_ZONES] = { -1, ... };
+new String:g_ZoneNames[MAX_ZONES][64] = { "", ... };
 new g_ZonesCount = 0;
 new g_NextZone = 0;
 
@@ -622,6 +625,18 @@ Zone_ClearAllZones(client)
     ReplyToCommand(client, "Cleared all zones! Phew, that's a load off.");
 }
 
+// Inserts/updates all the zones in the cache to the database
+Zone_SyncToDB(client)
+{
+    // SYNC WITH DB //////////////////////////////////////////////////////////
+}
+
+// Grabs all the zones from the database and puts them in the cache
+Zone_ReloadFromDB(client)
+{
+    // SYNC WITH DB //////////////////////////////////////////////////////////
+}
+
 
 /* ========================================================================
                           ZONE DISPLAY/TEMPENTS
@@ -661,6 +676,109 @@ public Action:Timer_DrawZones(Handle:timer)
 /* ========================================================================
                             SQL SHIT. GURGLE.
    ======================================================================== */
+
+// Grabs all the zones and their points for the current map from the database
+// and caches them in the local static arrays.
+CacheZones(const client=-1)
+{
+    decl String:query[256];
+    
+    Format(STR(query), SQL_QUERY[GetZones], g_CurMapID);
+    SQL(query).sqlt(T_CacheZones, client);
+}
+
+public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl String:buffer[512];
+    new client = data;
+    decl rows;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        Format(STR(buffer), "Error retrieving zones from database: %s", error);
+        LogError("%s", buffer);
+        if (client != -1)
+            PrintToChat(client, "%s", buffer);
+    }
+    
+    rows = SQL_GetRowCount();
+    if (rows == 0)
+    {
+        if (client != -1)
+        {
+            PrintToChat(client, "Successfully retrieved zones from DB, but there were none :'(");
+            PrintToChat(client, "Use sm_newzone or /zonemenu to create some."
+        }
+        return;
+    }
+    
+    // Cache zones
+    while (SQL_MoreRows(hndl))
+    {
+        decl zone_dbid;
+        decl zone_id;
+        decl String:zone_name[64];
+        
+        SQL_FetchRow(hndl);
+        zone_dbid = SQL_FetchInt(hndl, 0);
+        zone_id = SQL_FetchInt(hndl, 1);
+        SQL_FetchString(hndl, 2, STR(zone_name));
+        
+        g_ZoneIDs[zone_id] = zone_dbid;
+        strcopy(STR(g_ZoneNames[zone_id), zone_name);
+    }
+    
+    if (client != -1)
+        PrintToChat(client, "Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
+    
+    Format(STR(buffer), SQL_QUERY[GetZonePoints], g_CurMapID);
+    SQL(buffer).sqlt(T_CacheZonePoints, client);
+}
+
+public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl String:buffer[512];
+    decl rows;
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        Format(STR(buffer), "Error retrieving zone points from database: %s", error);
+        LogError("%s", buffer);
+        if (client != -1)
+            PrintToChat(client, "%s", buffer);
+    }
+    
+    rows = SQL_GetRowCount();
+    if (rows == 0)
+    {
+        if (client != -1)
+            PrintToChat(client, "Successfully retrieved zone points from DB, but there were none.");
+        return;
+    }
+    
+    // Cache zone points
+    while (SQL_MoreRows(hndl))
+    {
+        decl zone_id;
+        decl zp_number;
+        decl Float:x, Float:y, Float:z;
+        
+        SQL_FetchRow(hndl);
+        zone_id = SQL_FetchInt(hndl, 5);
+        zp_number = SQL_FetchInt(hndl, 1);
+        x = SQL_FetchFloat(hndl, 2);
+        y = SQL_FetchFloat(hndl, 3);
+        z = SQL_FetchFloat(hndl, 4);
+        
+        g_ZonesCache[zone_id][zp_number][0] = x;
+        g_ZonesCache[zone_id][zp_number][0] = y;
+        g_ZonesCache[zone_id][zp_number][0] = z;
+    }
+    
+    if (client != -1)
+        PrintToChat(client, "Successfully retrieved %d rows of zone points from DB!", rows);
+}
 
 bool:win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
 {

@@ -43,7 +43,7 @@ GetOrInsertMap(const String:mapname[], bool:curmap=true)
     WritePackString(pack, mapname);
     ResetPack(pack);
     
-    SQL_TQuery(g_Database, T_GetOrInsertMapInfo, query, pack);
+    SQL(query).sqlt(T_GetOrInsertMapInfo, pack);
 }
 
 public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
@@ -84,7 +84,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     {
         Format(STR(buffer), SQL_QUERY[InsertMap], mapname, human_name, tier, is_staged);
         
-        if (!SQL_FastQuery(g_Database, buffer))
+        if (!SQL(buffer).fastq())
         {
             SQL_GetError(g_Database, STR(buffer));
             if (curmap)
@@ -109,7 +109,7 @@ InsertOrUpdatePlayerInfo(client, const String:steamid[])
     decl String:query[256];
     Format(STR(query), SQL_QUERY[GetPlayer], steamid);
     
-    SQL_TQuery(g_Database, T_GetPlayerInfo, query, client);
+    SQL(query).sqlt(T_GetPlayerInfo, client);
 }
 
 WarnPlayerNotRecording(client, bool:retrieve=true)
@@ -164,7 +164,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
             SQL_EscapeString(g_Database, latest_name, STR(db_latest_name));
             Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid);
             
-            if (!SQL_FastQuery(g_Database, buffer))
+            if (!SQL(buffer).fastq())
             {
                 SQL_GetError(g_Database, STR(buffer));
                 LogError("Error updating player info: %s", buffer);
@@ -183,7 +183,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         SQL_EscapeString(g_Database, latest_name, STR(escaped_name));
         Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country);
         
-        if (!SQL_FastQuery(g_Database, buffer))
+        if (!SQL(buffer).fastq())
         {
             SQL_GetError(g_Database, STR(buffer));
             LogError("Error inserting player info: %s", buffer);

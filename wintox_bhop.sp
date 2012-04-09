@@ -42,6 +42,8 @@ public OnConfigsExecuted()
     
     // Cache map info from database
     GetOrInsertMap(g_CurMapName);
+    // Cache zone info from database
+    CacheZones();
 }
 
 public OnGameFrame()
