@@ -64,7 +64,13 @@ stock DisplaySubmenu(Handle:menu, client, time, bool:close_handle=true, last_ind
 
 stock PrevSubmenu(client, bool:redisplay=true)
 {
-    if (MENUS_EMPTY(client))
+    // Our menu stack handles are invalid when the plug-in ends, and if there
+    // are still menus open when we unload, their MenuAction_Cancel handler
+    // still gets called, usually calling PrevSubmenu. So, do nothing.
+    if (g_wintoxExiting)
+        return;
+    
+    if (MENUS_EMPTY(client) || g_wintoxExiting)
         return;
     
     // Pop the info of the menu currently being displayed, so we can close its
@@ -109,9 +115,15 @@ stock CancelSubmenus(client)
     }
 }
 
-#define HANDLE_CANCEL() HandleCancel(param1, param2)
-stock HandleCancel(client, reason)
+#define HANDLE_CANCEL() HandleCancel(menu, param1, param2)
+stock HandleCancel(Handle:menu, client, reason)
 {
+    if (g_wintoxExiting)
+    {
+        CloseHandle(menu);
+        return;
+    }
+    
     if (reason == MenuCancel_Exit)
         CancelSubmenus(client);
     else

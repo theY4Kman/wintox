@@ -29,6 +29,11 @@ public OnPluginStart()
     ServerCommand("exec sourcemod/wintox_bhop.cfg");
 }
 
+public OnPluginEnd()
+{
+    Wintox_Exit();
+}
+
 public OnGameFrame()
 {
 }

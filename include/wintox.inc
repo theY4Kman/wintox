@@ -12,6 +12,8 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
+new bool:g_wintoxExiting = false;
+
 #include "./include/commands"
 #include "./include/sql"
 #include "./include/events"
@@ -27,6 +29,11 @@ Wintox_Init()
     Zones_Init();
     
     AutoExecConfig(true, "wintox");
+}
+
+Wintox_Exit()
+{
+    g_wintoxExiting = true;
 }
 
 public OnConfigsExecuted()
