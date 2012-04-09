@@ -29,6 +29,7 @@ public OnPluginStart()
     Menus_Init();
     Commands_Init();
     win_SQL_Init();
+    Events_Init();
     Zones_Init();
     
     AutoExecConfig(true, "wintox");
@@ -42,8 +43,6 @@ public OnConfigsExecuted()
     
     // Cache map info from database
     GetOrInsertMap(g_CurMapName);
-    // Cache zone info from database
-    CacheZones();
 }
 
 public OnGameFrame()

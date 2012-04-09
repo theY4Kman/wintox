@@ -70,8 +70,8 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
-#define SQL(%1).sqlt(%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
-#define SQL(%1).fastq() SQL_FastQuery(g_Database, (%1))
+#define SQLF(%1) SQL_FastQuery(g_Database, (%1))
+#define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
 
 
 // ===========================================================================
@@ -158,7 +158,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
 //   Zones and points
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertZone,3) = {
-    "INSERT OR REPLACE INTO wintox_zones (fk_map, number, name) VALUES(%d, %d, '%s');",
+    "INSERT OR REPLACE INTO wintox_zones (id, fk_map, number, name) VALUES(%s, %d, %d, '%s');",
     ""
 };
 NEW_SQL_QUERY_PARAMS(DeleteZone,2) = {
@@ -173,12 +173,25 @@ NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
     "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );",
     ""
 };
+NEW_SQL_QUERY_PARAMS(ClearZonePoints,1) = {
+    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND number = %d );",
+    ""
+};
 NEW_SQL_QUERY_PARAMS(GetZones,1) = {
     "SELECT id,number,name FROM wintox_zones WHERE fk_map = %d;",
     ""
 };
+NEW_SQL_QUERY_PARAMS(GetZone,1) = {
+    "SELECT id,name FROM wintox_zones WHERE fk_map = %d AND number = %d;",
+    ""
+};
 NEW_SQL_QUERY_PARAMS(GetZonePoints,1) = {
-    "SELECT wzp.id,wzp.number,x,y,z,wz.number AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);"
+    "SELECT wzp.id,wzp.number,x,y,z,wz.number AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);",
+    ""
+};
+NEW_SQL_QUERY_PARAMS(InsertZonePoint,5) = {
+    "INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) VALUES(%d, %d, %f, %f, %f);",
+    ""
 };
 
 

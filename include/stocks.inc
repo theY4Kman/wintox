@@ -10,7 +10,7 @@
 #define _wintox_stocks_included
 
 #define IS_STR_EMPTY(%1) ((%1)[0] == '\0')
-#define STR(%1) (%1),sizeof((%1))
+#define STR(%1) (%1), sizeof((%1))
 
 /**
  * Converts the whole String to lower case.

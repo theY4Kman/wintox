@@ -34,7 +34,7 @@ new g_CurMapTier = 1;
 #define MAX_POINTS 31
 new Float:g_ZonesCache[MAX_ZONES][MAX_POINTS+1][3];
 new g_ZoneIDs[MAX_ZONES] = { -1, ... };
-new String:g_ZoneNames[MAX_ZONES][64] = { "", ... };
+new String:g_ZoneNames[MAX_ZONES][64];
 new g_ZonesCount = 0;
 new g_NextZone = 0;
 
@@ -67,10 +67,15 @@ Zones_Init()
     RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
     
     new Handle:draw_zones = CreateConVar("wintox_drawzones", "1", "Whether or not to draw zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
     HookConVarChange(draw_zones, ConVar_DrawZones);
+    
+    new Function:on_map_loaded = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnMapLoaded");
+    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, on_map_loaded);
     
     BuildZoneMenu();
 
@@ -86,6 +91,11 @@ Zones_Init()
 public ConVar_DrawZones(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_DrawZones = GetConVarBool(cvar);
+}
+
+public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
+{
+    CacheZones(0);
 }
 
 
@@ -245,6 +255,32 @@ public Action:ConCommand_ClearAllZones(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_ReloadZones(client, args)
+{
+    if (args > 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    Zone_ReloadFromDB(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_SyncZones(client, args)
+{
+    if (args > 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    Zone_SyncToDB(client);
+    
+    return Plugin_Handled;
+}
+
 
 
 /* ========================================================================
@@ -254,6 +290,8 @@ public Action:ConCommand_ClearAllZones(client, args)
 #define ZMENU_INFO_NEW_ZONE "0"
 #define ZMENU_INFO_REMOVE_ZONE "1"
 #define ZMENU_INFO_CLEAR_ALL_ZONES "2"
+#define ZMENU_INFO_RELOAD_ZONES "3"
+#define ZMENU_INFO_SYNC_ZONES "4"
 
 BuildZoneMenu()
 {
@@ -263,6 +301,8 @@ BuildZoneMenu()
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_NEW_ZONE, "Create or edit zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_REMOVE_ZONE, "Remove zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_RELOAD_ZONES, "Reload zones from DB");
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB");
 }
 
 DisplayZoneMenu(client)
@@ -340,6 +380,16 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             AddMenuItem(confirm_menu, "kinda yes", "Yes");
             
             DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
+        }
+        else if (StrEqual(info, ZMENU_INFO_RELOAD_ZONES))
+        {
+            Zone_ReloadFromDB(param1);
+            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+        }
+        else if (StrEqual(info, ZMENU_INFO_SYNC_ZONES))
+        {
+            Zone_SyncToDB(param1);
+            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
         }
     }
     else if (action == MenuAction_Cancel)
@@ -467,6 +517,22 @@ SetZoneMenuTitle()
                         ZONE MANIPULATION FUNCTIONS
    ======================================================================== */
 
+WipeZoneCache()
+{
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        for (new j=0; j<MAX_POINTS+1; j++)
+        {
+            g_ZonesCache[i][j][0] = 0.0;
+            g_ZonesCache[i][j][1] = 0.0;
+            g_ZonesCache[i][j][2] = 0.0;
+        }
+        
+        g_ZoneIDs[i] = -1;
+        g_ZoneNames[i][0] = '\0';
+    }
+}
+
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
 {
     if (zone_id == ZONE_NEXT_NEW_ZONE)
@@ -586,7 +652,9 @@ Zone_FinishZone(client)
     
     SetZoneMenuTitle();
     
-    // SYNC WITH DB /////////////////////////////////////
+    win_SQL_UpsertZone(zone_id);
+    win_SQL_ClearZonePoints(zone_id);
+    win_SQL_InsertZonePoints(zone_id);
 }
 
 Zone_RemoveZone(client, zone_id)
@@ -605,15 +673,7 @@ Zone_RemoveZone(client, zone_id)
 
 Zone_ClearAllZones(client)
 {
-    for (new i=0; i<MAX_ZONES; i++)
-    {
-        for (new j=0; j<MAX_POINTS+1; j++)
-        {
-            g_ZonesCache[i][j][0] = 0.0;
-            g_ZonesCache[i][j][1] = 0.0;
-            g_ZonesCache[i][j][2] = 0.0;
-        }
-    }
+    WipeZoneCache();
     
     g_ZonesCount = 0;
     g_NextZone = 0;
@@ -628,13 +688,26 @@ Zone_ClearAllZones(client)
 // Inserts/updates all the zones in the cache to the database
 Zone_SyncToDB(client)
 {
-    // SYNC WITH DB //////////////////////////////////////////////////////////
+    new zones_synced = 0;
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        if (ZONE_POINTS[i] <= 0)
+            continue;
+        
+        win_SQL_UpsertZone(i);
+        win_SQL_ClearZonePoints(i);
+        win_SQL_InsertZonePoints(i);
+        
+        zones_synced++;
+    }
+    
+    ReplyToCommand(client, "Successfully synced %d zones to the database!", zones_synced);
 }
 
 // Grabs all the zones from the database and puts them in the cache
 Zone_ReloadFromDB(client)
 {
-    // SYNC WITH DB //////////////////////////////////////////////////////////
+    CacheZones(client);
 }
 
 
@@ -684,7 +757,7 @@ CacheZones(const client=-1)
     decl String:query[256];
     
     Format(STR(query), SQL_QUERY[GetZones], g_CurMapID);
-    SQL(query).sqlt(T_CacheZones, client);
+    SQLT(query, T_CacheZones, client);
 }
 
 public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
@@ -698,41 +771,53 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         Format(STR(buffer), "Error retrieving zones from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            PrintToChat(client, "%s", buffer);
+            ReplyToCommand(client, "[WTX] %s", buffer);
+        return;
     }
     
-    rows = SQL_GetRowCount();
+    rows = SQL_GetRowCount(hndl);
     if (rows == 0)
     {
         if (client != -1)
         {
-            PrintToChat(client, "Successfully retrieved zones from DB, but there were none :'(");
-            PrintToChat(client, "Use sm_newzone or /zonemenu to create some."
+            ReplyToCommand(client, "[WTX] Successfully retrieved zones from DB, but there were none :'(");
+            ReplyToCommand(client, "[WTX] Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
         }
+        
         return;
     }
     
+    WipeZoneCache();
+    
     // Cache zones
-    while (SQL_MoreRows(hndl))
+    new zone_id_max = 0;
+    g_ZonesCount = 0;
+    while (SQL_FetchRow(hndl))
     {
         decl zone_dbid;
         decl zone_id;
         decl String:zone_name[64];
         
-        SQL_FetchRow(hndl);
         zone_dbid = SQL_FetchInt(hndl, 0);
         zone_id = SQL_FetchInt(hndl, 1);
         SQL_FetchString(hndl, 2, STR(zone_name));
         
         g_ZoneIDs[zone_id] = zone_dbid;
-        strcopy(STR(g_ZoneNames[zone_id), zone_name);
+        strcopy(g_ZoneNames[zone_id], sizeof(g_ZoneNames[]), zone_name);
+        
+        g_ZonesCount++;
+        if (zone_id > zone_id_max)
+            zone_id_max = zone_id;
     }
     
+    g_NextZone = zone_id_max + 1;
+    SetZoneMenuTitle();
+    
     if (client != -1)
-        PrintToChat(client, "Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
+        ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
     
     Format(STR(buffer), SQL_QUERY[GetZonePoints], g_CurMapID);
-    SQL(buffer).sqlt(T_CacheZonePoints, client);
+    SQLT(buffer, T_CacheZonePoints, client);
 }
 
 public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
@@ -746,56 +831,77 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Format(STR(buffer), "Error retrieving zone points from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            PrintToChat(client, "%s", buffer);
+            ReplyToCommand(client, "[WTX] %s", buffer);
+        return;
     }
     
-    rows = SQL_GetRowCount();
+    rows = SQL_GetRowCount(hndl);
     if (rows == 0)
     {
         if (client != -1)
-            PrintToChat(client, "Successfully retrieved zone points from DB, but there were none.");
+            ReplyToCommand(client, "[WTX] Successfully retrieved zone points from DB, but there were none.");
         return;
     }
     
     // Cache zone points
-    while (SQL_MoreRows(hndl))
+    while (SQL_FetchRow(hndl))
     {
         decl zone_id;
         decl zp_number;
         decl Float:x, Float:y, Float:z;
         
-        SQL_FetchRow(hndl);
         zone_id = SQL_FetchInt(hndl, 5);
         zp_number = SQL_FetchInt(hndl, 1);
         x = SQL_FetchFloat(hndl, 2);
         y = SQL_FetchFloat(hndl, 3);
         z = SQL_FetchFloat(hndl, 4);
         
-        g_ZonesCache[zone_id][zp_number][0] = x;
-        g_ZonesCache[zone_id][zp_number][0] = y;
-        g_ZonesCache[zone_id][zp_number][0] = z;
+        if (zp_number > 0)
+        {
+            g_ZonesCache[zone_id][zp_number][0] = x;
+            g_ZonesCache[zone_id][zp_number][1] = y;
+            g_ZonesCache[zone_id][zp_number][2] = z;
+        }
+        // Metadata is all integers
+        else
+        {
+            (_:g_ZonesCache[zone_id][zp_number][0]) = RoundToFloor(x);
+            (_:g_ZonesCache[zone_id][zp_number][1]) = RoundToFloor(y);
+            (_:g_ZonesCache[zone_id][zp_number][2]) = RoundToFloor(z);
+        }
     }
     
     if (client != -1)
-        PrintToChat(client, "Successfully retrieved %d rows of zone points from DB!", rows);
+        ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
 bool:win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
 {
     decl String:buffer[256];
     decl String:esc_name[256];
+    new String:sz_zone_dbid[16] = "NULL";
+    
+    if (g_ZoneIDs[zone_id] != -1)
+        IntToString(g_ZoneIDs[zone_id], STR(sz_zone_dbid));
     
     SQL_EscapeString(g_Database, name, STR(esc_name));
-    Format(STR(buffer), SQL_QUERY[InsertZone], g_CurMapID, zone_id, esc_name);
-    
-    if (!SQL_FastQuery(g_Database, buffer))
-    {
-        SQL_GetError(g_Database, STR(buffer));
-        LogError("Error upserting zone %d to database: %s", zone_id, buffer);
-        return false;
-    }
+    Format(STR(buffer), SQL_QUERY[InsertZone], sz_zone_dbid, g_CurMapID, zone_id, esc_name);
+    SQLT(buffer, T_UpsertZone, zone_id);
     
     return true;
+}
+
+public T_UpsertZone(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new zone_id = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error upserting zone %d to database: %s", zone_id, error);
+        return;
+    }
+    
+    g_ZoneIDs[zone_id] = SQL_GetInsertId(g_Database);
 }
 
 bool:win_SQL_DeleteZone(zone_id)
@@ -807,6 +913,104 @@ bool:win_SQL_DeleteZone(zone_id)
     {
         SQL_GetError(g_Database, STR(buffer));
         LogError("Error deleting zone %d from database: %s", zone_id, buffer);
+        return false;
+    }
+    
+    return true;
+}
+
+win_SQL_InsertZonePoints(zone_id)
+{
+    new zone_dbid = g_ZoneIDs[zone_id];
+    
+    if (zone_dbid == -1)
+    {
+        decl String:buffer[256];
+        Format(STR(buffer), SQL_QUERY[GetZone], g_CurMapID, zone_id);
+        SQLT(buffer, T_GetZoneDBIDForInsertZonePoints, zone_id);
+    }
+    else
+        __win_SQL_InsertZonePoints(zone_id, zone_dbid);
+}
+
+public T_GetZoneDBIDForInsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new zone_id = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving zone %d DB ID for points insertion: %s", error);
+        return;
+    }
+    
+    if (!SQL_FetchRow(hndl))
+        return;
+    
+    new zone_dbid = SQL_FetchInt(hndl, 0);
+    
+    __win_SQL_InsertZonePoints(zone_id, zone_dbid);
+}
+
+__win_SQL_InsertZonePoints(zone_id, zone_dbid)
+{
+    new Handle:pack = CreateDataPack();
+    
+    WritePackCell(pack, zone_id);
+    WritePackCell(pack, zone_dbid);
+    WritePackCell(pack, 0);
+    ResetPack(pack);
+    
+    T_InsertZonePoints(INVALID_HANDLE, INVALID_HANDLE, "", pack);
+}
+
+public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    
+    ResetPack(pack);
+    new zone_id = ReadPackCell(pack);
+    new zone_dbid = ReadPackCell(pack);
+    new zp_number = ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (zp_number > ZONE_POINTS[zone_id]+1)
+        return;
+    
+    new Float:x = g_ZonesCache[zone_id][zp_number][0];
+    new Float:y = g_ZonesCache[zone_id][zp_number][1];
+    new Float:z = g_ZonesCache[zone_id][zp_number][2];
+    
+    // Need to convert metadata from ints to floats
+    if (zp_number == 0)
+    {
+        x = float(_:x);
+        y = float(_:y);
+        z = float(_:z);
+    }
+    
+    decl String:buffer[256];
+    Format(STR(buffer), SQL_QUERY[InsertZonePoint], zone_dbid, zp_number, x, y, z);
+    
+    zp_number++;
+    
+    pack = CreateDataPack();
+    WritePackCell(pack, zone_id);
+    WritePackCell(pack, zone_dbid);
+    WritePackCell(pack, zp_number);
+    ResetPack(pack);
+    
+    SQLT(buffer, T_InsertZonePoints, pack);
+}
+
+bool:win_SQL_ClearZonePoints(zone_id)
+{
+    decl String:buffer[256];
+    Format(STR(buffer), SQL_QUERY[ClearZonePoints], g_CurMapID, zone_id);
+    
+    if (!SQL_FastQuery(g_Database, buffer))
+    {
+        SQL_GetError(g_Database, STR(buffer));
+        LogError("Error clearing zone %d points from database: %s", zone_id, buffer);
         return false;
     }
     
