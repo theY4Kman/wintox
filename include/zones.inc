@@ -9,9 +9,14 @@
 #endif
 #define _wintox_zones_included
 
+#include <sdktools>
 #include "./include/commands"
 
-#define ZONE_NEXT_NEW_ZONE -1
+#define ZONE_NEXT_NEW_ZONE -2
+#define INVALID_ZONE -1
+#define DEFAULT_ZONE_HEIGHT 64
+
+#define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
 
 // Current map info
 new String:g_CurMapName[256];
@@ -24,22 +29,28 @@ new g_CurMapTier = 1;
 // * The first point is used to store information about the zone, including
 //   how many points are in the zone.
 #define MAX_ZONES 32
-new Float:g_ZonesCache[MAX_ZONES][32][3];
+#define MAX_POINTS 31
+new Float:g_ZonesCache[MAX_ZONES][MAX_POINTS+1][3];
 new g_ZonesCount = 0;
+new g_NextZone = 0;
 
-#define ZonePoints Float
-#define ZONE_POINTS[%1] g_ZonesCache[(%1)][0][0]
+#define ZONE_POINTS[%1] (_:g_ZonesCache[(%1)][0][0])
+#define ZONE_HEIGHT[%1] (_:g_ZonesCache[(%1)][0][1])
+#define ZONE_EDITING[%1] (bool:g_ZonesCache[(%1)][0][2])
 
-new g_ClientEditZone[MAXPLAYERS] = { -1, ... };
+new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new Handle:g_ZoneMenu = INVALID_HANDLE;
+
+new bool:g_DrawZones = true;
+
+new g_mdlBeam = 0;
+new g_mdlHalo = 0;
 
 ///////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings
 ///////////////////////////////////////////////////////
 #pragma unused g_CurMapStaged
 #pragma unused g_CurMapTier
-#pragma unused g_ZonesCache
-#pragma unused g_ZonesCount
 
 Zones_Init()
 {
@@ -53,7 +64,24 @@ Zones_Init()
     RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
     
+    new Handle:draw_zones = CreateConVar("wintox_drawzones", "1", "Whether or not to draw zones (they will be drawn while editing zones, regardless)");
+    g_DrawZones = GetConVarBool(draw_zones);
+    HookConVarChange(draw_zones, ConVar_DrawZones);
+    
     BuildZoneMenu();
+
+    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")) ||
+        !(g_mdlHalo = PrecacheModel("materials/sprites/halo01.vmt")))
+	{
+        LogError("Couldn't precache model file(s)!");
+	}
+    
+    CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
+}
+
+public ConVar_DrawZones(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DrawZones = GetConVarBool(cvar);
 }
 
 
@@ -227,7 +255,7 @@ BuildZoneMenu()
 {
     g_ZoneMenu = CreateMenu(MenuHandler_RootZoneMenu);
     
-    SetMenuTitle(g_ZoneMenu, "Zones Menu (cur %d zones)", g_ZonesCount);
+    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_NEW_ZONE, "Create or edit zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_REMOVE_ZONE, "Remove zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
@@ -255,13 +283,15 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             SetMenuExitBackButton(zone_id_submenu, true);
             SetMenuTitle(zone_id_submenu, "Select a zone index");
             
-            AddMenuItem(zone_id_submenu, "-1", "Next new zone");
-            AddMenuItem(zone_id_submenu, "0", "0 (start zone)");
+            AddMenuItem(zone_id_submenu, "-2", "Next new zone");
+            
+            decl String:buffer[32];
+            Format(STR(buffer), "0, start zone (%s)", ZONE_POINTS[0] ? "edit" : "create");
+            AddMenuItem(zone_id_submenu, "0", buffer);
+            
             for (new i=1; i<MAX_ZONES; i++)
             {
-                decl String:buffer[32];
-                
-                Format(STR(buffer), "%d (%s)", i, _:ZONE_POINTS[i] ? "edit" : "create");
+                Format(STR(buffer), "%d (%s)", i, ZONE_POINTS[i] ? "edit" : "create");
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
@@ -269,6 +299,13 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
         }
         else if (StrEqual(info, ZMENU_INFO_REMOVE_ZONE))
         {
+            if (g_ZonesCount == 0)
+            {
+                PrintToChat(param1, "There are no zones to delete!");
+                DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+                return;
+            }
+            
             new Handle:zone_id_submenu = CreateMenu(MenuHandler_RemoveZoneIndex);
             
             SetMenuExitButton(zone_id_submenu, true);
@@ -279,7 +316,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             {
                 decl String:buffer[32];
                 
-                if (_:ZONE_POINTS[i] == 0)
+                if (ZONE_POINTS[i] == 0)
                     continue;
                 
                 IntToString(i, STR(buffer));
@@ -308,6 +345,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 #define ZMENU_EDIT_NEW_POINT "new"
 #define ZMENU_EDIT_REMOVE_LAST "removelast"
 #define ZMENU_EDIT_CLEAR_ALL "clear"
+#define ZMENU_EDIT_FINISH "finish"
 
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -319,9 +357,10 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         
         if (zone_id == ZONE_NEXT_NEW_ZONE)
         {
-            zone_id = g_ZonesCount;
-            g_ZonesCount++;
+            zone_id = g_NextZone++;
         }
+        
+        Zone_BeginNewZone(param1, zone_id);
         
         new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
         SetMenuExitButton(zone_menu, true);
@@ -331,6 +370,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
         AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
         AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
+        AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
         
         // Pop the zone index submenu, but don't redisplay the root zone menu
         PrevSubmenu(param1, false);
@@ -400,6 +440,12 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             Zone_RemoveLastPoint(param1);
         else if (StrEqual(info, ZMENU_EDIT_CLEAR_ALL))
             Zone_ClearAllPoints(param1);
+        else if (StrEqual(info, ZMENU_EDIT_FINISH))
+        {
+            Zone_FinishZone(param1);
+            PrevSubmenu(param1);
+            return;
+        }
         
         DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
     }
@@ -416,44 +462,183 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
 {
     if (zone_id == ZONE_NEXT_NEW_ZONE)
     {
-        zone_id = g_ZonesCount;
-        g_ZonesCount++;
+        zone_id = g_NextZone;
+        if (zone_id >= MAX_ZONES)
+        {
+            ReplyToCommand(client, "You've hit the maximum number of zones (%d).", MAX_ZONES);
+            return;
+        }
     }
     
-    PrintToServer("[wtx-dbg] CLIENT %d BEGINNING ZONE %d", client, zone_id);/////////////////
+    if (zone_id >= MAX_ZONES || zone_id < 0)
+    {
+        ReplyToCommand(client, "That zone index (%d) is invalid.", zone_id);
+        return;
+    }
+    
+    g_ZonesCount++;
+    g_NextZone = zone_id + 1;
+    
+    g_ClientEditZone[client] = zone_id;
+    ZONE_HEIGHT[zone_id] = DEFAULT_ZONE_HEIGHT;
+    ZONE_EDITING[zone_id] = true;
 }
 
 Zone_NewZonePoint(client)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d CREATING ZONE POINT", client);/////////////////
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    new point = ZONE_POINTS[zone_id] + 1;
+    
+    if (point >= MAX_POINTS)
+    {
+        ReplyToCommand(client, "You've hit the maximum number of zone points (%d).", MAX_POINTS);
+        return;
+    }
+    
+    GetClientAbsOrigin(client, g_ZonesCache[zone_id][point]);
+    ZONE_POINTS[zone_id]++;
 }
 
 Zone_ZoneHeight(client, height)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d SET ZONE HEIGHT AT %d", client, height);/////////////////
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    ZONE_HEIGHT[zone_id] = height;
 }
 
 Zone_RemoveLastPoint(client)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d REMOVED LAST POINT", client);/////////////////
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    new point = ZONE_POINTS[zone_id];
+    if (point == 0)
+    {
+        ReplyToCommand(client, "There are no points to remove.");
+        return;
+    }
+    
+    g_ZonesCache[zone_id][point][0] = 0.0;
+    g_ZonesCache[zone_id][point][1] = 0.0;
+    g_ZonesCache[zone_id][point][2] = 0.0;
+    ZONE_POINTS[zone_id]--;
 }
 
 Zone_ClearAllPoints(client)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d REMOVED LAST POINT", client);/////////////////
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    for (new i=1; i<MAX_POINTS; i++)
+    {
+        g_ZonesCache[zone_id][i][0] = 0.0;
+        g_ZonesCache[zone_id][i][1] = 0.0;
+        g_ZonesCache[zone_id][i][2] = 0.0;
+    }
+    
+    ZONE_POINTS[zone_id] = 0;
+    
+    ReplyToCommand(client, "Cleared all points in zone %d.", zone_id);
 }
 
 Zone_FinishZone(client)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d FINISHING ZONE", client);/////////////////
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    ZONE_EDITING[zone_id] = false;
+    g_ClientEditZone[client] = INVALID_ZONE;
+    
+    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
+    
+    // SYNC WITH DB /////////////////////////////////////
 }
 
 Zone_RemoveZone(client, zone_id)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d REMOVING ZONE %d", client, zone_id);/////////////////
+    for (new i=0; i<MAX_POINTS+1; i++)
+    {
+        g_ZonesCache[zone_id][i][0] = 0.0;
+        g_ZonesCache[zone_id][i][1] = 0.0;
+        g_ZonesCache[zone_id][i][2] = 0.0;
+    }
+    
+    // SYNC WITH DB /////////////////////////////////////
+    
+    ReplyToCommand(client, "Removed zone %d.", zone_id);
 }
 
 Zone_ClearAllZones(client)
 {
-    PrintToServer("[wtx-dbg] CLIENT %d CLEARING ALL ZONES", client);/////////////////
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        for (new j=0; j<MAX_POINTS+1; j++)
+        {
+            g_ZonesCache[i][j][0] = 0.0;
+            g_ZonesCache[i][j][1] = 0.0;
+            g_ZonesCache[i][j][2] = 0.0;
+        }
+    }
+    
+    // SYNC WITH DB /////////////////////////////////////
+    
+    ReplyToCommand(client, "Cleared all zones! Phew, that's a load off.");
+}
+
+
+/* ========================================================================
+                          ZONE DISPLAY/TEMPENTS
+   ======================================================================== */
+
+public Action:Timer_DrawZones(Handle:timer)
+{
+    new color[4] = {255, 255, 255, 150};
+    
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        if (!g_DrawZones && !ZONE_EDITING[i])
+                continue;
+        
+        // Only draw lines, so no less than 2 points
+        if (ZONE_POINTS[i] <= 1)
+            continue;
+        
+        #define BEAM(%1,%2) TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlHalo, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
+                             TE_SendToAll()
+        
+        decl j;
+        for (j=2; j<ZONE_POINTS[i]+1; j++)
+        {
+            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][j]);
+        }
+        
+        // Connect first and last point (if 3 or more points)
+        if (j > 2)
+        {
+            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][1]);
+        }
+    }
 }
