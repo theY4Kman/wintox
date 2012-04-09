@@ -9,8 +9,6 @@
 #endif
 #define _wintox_commands_included
 
-#pragma semicolon 1
-
 #include <sourcemod>
 #include "./include/stocks"
 #include "./include/version"
@@ -35,7 +33,7 @@ Commands_Init()
     CreateConVar("wintox_version", WINTOX_VERSION, "Version of Wintox core", FCVAR_SPONLY|FCVAR_DONTRECORD);
 }
 
-stock RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
+RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
 {
     new Handle:pack = CreateDataPack();
     WritePackString(pack, cmd);
@@ -60,7 +58,7 @@ stock RegisterCommand(const String:cmd[], ConCmd:callback, const String:descript
  * Inside a concommand callback, uses ReplyToCommand to display the command
  * description to the client.
  */
-stock ReplyWithDescription(client)
+ReplyWithDescription(client)
 {
     decl String:buffer[512];
     

@@ -10,10 +10,8 @@
 #define WINTOX_BHOP_VERSION "0.1dev"
 
 #include <sourcemod>
-#include "./include/commands"
 #include "./include/version"
-#include "./include/sql"
-#include "./include/events"
+#include "./include/wintox"
 
 public Plugin:myinfo = 
 {
@@ -26,23 +24,9 @@ public Plugin:myinfo =
 
 public OnPluginStart()
 {
-    Menus_Init();
-    Commands_Init();
-    win_SQL_Init();
-    Events_Init();
-    Zones_Init();
+    Wintox_Init();
     
-    AutoExecConfig(true, "wintox");
-}
-
-public OnConfigsExecuted()
-{
-    // Initialize database connections and the such
-    win_SQL_Connect();
-    win_SQL_CreateTables();
-    
-    // Cache map info from database
-    GetOrInsertMap(g_CurMapName);
+    ServerCommand("exec sourcemod/wintox_bhop.cfg");
 }
 
 public OnGameFrame()

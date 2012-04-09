@@ -5,13 +5,15 @@
  */
 
 #if defined _wintox_zones_included
- #endinput
+    #endinput
 #endif
 #define _wintox_zones_included
 
 #include <sdktools>
+
 #include "./include/commands"
 #include "./include/sql"
+#include "./include/stocks"
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
