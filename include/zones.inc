@@ -37,7 +37,7 @@ new g_CurMapTier = 1;
 #define MAX_POINTS 30
 #define POINTS_LENGTH (MAX_POINTS + ZONE_META_POINTS)
 
-#define ZONE_POINT[%1][%2] (g_ZonesCache[(%1)][(%2)]
+#define ZONE_POINT[%1][%2] (g_ZonesCache[(%1)][(%2)])
 #define ZONE_POINTS[%1] (_:g_ZonesCache[(%1)][0][0])
 #define ZONE_HEIGHT[%1] (_:g_ZonesCache[(%1)][0][1])
 #define ZONE_EDITING[%1] (bool:g_ZonesCache[(%1)][0][2])
@@ -53,7 +53,6 @@ new Float:g_ZonesCache[MAX_ZONES][POINTS_LENGTH][3];
 new g_ZoneIDs[MAX_ZONES] = { -1, ... };
 new String:g_ZoneNames[MAX_ZONES][64];
 new g_ZonesCount = 0;
-new g_NextZone = 0;
 
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new Handle:g_ZoneMenu = INVALID_HANDLE;
@@ -432,7 +431,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         new zone_id = StringToInt(sz_zone_id);
         
         if (zone_id == ZONE_NEXT_NEW_ZONE)
-            zone_id = g_NextZone++;
+            zone_id = GetNextNewZone();
         
         Zone_BeginNewZone(param1, zone_id);
         
@@ -560,11 +559,22 @@ CountZones()
     return zones_count;
 }
 
+GetNextNewZone()
+{
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        if (ZONE_EMPTY(i))
+            return i;
+    }
+    
+    return -1;
+}
+
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
 {
     if (zone_id == ZONE_NEXT_NEW_ZONE)
     {
-        zone_id = g_NextZone;
+        zone_id = GetNextNewZone();
         if (zone_id >= MAX_ZONES)
         {
             ReplyToCommand(client, "You've hit the maximum number of zones (%d).", MAX_ZONES);
@@ -580,8 +590,6 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
     
     if (ZONE_EMPTY(zone_id))
         g_ZonesCount++;
-    
-    g_NextZone = zone_id + 1;
     
     g_ClientEditZone[client] = zone_id;
     ZONE_HEIGHT[zone_id] = DEFAULT_ZONE_HEIGHT;
@@ -704,7 +712,6 @@ Zone_ClearAllZones(client)
     WipeZoneCache();
     
     g_ZonesCount = 0;
-    g_NextZone = 0;
     SetZoneMenuTitle();
     
     win_SQL_ClearAllZonePoints();
@@ -760,7 +767,7 @@ public Action:Timer_DrawZones(Handle:timer)
                              TE_SendToAll()
         
         decl j;
-        for (j=ZONE_FIRST_POINT; j<ZONE_POINTS[i] + ZONE_META_POINTS; j++)
+        for (j=ZONE_FIRST_POINT+1; j<ZONE_POINTS[i] + ZONE_META_POINTS; j++)
         {
             BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][j]);
         }
@@ -768,7 +775,7 @@ public Action:Timer_DrawZones(Handle:timer)
         // Connect first and last point (if 3 or more points)
         if (j > ZONE_META_POINTS + 1)
         {
-            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][1]);
+            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][ZONE_FIRST_POINT]);
         }
     }
 }
@@ -838,9 +845,6 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
             zone_id_max = zone_id;
     }
     
-    g_NextZone = zone_id_max + 1;
-    SetZoneMenuTitle();
-    
     if (client != -1)
         ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
     
@@ -895,6 +899,8 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         g_ZonesCache[zone_id][zp_number][1] = y;
         g_ZonesCache[zone_id][zp_number][2] = z;
     }
+    
+    SetZoneMenuTitle();
     
     if (client != -1)
         ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);
