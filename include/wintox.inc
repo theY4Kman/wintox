@@ -15,6 +15,7 @@
 new bool:g_wintoxExiting = false;
 new g_CurrentTick = 0;
 
+#include "./include/game"
 #include "./include/commands"
 #include "./include/sql"
 #include "./include/events"
