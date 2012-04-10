@@ -144,6 +144,7 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
 public Action:ConCommand_ZoneMenu(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     DisplayZoneMenu(client);
     
@@ -153,6 +154,7 @@ public Action:ConCommand_ZoneMenu(client, args)
 public Action:ConCommand_NewZone(client, args)
 {
     CHECK_ARGS_UPPER(1)
+    RESET_REPLY()
     
     new zone_id = ZONE_NEXT_NEW_ZONE;
     
@@ -176,6 +178,7 @@ public Action:ConCommand_NewZone(client, args)
 public Action:ConCommand_NewZonePoint(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_NewZonePoint(client);
     
@@ -185,6 +188,7 @@ public Action:ConCommand_NewZonePoint(client, args)
 public Action:ConCommand_ZoneHeight(client, args)
 {
     EXACT_ARGS(1)
+    RESET_REPLY()
     
     decl height;
     decl String:sz_height[32];
@@ -204,6 +208,7 @@ public Action:ConCommand_ZoneHeight(client, args)
 public Action:ConCommand_SetFlag(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_SetFlag(client);
     
@@ -213,6 +218,7 @@ public Action:ConCommand_SetFlag(client, args)
 public Action:ConCommand_RemoveLastPoint(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_RemoveLastPoint(client);
     
@@ -222,6 +228,7 @@ public Action:ConCommand_RemoveLastPoint(client, args)
 public Action:ConCommand_ClearAllPoints(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_ClearAllPoints(client);
     
@@ -231,6 +238,7 @@ public Action:ConCommand_ClearAllPoints(client, args)
 public Action:ConCommand_FinishZone(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_FinishZone(client);
     
@@ -240,6 +248,7 @@ public Action:ConCommand_FinishZone(client, args)
 public Action:ConCommand_RemoveZone(client, args)
 {
     EXACT_ARGS(1)
+    RESET_REPLY()
     
     decl zone_id;
     decl String:sz_zone_id[32];
@@ -259,6 +268,7 @@ public Action:ConCommand_RemoveZone(client, args)
 public Action:ConCommand_ClearAllZones(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_ClearAllZones(client);
     
@@ -268,6 +278,7 @@ public Action:ConCommand_ClearAllZones(client, args)
 public Action:ConCommand_ReloadZones(client, args)
 {
     NO_ARGS()
+    RESET_REPLY()
     
     Zone_ReloadFromDB(client);
     
@@ -276,11 +287,8 @@ public Action:ConCommand_ReloadZones(client, args)
 
 public Action:ConCommand_SyncZones(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
+    RESET_REPLY()
     
     Zone_SyncToDB(client);
     
@@ -849,13 +857,8 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, points)
     
     if (g_ZoneSyncNotifyClient != -1)
     {
-        decl String:buffer[256];
-        Format(STR(buffer), "Successfully synced %d zones to the database!", g_ZonesSynced);
-        
-        if (g_ZoneSyncReplySource == SM_REPLY_TO_CHAT)
-            PrintToChat(g_ZoneSyncNotifyClient, "%s", buffer);
-        else
-            PrintToConsole(g_ZoneSyncNotifyClient, "%s", buffer);
+        SetCmdReplySource(g_ZoneSyncReplySource);
+        Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones to the database!", g_ZonesSynced);
         
         g_ZoneSyncNotifyClient = -1;
     }
@@ -997,7 +1000,7 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         Format(STR(buffer), "Error retrieving zones from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            Reply(client, "[WTX] %s", buffer);
+            Reply(client, "%s", buffer);
         return;
     }
     
@@ -1006,8 +1009,8 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     {
         if (client != -1)
         {
-            Reply(client, "[WTX] Successfully retrieved zones from DB, but there were none :'(");
-            Reply(client, "[WTX] Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
+            Reply(client, "Successfully retrieved zones from DB, but there were none :'(");
+            Reply(client, "Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
         }
         
         return;
@@ -1037,7 +1040,7 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     }
     
     if (client != -1)
-        Reply(client, "[WTX] Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
+        Reply(client, "Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
     
     Format(STR(buffer), SQL_QUERY[GetZonePoints], g_CurMapID);
     SQLT(buffer, T_CacheZonePoints, client);
@@ -1054,7 +1057,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Format(STR(buffer), "Error retrieving zone points from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            Reply(client, "[WTX] %s", buffer);
+            Reply(client, "%s", buffer);
         return;
     }
     
@@ -1062,7 +1065,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     if (rows == 0)
     {
         if (client != -1)
-            Reply(client, "[WTX] Successfully retrieved zone points from DB, but there were none.");
+            Reply(client, "Successfully retrieved zone points from DB, but there were none.");
         return;
     }
     
@@ -1100,7 +1103,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     
     g_ZoneCacheInProgress = false;
     if (client != -1)
-        Reply(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);
+        Reply(client, "Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
 win_SQL_UpsertZone(zone_id, const String:name[]="Zone")

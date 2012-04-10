@@ -43,5 +43,5 @@ stock Reply(client, const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 3);
     
-    Client_Reply(client, "{red}[WTX]{normal} %s", buffer);
+    Client_Reply(client, "{R}[WTX]{N} %s", buffer);
 }

@@ -14,6 +14,8 @@
 #include "./include/version"
 #include "./include/menus"
 
+#define RESET_REPLY() SetCmdReplySource(SM_REPLY_TO_CONSOLE);
+
 #define EXACT_ARGS(%1) \
     if (args != (%1)) \
     { \
