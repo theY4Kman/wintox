@@ -33,7 +33,3 @@ public OnPluginEnd()
 {
     Wintox_Exit();
 }
-
-public OnGameFrame()
-{
-}

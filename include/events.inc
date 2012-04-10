@@ -25,6 +25,8 @@ Events_Init()
 {
     // public(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
     g_fwdMapLoaded = CreateForward(ET_Ignore, Param_Cell, Param_String, Param_String, Param_Cell, Param_Cell);
+    
+    HookEvent("player_jump", Event_PlayerJump);
 }
 
 public OnMapStart()
@@ -51,6 +53,15 @@ public OnClientDisconnected(client)
     
     for (new i=0; i<MAX_ZONES; i++)
         g_StartTimes[client][i] = 0.0;
+    
+    g_TimerEnabled[client] = true;
+}
+
+public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
+{
+    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    if (0 < client <= MaxClients)
+        g_Jumps[client]++;
 }
 
 // Tries to retrieve the current map info 
