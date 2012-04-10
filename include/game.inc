@@ -14,9 +14,11 @@
 #endif
 
 #if defined(__GAME_CSTRIKE)
+    #include <cstrike>
     #define SPECTATOR_TEAM CS_TEAM_SPECTATOR
 
 #elseif defined(__GAME_TF2)
+    #include <tf2>
     #define SPECTATOR_TEAM TFTeam_Spectator
 
 #endif

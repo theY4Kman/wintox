@@ -30,6 +30,7 @@ Events_Init()
     g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell);
     
     HookEvent("player_jump", Event_PlayerJump);
+    HookEvent("player_team", Event_PlayerTeam);
 }
 
 public OnMapStart()
@@ -68,8 +69,24 @@ public OnClientDisconnected(client)
 public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    
+    // How the FUCK did they just jump? Aliens...
+    if (!g_IsPlaying[client])
+        return;
+    
     if (0 < client <= MaxClients)
         g_Jumps[client]++;
+}
+
+public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
+{
+    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    new team = GetEventInt(event, "team");
+    
+    if (team == 0 || team == SPECTATOR_TEAM)
+        g_IsPlaying[client] = false;
+    else
+        g_IsPlaying[client] = true;
 }
 
 // Tries to retrieve the current map info 

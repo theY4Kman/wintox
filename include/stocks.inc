@@ -12,6 +12,7 @@
 #include <smlib>
 
 #define MIN(%1,%2) ((%1) < (%2) ? (%1) : (%2))
+#define MAX(%1,%2) ((%1) > (%2) ? (%1) : (%2))
 
 #define IS_STR_EMPTY(%1) ((%1)[0] == '\0')
 #define STR(%1) (%1), sizeof((%1))

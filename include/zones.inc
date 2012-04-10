@@ -17,7 +17,8 @@
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
-#define DEFAULT_ZONE_HEIGHT 100
+#define DEFAULT_ZONE_HEIGHT 80
+#define MIN_FLAG_HEIGHT 80.0
 
 #define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
 
@@ -912,7 +913,7 @@ DrawFlag(zone_id, const color[4]={ 255, 255, 255, 255 })
         TE_SendToAll(); \
     }
     
-    new Float:flag_pole_height = MIN(float(ZONE_HEIGHT[zone_id]), 100.0);
+    new Float:flag_pole_height = MAX(float(ZONE_HEIGHT[zone_id]), MIN_FLAG_HEIGHT);
     new Float:flag_height = flag_pole_height * (1.0 / 6.0);
     
     new Float:vec_a[3];
