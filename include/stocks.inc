@@ -9,8 +9,15 @@
 #endif
 #define _wintox_stocks_included
 
+#define MIN(%1,%2) ((%1) < (%2) ? (%1) : (%2))
+
 #define IS_STR_EMPTY(%1) ((%1)[0] == '\0')
 #define STR(%1) (%1), sizeof((%1))
+
+#define ARRAY(%1)[%2] GetArrayCell((%1), (%2))
+#define ARRAY_SET(%1)[%2]\32=\32%3 SetArrayCell((%1), (%2), (%3))
+
+#define VEC_PRINT(%1) (%1)[0], (%1)[1], (%1)[2]
 
 /**
  * Converts the whole String to lower case.

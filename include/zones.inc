@@ -28,8 +28,8 @@ new String:g_CurMapHumanName[256];
 new bool:g_CurMapStaged;
 new g_CurMapTier = 1;
 
-#define ZONE_METADATA 0
-#define ZONE_FLAG 1
+#define ZONE_METADATA_POINT 0
+#define ZONE_FLAG_POINT 1
 #define ZONE_META_POINTS 2
 #define ZONE_FIRST_POINT ZONE_META_POINTS
 
@@ -44,6 +44,20 @@ new g_CurMapTier = 1;
 #define ZONE_POINT_EMPTY(%1,%2) (g_ZonesCache[%1][%2][0] == 0.0 && g_ZonesCache[%1][%2][1] == 0.0 && g_ZonesCache[%1][%2][2] == 0.0)
 #define ZONE_EMPTY(%1) (ZONE_POINTS[%1] == 0 || ZONE_POINT_EMPTY(%1,ZONE_FIRST_POINT))
 
+#define ZONE_FLAG[%1][%2] (g_ZonesCache[(%1)][ZONE_FLAG_POINT][(%2)])
+#define ZONE_FLAG_EMPTY(%1) (ZONE_FLAG[%1][0] == 0.0 && ZONE_FLAG[%1][1] == 0.0 && ZONE_FLAG[%1][2] == 0.0)
+
+#define FLAG_COLOR_START { 0, 255, 50, 200 }
+#define FLAG_COLOR_END { 255, 100, 0, 200 }
+#define FLAG_COLOR_ZONE { 255, 255, 255, 100 }
+
+// PI / 32
+#define FLAG_ROTATE_STEP 0.0981747704
+// PI / 2
+#define FLAG_ROTATE_INITIAL 1.57079633
+
+#define IS_END_ZONE(%1) ((%1) == g_EndZone)
+
 // Create a static array cache for zones
 // Capacity: 32 zones, 30* points each
 // * The first point is used to store information about the zone, including
@@ -53,18 +67,19 @@ new Float:g_ZonesCache[MAX_ZONES][POINTS_LENGTH][3];
 new g_ZoneIDs[MAX_ZONES] = { -1, ... };
 new String:g_ZoneNames[MAX_ZONES][64];
 new g_ZonesCount = 0;
+new g_EndZone = 0;
 
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new Handle:g_ZoneMenu = INVALID_HANDLE;
 
 new bool:g_DrawZones = true;
+new Float:g_FlagRotation[MAX_ZONES] = { 0.0, FLAG_ROTATE_INITIAL,  ... };
 
 new g_mdlBeam = 0;
-new g_mdlHalo = 0;
 
-///////////////////////////////////////////////////////
-// These may be needed later (heh), and I hate warnings
-///////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+// These may be needed later (heh), and I hate warnings //
+//////////////////////////////////////////////////////////
 #pragma unused g_CurMapStaged
 #pragma unused g_CurMapTier
 
@@ -74,6 +89,7 @@ Zones_Init()
     RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] | Create a new zone.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC);
@@ -91,11 +107,8 @@ Zones_Init()
     
     BuildZoneMenu();
 
-    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")) ||
-        !(g_mdlHalo = PrecacheModel("materials/sprites/halo01.vmt")))
-	{
+    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
         LogError("Couldn't precache model file(s)!");
-	}
     
     CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
 }
@@ -118,11 +131,7 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
 
 public Action:ConCommand_ZoneMenu(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     DisplayZoneMenu(client);
     
@@ -131,11 +140,7 @@ public Action:ConCommand_ZoneMenu(client, args)
 
 public Action:ConCommand_NewZone(client, args)
 {
-    if (args > 1)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    CHECK_ARGS_UPPER(1)
     
     new zone_id = ZONE_NEXT_NEW_ZONE;
     
@@ -158,11 +163,7 @@ public Action:ConCommand_NewZone(client, args)
 
 public Action:ConCommand_NewZonePoint(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_NewZonePoint(client);
     
@@ -171,11 +172,7 @@ public Action:ConCommand_NewZonePoint(client, args)
 
 public Action:ConCommand_ZoneHeight(client, args)
 {
-    if (args != 1)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    EXACT_ARGS(1)
     
     decl height;
     decl String:sz_height[32];
@@ -192,13 +189,18 @@ public Action:ConCommand_ZoneHeight(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_SetFlag(client, args)
+{
+    NO_ARGS()
+    
+    Zone_SetFlag(client);
+    
+    return Plugin_Handled;
+}
+
 public Action:ConCommand_RemoveLastPoint(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_RemoveLastPoint(client);
     
@@ -207,11 +209,7 @@ public Action:ConCommand_RemoveLastPoint(client, args)
 
 public Action:ConCommand_ClearAllPoints(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_ClearAllPoints(client);
     
@@ -220,11 +218,7 @@ public Action:ConCommand_ClearAllPoints(client, args)
 
 public Action:ConCommand_FinishZone(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_FinishZone(client);
     
@@ -233,11 +227,7 @@ public Action:ConCommand_FinishZone(client, args)
 
 public Action:ConCommand_RemoveZone(client, args)
 {
-    if (args != 1)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    EXACT_ARGS(1)
     
     decl zone_id;
     decl String:sz_zone_id[32];
@@ -256,11 +246,7 @@ public Action:ConCommand_RemoveZone(client, args)
 
 public Action:ConCommand_ClearAllZones(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_ClearAllZones(client);
     
@@ -269,11 +255,7 @@ public Action:ConCommand_ClearAllZones(client, args)
 
 public Action:ConCommand_ReloadZones(client, args)
 {
-    if (args > 0)
-    {
-        ReplyWithDescription(client);
-        return Plugin_Handled;
-    }
+    NO_ARGS()
     
     Zone_ReloadFromDB(client);
     
@@ -421,6 +403,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 #define ZMENU_EDIT_REMOVE_LAST "removelast"
 #define ZMENU_EDIT_CLEAR_ALL "clear"
 #define ZMENU_EDIT_FINISH "finish"
+#define ZMENU_EDIT_SET_FLAG "flag"
 
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -443,6 +426,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
         AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
         AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
+        AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
         AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
         
         // Pop the zone index submenu, but don't redisplay the root zone menu
@@ -513,6 +497,8 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             Zone_RemoveLastPoint(param1);
         else if (StrEqual(info, ZMENU_EDIT_CLEAR_ALL))
             Zone_ClearAllPoints(param1);
+        else if (StrEqual(info, ZMENU_EDIT_SET_FLAG))
+            Zone_SetFlag(param1);
         else if (StrEqual(info, ZMENU_EDIT_FINISH))
         {
             Zone_FinishZone(param1);
@@ -530,6 +516,24 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
 /* ========================================================================
                         ZONE MANIPULATION FUNCTIONS
    ======================================================================== */
+
+// For debugging zones
+stock PrintZone(zone_id)
+{
+    LogMessage("ZONE %d, %sEMPTY", zone_id, ZONE_EMPTY(zone_id) ? "" : "NOT ");
+    
+    for (new i=0; i<POINTS_LENGTH; i++)
+    {
+        if (i == 0)
+            LogMessage("POINT %d = { %11d %11d %11d }", i,
+                ZONE_POINTS[zone_id], ZONE_HEIGHT[zone_id], ZONE_EDITING[zone_id]);
+        else
+            LogMessage("POINT %d = { %11.6f %11.6f %11.6f }", i,
+                ZONE_POINT[zone_id][i][0], ZONE_POINT[zone_id][i][1], ZONE_POINT[zone_id][i][2]);
+    }
+    
+    LogMessage("\n");
+}
 
 WipeZoneCache()
 {
@@ -559,6 +563,17 @@ CountZones()
     return zones_count;
 }
 
+CountZonePoints(zone_id)
+{
+    ZONE_POINTS[zone_id] = 0;
+    
+    for (new i=ZONE_FIRST_POINT; i<POINTS_LENGTH; i++)
+    {
+        if (!ZONE_POINT_EMPTY(zone_id,i))
+            ZONE_POINTS[zone_id]++;
+    }
+}
+
 GetNextNewZone()
 {
     for (new i=0; i<MAX_ZONES; i++)
@@ -568,6 +583,15 @@ GetNextNewZone()
     }
     
     return -1;
+}
+
+FindEndZone()
+{
+    for (new i=0; i<MAX_ZONES; i++)
+    {
+        if (!ZONE_EMPTY(i))
+            g_EndZone = i;
+    }
 }
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
@@ -617,6 +641,11 @@ Zone_NewZonePoint(client)
     
     GetClientAbsOrigin(client, g_ZonesCache[zone_id][point]);
     ZONE_POINTS[zone_id]++;
+    
+    ReplyToCommand(client, "New zone %d point at (%f, %f, %f)", zone_id,
+        ZONE_POINT[zone_id][point][0],
+        ZONE_POINT[zone_id][point][1],
+        ZONE_POINT[zone_id][point][2]);
 }
 
 Zone_ZoneHeight(client, height)
@@ -629,6 +658,23 @@ Zone_ZoneHeight(client, height)
     }
     
     ZONE_HEIGHT[zone_id] = height;
+    
+    ReplyToCommand(client, "Set zone %d max height at %d map units.", zone_id, height);
+}
+
+Zone_SetFlag(client)
+{
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    GetClientAbsOrigin(client, g_ZonesCache[zone_id][ZONE_FLAG_POINT]);
+    
+    ReplyToCommand(client, "Set zone %d flag at point (%f, %f, %f)", zone_id,
+        ZONE_FLAG[zone_id][0], ZONE_FLAG[zone_id][1], ZONE_FLAG[zone_id][2]);
 }
 
 Zone_RemoveLastPoint(client)
@@ -686,6 +732,9 @@ Zone_FinishZone(client)
     ZONE_EDITING[zone_id] = false;
     g_ClientEditZone[client] = INVALID_ZONE;
     
+    CountZonePoints(zone_id);
+    FindEndZone();
+    
     SetZoneMenuTitle();
     
     win_SQL_UpsertZone(zone_id);
@@ -702,6 +751,8 @@ Zone_RemoveZone(client, zone_id)
         g_ZonesCache[zone_id][i][2] = 0.0;
     }
     
+    FindEndZone();
+    
     win_SQL_DeleteZone(zone_id);
     
     ReplyToCommand(client, "Removed zone %d.", zone_id);
@@ -712,6 +763,7 @@ Zone_ClearAllZones(client)
     WipeZoneCache();
     
     g_ZonesCount = 0;
+    g_EndZone = 0;
     SetZoneMenuTitle();
     
     win_SQL_ClearAllZonePoints();
@@ -750,27 +802,79 @@ Zone_ReloadFromDB(client)
                           ZONE DISPLAY/TEMPENTS
    ======================================================================== */
 
-DrawFlag(Float:x, Float:y, Float:z, const color[4]={ 255, 255, 255, 255 })
+
+DrawFlag(zone_id, const color[4]={ 255, 255, 255, 255 })
 {
+    /**
+     *  
+     * Z  |\        ---
+     * o  |   \      |
+     * n  |      \   | 5/6 of zone height
+     * e  |      /   |
+     *    |   /      |
+     * H  |/        ---
+     * e  |
+     * i  |
+     * g  |
+     * h  |
+     * t  |
+     *    |
+     */
+    
+    #define BEAM(%1,%2) { \
+        TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 1.0, 10.0, 10, 0.0, color, 0); \
+        TE_SendToAll(); \
+    }
+    
+    new Float:flag_pole_height = MIN(float(ZONE_HEIGHT[zone_id]), 100.0);
+    new Float:flag_height = flag_pole_height * (1.0 / 6.0);
+    
+    new Float:vec_a[3];
+    new Float:vec_b[3];
+    
+    vec_a[0] = ZONE_FLAG[zone_id][0];
+    vec_a[1] = ZONE_FLAG[zone_id][1];
+    vec_a[2] = ZONE_FLAG[zone_id][2] + flag_pole_height;
+    BEAM(g_ZonesCache[zone_id][ZONE_FLAG_POINT], vec_a)
+    
+    vec_b[0] = vec_a[0] + (Cosine(g_FlagRotation[zone_id]) * flag_height * 2.0);
+    vec_b[1] = vec_a[1] + (Sine(g_FlagRotation[zone_id]) * flag_height * 2.0);
+    vec_b[2] = vec_a[2] - flag_height / 2.0;
+    BEAM(vec_a, vec_b)
+    
+    vec_a[2] -= flag_height;
+    BEAM(vec_b, vec_a)
+    
+    g_FlagRotation[zone_id] += FLAG_ROTATE_STEP;
+    if (g_FlagRotation[zone_id] > (2 * FLOAT_PI))
+        g_FlagRotation[zone_id] = 0.0;
 }
 
 public Action:Timer_DrawZones(Handle:timer)
 {
-    new color[4] = {255, 255, 255, 150};
+    #undef BEAM
+    #define BEAM(%1,%2) { \
+        TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
+        TE_SendToAll(); \
+    }
     
     for (new i=0; i<MAX_ZONES; i++)
     {
+        new color[4] = FLAG_COLOR_ZONE;
+        if (i == 0)
+            color = FLAG_COLOR_START;
+        else if (IS_END_ZONE(i))
+            color = FLAG_COLOR_END;
+        
+        if (!ZONE_FLAG_EMPTY(i))
+            DrawFlag(i, color);
+        
         if (!g_DrawZones && !ZONE_EDITING[i])
-                continue;
+            continue;
         
         // Only draw lines, so no less than 2 points
         if (ZONE_POINTS[i] <= 1)
             continue;
-        
-        #define BEAM(%1,%2) { \
-            TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
-            TE_SendToAll(); \
-        }
         
         decl j;
         for (j=ZONE_FIRST_POINT+1; j<ZONE_POINTS[i] + ZONE_META_POINTS; j++)
@@ -902,7 +1006,12 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         g_ZonesCache[zone_id][zp_number][2] = z;
     }
     
+    // Don't trust the database. It's not _one of us_
+    for (new i=0; i<MAX_ZONES; i++)
+        CountZonePoints(i);
+    
     SetZoneMenuTitle();
+    FindEndZone();
     
     if (client != -1)
         ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);

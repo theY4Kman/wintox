@@ -14,6 +14,22 @@
 #include "./include/version"
 #include "./include/menus"
 
+#define EXACT_ARGS(%1) \
+    if (args != (%1)) \
+    { \
+        ReplyWithDescription(client); \
+        return Plugin_Handled; \
+    }
+
+#define CHECK_ARGS_UPPER(%1) \
+    if (args > (%1)) \
+    { \
+        ReplyWithDescription(client); \
+        return Plugin_Handled; \
+    }
+
+#define NO_ARGS() CHECK_ARGS_UPPER(0)
+
 new Handle:g_PublicCommands = INVALID_HANDLE;
 new Handle:g_AdminCommands = INVALID_HANDLE;
 new Handle:g_CommandDescriptions = INVALID_HANDLE;
@@ -138,7 +154,7 @@ Handle:BuildCommandsMenu(Handle:commands, const String:title[])
         decl String:cmd[256];
         decl String:description[512];
         
-        new Handle:pack = GetArrayCell(commands, i);
+        new Handle:pack = ARRAY(commands)[i];
         ResetPack(pack);
         ReadPackString(pack, cmd, sizeof(cmd));
         ReadPackString(pack, description, sizeof(description));
