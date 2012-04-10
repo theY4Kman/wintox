@@ -23,6 +23,8 @@ new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_ZONES];
+new g_PlayerCurrentZone[MAXPLAYERS] = { 0, ... };
+new bool:g_IsPlaying[MAXPLAYERS] = { false, ... };
 
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };

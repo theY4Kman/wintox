@@ -45,6 +45,11 @@ public OnClientAuthorized(client, const String:auth[])
     InsertOrUpdatePlayerInfo(client, auth);
 }
 
+public OnClientDisconnect(client)
+{
+    g_IsPlaying[client] = false;
+}
+
 public OnClientDisconnected(client)
 {
     new editing = g_ClientEditZone[client];
