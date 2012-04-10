@@ -9,6 +9,8 @@
 #endif
 #define _wintox_stocks_included
 
+#include <smlib>
+
 #define MIN(%1,%2) ((%1) < (%2) ? (%1) : (%2))
 
 #define IS_STR_EMPTY(%1) ((%1)[0] == '\0')
@@ -18,38 +20,6 @@
 #define ARRAY_SET(%1)[%2]\32=\32%3 SetArrayCell((%1), (%2), (%3))
 
 #define VEC_PRINT(%1) (%1)[0], (%1)[1], (%1)[2]
-
-/**
- * Converts the whole String to lower case.
- * Only works with alphabetical characters (not ÖÄÜ) because Sourcemod suxx !
- * The Output String can be the same as the Input String.
- *
- * Taken shamelessly from smlib (http://www.sourcemodplugins.org/pages/smlib/)
- *
- * @param input				Input String.
- * @param output			Output String.
- * @param size				Max Size of the Output string
- * @noreturn
- */
-stock String_ToLower(const String:input[], String:output[], size)
-{
-	size--;
-
-	new x=0;
-	while (input[x] != '\0' || x < size) {
-
-		if (IsCharUpper(input[x])) {
-			output[x] = CharToLower(input[x]);
-		}
-		else {
-			output[x] = input[x];
-		}
-
-		x++;
-	}
-
-	output[x] = '\0';
-}
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
@@ -66,4 +36,12 @@ stock PrintStack(Handle:stack)
         PrintToServer("%3d %d", i, data);
         PushStackCell(stack, data);
     }
+}
+
+stock Reply(client, const String:format[], any:...)
+{
+    decl String:buffer[1024];
+    VFormat(STR(buffer), format, 3);
+    
+    Client_Reply(client, "{red}[WTX]{normal} %s", buffer);
 }

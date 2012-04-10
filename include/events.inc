@@ -26,6 +26,9 @@ Events_Init()
     // public(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
     g_fwdMapLoaded = CreateForward(ET_Ignore, Param_Cell, Param_String, Param_String, Param_Cell, Param_Cell);
     
+    // public(zone_id, points)
+    g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell);
+    
     HookEvent("player_jump", Event_PlayerJump);
 }
 

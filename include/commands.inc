@@ -81,7 +81,7 @@ ReplyWithDescription(client)
     GetCmdArg(0, STR(buffer));
     GetTrieString(g_CommandDescriptions, buffer, STR(buffer));
     
-    ReplyToCommand(client, "%s", buffer);
+    Reply(client, "%s", buffer);
 }
 
 public Action:Command_Commands(client, args)

@@ -17,7 +17,7 @@
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
-#define DEFAULT_ZONE_HEIGHT 64
+#define DEFAULT_ZONE_HEIGHT 100
 
 #define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
 
@@ -66,6 +66,7 @@ new g_CurMapTier = 1;
 new Float:g_ZonesCache[MAX_ZONES][POINTS_LENGTH][3];
 new g_ZoneIDs[MAX_ZONES] = { -1, ... };
 new String:g_ZoneNames[MAX_ZONES][64];
+
 new g_ZonesCount = 0;
 new g_EndZone = 0;
 
@@ -74,8 +75,16 @@ new Handle:g_ZoneMenu = INVALID_HANDLE;
 
 new bool:g_DrawZones = true;
 new Float:g_FlagRotation[MAX_ZONES] = { 0.0, FLAG_ROTATE_INITIAL,  ... };
-
 new g_mdlBeam = 0;
+
+new bool:g_ZoneCacheInProgress = false;
+new bool:g_ZoneSyncInProgress = false;
+
+new g_ZoneSyncLastZone = -1;
+new g_ZoneSyncNotifyClient = -1;
+new ReplySource:g_ZoneSyncReplySource = SM_REPLY_TO_CHAT;
+new g_ZonesSynced = 0;
+new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
 
 //////////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings //
@@ -104,6 +113,9 @@ Zones_Init()
     
     new Function:on_map_loaded = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnMapLoaded");
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, on_map_loaded);
+    
+    new Function:on_points_sync_finished = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnPointsSyncFinished");
+    AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, on_points_sync_finished);
     
     BuildZoneMenu();
 
@@ -315,6 +327,9 @@ SetZoneMenuTitle()
 
 public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 {
+    // Force output to chat
+    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    
     if (action == MenuAction_Select)
     {
         decl String:info[16];
@@ -407,6 +422,9 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
+    // Force output to chat
+    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    
     if (action == MenuAction_Select)
     {
         decl String:sz_zone_id[16];
@@ -439,6 +457,9 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 
 public MenuHandler_RemoveZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
+    // Force output to chat
+    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    
     if (action == MenuAction_Select)
     {
         decl String:sz_zone_id[16];
@@ -454,6 +475,9 @@ public MenuHandler_RemoveZoneIndex(Handle:menu, MenuAction:action, param1, param
 
 public MenuHandler_ConfirmClearZones(Handle:menu, MenuAction:action, param1, param2)
 {
+    // Force output to chat
+    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    
     if (action == MenuAction_Select)
     {
         decl String:answer[16];
@@ -490,6 +514,9 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
     {
         decl String:info[32];
         GetMenuItem(menu, param2, STR(info));
+        
+        // Force output to chat
+        SetCmdReplySource(SM_REPLY_TO_CHAT);
         
         if (StrEqual(info, ZMENU_EDIT_NEW_POINT))
             Zone_NewZonePoint(param1);
@@ -601,14 +628,14 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
         zone_id = GetNextNewZone();
         if (zone_id >= MAX_ZONES)
         {
-            ReplyToCommand(client, "You've hit the maximum number of zones (%d).", MAX_ZONES);
+            Reply(client, "You've hit the maximum number of zones (%d).", MAX_ZONES);
             return;
         }
     }
     
     if (zone_id >= MAX_ZONES || zone_id < 0)
     {
-        ReplyToCommand(client, "That zone index (%d) is invalid.", zone_id);
+        Reply(client, "That zone index (%d) is invalid.", zone_id);
         return;
     }
     
@@ -628,21 +655,21 @@ Zone_NewZonePoint(client)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
     new point = ZONE_POINTS[zone_id] + ZONE_META_POINTS;
     if (point >= POINTS_LENGTH)
     {
-        ReplyToCommand(client, "You've hit the maximum number of zone points (%d).", MAX_POINTS);
+        Reply(client, "You've hit the maximum number of zone points (%d).", MAX_POINTS);
         return;
     }
     
     GetClientAbsOrigin(client, g_ZonesCache[zone_id][point]);
     ZONE_POINTS[zone_id]++;
     
-    ReplyToCommand(client, "New zone %d point at (%f, %f, %f)", zone_id,
+    Reply(client, "New zone %d point at (%f, %f, %f)", zone_id,
         ZONE_POINT[zone_id][point][0],
         ZONE_POINT[zone_id][point][1],
         ZONE_POINT[zone_id][point][2]);
@@ -653,13 +680,13 @@ Zone_ZoneHeight(client, height)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
     ZONE_HEIGHT[zone_id] = height;
     
-    ReplyToCommand(client, "Set zone %d max height at %d map units.", zone_id, height);
+    Reply(client, "Set zone %d max height at %d map units.", zone_id, height);
 }
 
 Zone_SetFlag(client)
@@ -667,13 +694,13 @@ Zone_SetFlag(client)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
     GetClientAbsOrigin(client, g_ZonesCache[zone_id][ZONE_FLAG_POINT]);
     
-    ReplyToCommand(client, "Set zone %d flag at point (%f, %f, %f)", zone_id,
+    Reply(client, "Set zone %d flag at point (%f, %f, %f)", zone_id,
         ZONE_FLAG[zone_id][0], ZONE_FLAG[zone_id][1], ZONE_FLAG[zone_id][2]);
 }
 
@@ -682,14 +709,14 @@ Zone_RemoveLastPoint(client)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
     new point = (ZONE_POINTS[zone_id] - 1) + ZONE_META_POINTS;
     if (point == 0)
     {
-        ReplyToCommand(client, "There are no points to remove.");
+        Reply(client, "There are no points to remove.");
         return;
     }
     
@@ -704,7 +731,7 @@ Zone_ClearAllPoints(client)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
@@ -717,7 +744,7 @@ Zone_ClearAllPoints(client)
     
     ZONE_POINTS[zone_id] = 0;
     
-    ReplyToCommand(client, "Cleared all points in zone %d.", zone_id);
+    Reply(client, "Cleared all points in zone %d.", zone_id);
 }
 
 Zone_FinishZone(client)
@@ -725,7 +752,7 @@ Zone_FinishZone(client)
     new zone_id = g_ClientEditZone[client];
     if (zone_id == INVALID_ZONE)
     {
-        ReplyToCommand(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
@@ -755,7 +782,7 @@ Zone_RemoveZone(client, zone_id)
     
     win_SQL_DeleteZone(zone_id);
     
-    ReplyToCommand(client, "Removed zone %d.", zone_id);
+    Reply(client, "Removed zone %d.", zone_id);
 }
 
 Zone_ClearAllZones(client)
@@ -769,13 +796,30 @@ Zone_ClearAllZones(client)
     win_SQL_ClearAllZonePoints();
     win_SQL_ClearAllZones();
     
-    ReplyToCommand(client, "Cleared all zones! Phew, that's a load off.");
+    Reply(client, "Cleared all zones! Phew, that's a load off.");
 }
 
 // Inserts/updates all the zones in the cache to the database
 Zone_SyncToDB(client)
 {
-    new zones_synced = 0;
+    if (g_ZoneCacheInProgress)
+    {
+        Reply(client, "There is a zone reload in progress. If a sync occurs during a reload, data loss can occur.");
+        Reply(client, "Please wait till the zone reload completes.");
+        return;
+    }
+    
+    if (g_ZoneSyncInProgress)
+    {
+        Reply(client, "There is already a zone sync in progress. Please wait till it completes.");
+        return;
+    }
+    
+    g_ZoneSyncInProgress = true;
+    g_ZoneSyncNotifyClient = client;
+    g_ZoneSyncReplySource = GetCmdReplySource();
+    g_ZonesSynced = 0;
+    
     for (new i=0; i<MAX_ZONES; i++)
     {
         if (ZONE_EMPTY(i))
@@ -785,15 +829,54 @@ Zone_SyncToDB(client)
         win_SQL_ClearZonePoints(i);
         win_SQL_InsertZonePoints(i);
         
-        zones_synced++;
+        g_ZonesSynced++;
+        
+        // This will totally cause race conditions, as I'm assuming the
+        // InsertZonePoints callback will complete after the last (or at least
+        // next) iteration. This variable is used to check the last zone synced
+        // in the OnPointsSyncFinished forward to reset g_ZoneSyncInProgress.
+        g_ZoneSyncLastZone = i;
+    }
+}
+
+public fwd_Zone_OnPointsSyncFinished(zone_id, points)
+{
+    if (zone_id == g_ZoneSyncLastZone)
+    {
+        g_ZoneSyncInProgress = false;
+        g_ZoneSyncLastZone = -1;
     }
     
-    ReplyToCommand(client, "Successfully synced %d zones to the database!", zones_synced);
+    if (g_ZoneSyncNotifyClient != -1)
+    {
+        decl String:buffer[256];
+        Format(STR(buffer), "Successfully synced %d zones to the database!", g_ZonesSynced);
+        
+        if (g_ZoneSyncReplySource == SM_REPLY_TO_CHAT)
+            PrintToChat(g_ZoneSyncNotifyClient, "%s", buffer);
+        else
+            PrintToConsole(g_ZoneSyncNotifyClient, "%s", buffer);
+        
+        g_ZoneSyncNotifyClient = -1;
+    }
 }
 
 // Grabs all the zones from the database and puts them in the cache
 Zone_ReloadFromDB(client)
 {
+    if (g_ZoneCacheInProgress)
+    {
+        Reply(client, "There is already a zone reload in progress. Please wait till it completes");
+        return;
+    }
+    
+    if (g_ZoneSyncInProgress)
+    {
+        Reply(client, "There is a zone sync in progress. If a reload occurs during a sync, data loss can occur.");
+        Reply(client, "Please wait till the zone sync completes.");
+        return;
+    }
+    
     CacheZones(client);
 }
 
@@ -897,6 +980,8 @@ CacheZones(const client=-1)
 {
     decl String:query[256];
     
+    g_ZoneCacheInProgress = true;
+    
     Format(STR(query), SQL_QUERY[GetZones], g_CurMapID);
     SQLT(query, T_CacheZones, client);
 }
@@ -912,7 +997,7 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         Format(STR(buffer), "Error retrieving zones from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            ReplyToCommand(client, "[WTX] %s", buffer);
+            Reply(client, "[WTX] %s", buffer);
         return;
     }
     
@@ -921,8 +1006,8 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     {
         if (client != -1)
         {
-            ReplyToCommand(client, "[WTX] Successfully retrieved zones from DB, but there were none :'(");
-            ReplyToCommand(client, "[WTX] Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
+            Reply(client, "[WTX] Successfully retrieved zones from DB, but there were none :'(");
+            Reply(client, "[WTX] Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
         }
         
         return;
@@ -952,7 +1037,7 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     }
     
     if (client != -1)
-        ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
+        Reply(client, "[WTX] Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
     
     Format(STR(buffer), SQL_QUERY[GetZonePoints], g_CurMapID);
     SQLT(buffer, T_CacheZonePoints, client);
@@ -969,7 +1054,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Format(STR(buffer), "Error retrieving zone points from database: %s", error);
         LogError("%s", buffer);
         if (client != -1)
-            ReplyToCommand(client, "[WTX] %s", buffer);
+            Reply(client, "[WTX] %s", buffer);
         return;
     }
     
@@ -977,7 +1062,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     if (rows == 0)
     {
         if (client != -1)
-            ReplyToCommand(client, "[WTX] Successfully retrieved zone points from DB, but there were none.");
+            Reply(client, "[WTX] Successfully retrieved zone points from DB, but there were none.");
         return;
     }
     
@@ -1013,8 +1098,9 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     SetZoneMenuTitle();
     FindEndZone();
     
+    g_ZoneCacheInProgress = false;
     if (client != -1)
-        ReplyToCommand(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);
+        Reply(client, "[WTX] Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
 win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
@@ -1098,6 +1184,9 @@ __win_SQL_InsertZonePoints(zone_id, zone_dbid)
     WritePackCell(pack, 0);
     ResetPack(pack);
     
+    // Just a last check to make sure our points count is accurate before it's final
+    CountZonePoints(zone_id);
+    
     T_InsertZonePoints(INVALID_HANDLE, INVALID_HANDLE, "", pack);
 }
 
@@ -1112,7 +1201,14 @@ public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:d
     CloseHandle(pack);
     
     if (zp_number > ZONE_POINTS[zone_id]+1)
+    {
+        Call_StartForward(g_fwdPointsSyncFinished);
+        Call_PushCell(zone_id);
+        Call_PushCell(zp_number);
+        Call_Finish();
+        
         return;
+    }
     
     new Float:x = g_ZonesCache[zone_id][zp_number][0];
     new Float:y = g_ZonesCache[zone_id][zp_number][1];
