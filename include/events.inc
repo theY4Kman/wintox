@@ -19,6 +19,7 @@ new Handle:g_fwdMapLoaded = INVALID_HANDLE;
 #include "./include/sql"
 #include "./include/stocks"
 #include "./include/zones"
+#include "./include/timer"
 
 Events_Init()
 {
@@ -37,6 +38,19 @@ public OnMapStart()
 public OnClientAuthorized(client, const String:auth[])
 {
     InsertOrUpdatePlayerInfo(client, auth);
+}
+
+public OnClientDisconnected(client)
+{
+    new editing = g_ClientEditZone[client];
+    if (editing != INVALID_ZONE)
+    {
+        ZONE_EDITING[editing] = false;
+        g_ClientEditZone[client] = INVALID_ZONE;
+    }
+    
+    for (new i=0; i<MAX_ZONES; i++)
+        g_StartTimes[client][i] = 0.0;
 }
 
 // Tries to retrieve the current map info 

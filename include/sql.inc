@@ -224,6 +224,9 @@ win_SQL_Connect()
     else
         SetFailState("Unknown DB type \"%s\"", driver);
     
+    // Get the product name for display
+    SQL_GetDriverProduct(g_DatabaseDriver, STR(driver));
+    
     LogMessage("Successfully connected to %s database \"%s\"", driver, buffer);
 }
 

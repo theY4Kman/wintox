@@ -750,6 +750,10 @@ Zone_ReloadFromDB(client)
                           ZONE DISPLAY/TEMPENTS
    ======================================================================== */
 
+DrawFlag(Float:x, Float:y, Float:z, const color[4]={ 255, 255, 255, 255 })
+{
+}
+
 public Action:Timer_DrawZones(Handle:timer)
 {
     new color[4] = {255, 255, 255, 150};
@@ -763,20 +767,18 @@ public Action:Timer_DrawZones(Handle:timer)
         if (ZONE_POINTS[i] <= 1)
             continue;
         
-        #define BEAM(%1,%2) TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlHalo, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
-                             TE_SendToAll()
+        #define BEAM(%1,%2) { \
+            TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
+            TE_SendToAll(); \
+        }
         
         decl j;
         for (j=ZONE_FIRST_POINT+1; j<ZONE_POINTS[i] + ZONE_META_POINTS; j++)
-        {
-            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][j]);
-        }
+            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][j])
         
         // Connect first and last point (if 3 or more points)
         if (j > ZONE_META_POINTS + 1)
-        {
-            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][ZONE_FIRST_POINT]);
-        }
+            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][ZONE_FIRST_POINT])
     }
 }
 
