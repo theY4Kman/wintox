@@ -34,7 +34,7 @@ new g_CurMapTier = 1;
 #define ZONE_META_POINTS 2
 #define ZONE_FIRST_POINT ZONE_META_POINTS
 
-#define MAX_ZONES 32
+#define MAX_ZONES 64
 #define MAX_POINTS 30
 #define POINTS_LENGTH (MAX_POINTS + ZONE_META_POINTS)
 
@@ -48,16 +48,15 @@ new g_CurMapTier = 1;
 #define ZONE_FLAG[%1][%2] (g_ZonesCache[(%1)][ZONE_FLAG_POINT][(%2)])
 #define ZONE_FLAG_EMPTY(%1) (ZONE_FLAG[%1][0] == 0.0 && ZONE_FLAG[%1][1] == 0.0 && ZONE_FLAG[%1][2] == 0.0)
 
+#define IS_END_ZONE(%1) ((%1) == g_EndZone)
+
 #define FLAG_COLOR_START { 0, 255, 50, 200 }
 #define FLAG_COLOR_END { 255, 100, 0, 200 }
 #define FLAG_COLOR_ZONE { 255, 255, 255, 100 }
+#define FLAG_COLOR(%1) ((%1) == 0 ? FLAG_COLOR_START : (IS_END_ZONE(%1) ? FLAG_COLOR_END : FLAG_COLOR_ZONE))
 
-// PI / 32
-#define FLAG_ROTATE_STEP 0.0981747704
-// PI / 2
-#define FLAG_ROTATE_INITIAL 1.57079633
-
-#define IS_END_ZONE(%1) ((%1) == g_EndZone)
+#define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
+#define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
 // Create a static array cache for zones
 // Capacity: 32 zones, 30* points each
@@ -71,10 +70,12 @@ new String:g_ZoneNames[MAX_ZONES][64];
 new g_ZonesCount = 0;
 new g_EndZone = 0;
 
+new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new Handle:g_ZoneMenu = INVALID_HANDLE;
 
-new bool:g_DrawZones = true;
+new bool:g_DrawZones = false;
+new bool:g_DrawFlags = true;
 new Float:g_FlagRotation[MAX_ZONES] = { 0.0, FLAG_ROTATE_INITIAL,  ... };
 new g_mdlBeam = 0;
 
@@ -108,9 +109,13 @@ Zones_Init()
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
     
-    new Handle:draw_zones = CreateConVar("wintox_drawzones", "0", "Whether or not to draw zones (they will be drawn while editing zones, regardless)");
+    new Handle:draw_zones = CreateConVar("wintox_drawzones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
     HookConVarChange(draw_zones, ConVar_DrawZones);
+    
+    new Handle:draw_flags = CreateConVar("wintox_drawflags", "0", "Whether or not to draw all flags (they will be drawn while editing zones, regardless)");
+    g_DrawFlags = GetConVarBool(draw_flags);
+    HookConVarChange(draw_flags, ConVar_DrawFlags);
     
     new Function:on_map_loaded = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnMapLoaded");
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, on_map_loaded);
@@ -129,6 +134,11 @@ Zones_Init()
 public ConVar_DrawZones(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_DrawZones = GetConVarBool(cvar);
+}
+
+public ConVar_DrawFlags(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DrawFlags = GetConVarBool(cvar);
 }
 
 public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
@@ -919,7 +929,7 @@ Zone_ReloadFromDB(client)
    ======================================================================== */
 
 
-DrawFlag(zone_id, const color[4]={ 255, 255, 255, 255 })
+DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
 {
     /**
      *  
@@ -939,8 +949,11 @@ DrawFlag(zone_id, const color[4]={ 255, 255, 255, 255 })
     
     #define BEAM(%1,%2) { \
         TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 1.0, 10.0, 10, 0.0, color, 0); \
-        TE_SendToAll(); \
+        TE_SendToClient(client); \
     }
+    
+    if (ZONE_FLAG_EMPTY(zone_id))
+        return;
     
     new Float:flag_pole_height = MAX(float(ZONE_HEIGHT[zone_id]), MIN_FLAG_HEIGHT);
     new Float:flag_height = flag_pole_height * (1.0 / 6.0);
@@ -966,39 +979,83 @@ DrawFlag(zone_id, const color[4]={ 255, 255, 255, 255 })
         g_FlagRotation[zone_id] = 0.0;
 }
 
-public Action:Timer_DrawZones(Handle:timer)
+DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
 {
-    #undef BEAM
+    #if defined(BEAM)
+        #undef BEAM
+    #endif
     #define BEAM(%1,%2) { \
         TE_SetupBeamPoints(%1, %2, g_mdlBeam, g_mdlBeam, 0, 0, 0.2, 4.0, 4.0, 10, 0.0, color, 0); \
-        TE_SendToAll(); \
+        TE_SendToClient(client); \
     }
     
-    for (new i=0; i<MAX_ZONES; i++)
+    // We can only draw if there are 2 or more points
+    if (ZONE_POINTS[zone_id] <= 1)
+        return;
+        
+    decl i;
+    for (i=ZONE_FIRST_POINT+1; i<ZONE_POINTS[zone_id] + ZONE_META_POINTS; i++)
+        BEAM(g_ZonesCache[zone_id][i-1], g_ZonesCache[zone_id][i])
+    
+    // Connect first and last point (if 3 or more points)
+    if (i > ZONE_META_POINTS + 1)
+        BEAM(g_ZonesCache[zone_id][i-1], g_ZonesCache[zone_id][ZONE_FIRST_POINT])
+}
+
+public Action:Timer_DrawZones(Handle:timer)
+{
+    for (new client=1; client<MaxClients; client++)
     {
-        new color[4] = FLAG_COLOR_ZONE;
-        if (i == 0)
-            color = FLAG_COLOR_START;
-        else if (IS_END_ZONE(i))
-            color = FLAG_COLOR_END;
-        
-        if (!ZONE_FLAG_EMPTY(i))
-            DrawFlag(i, color);
-        
-        if (!g_DrawZones && !ZONE_EDITING[i])
+        if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
-        // Only draw lines, so no less than 2 points
-        if (ZONE_POINTS[i] <= 1)
-            continue;
+        new cur_zone = MAX(g_PlayerCurrentZone[client], 0);
         
-        decl j;
-        for (j=ZONE_FIRST_POINT+1; j<ZONE_POINTS[i] + ZONE_META_POINTS; j++)
-            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][j])
+        if (!g_DrawFlags)
+        {
+            // Draw start zone flag
+            DrawFlag(0, client, FLAG_COLOR_START);
+            
+            // Draw current and next zone flags
+            for (new i=cur_zone; i<=cur_zone+1; i++)
+                if (i != 0 && !IS_END_ZONE(i))
+                    DrawFlag(i, client, FLAG_COLOR_ZONE);
+            
+            // Draw end flag
+            if (g_EndZone != 0)
+                DrawFlag(g_EndZone, client, FLAG_COLOR_END);
+        }
         
-        // Connect first and last point (if 3 or more points)
-        if (j > ZONE_META_POINTS + 1)
-            BEAM(g_ZonesCache[i][j-1], g_ZonesCache[i][ZONE_FIRST_POINT])
+        if (g_DrawZones || g_DrawFlags)
+        {
+            for (new i=0; i<MAX_ZONES; i++)
+            {
+                if (g_DrawFlags)
+                    DrawFlag(i, client, FLAG_COLOR(i));
+                
+                if (!g_DrawZones)
+                    continue;
+                
+                // Only draw lines, so no less than 2 points
+                if (ZONE_POINTS[i] <= 1)
+                    continue;
+                
+                DrawZone(i, client, FLAG_COLOR(i));
+            }
+        }
+        
+        if (g_ClientEditZone[client] != INVALID_ZONE)
+        {
+            new zone_id = g_ClientEditZone[client];
+            
+            if (!g_DrawZones)
+                DrawZone(zone_id, client, FLAG_COLOR(zone_id));
+            
+            // Don't draw a flag twice
+            if (zone_id != 0 && zone_id != g_EndZone &&
+                zone_id != cur_zone && zone_id != cur_zone+1)
+                DrawFlag(zone_id, client, FLAG_COLOR(zone_id));
+        }
     }
 }
 

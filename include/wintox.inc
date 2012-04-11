@@ -93,7 +93,10 @@ public OnGameFrame()
                 break;
             }
             else if (g_PlayerCurrentZone[client] == 0)
+            {
                 StartTimer(client);
+                g_IsPlaying[client] = true;
+            }
         }
         
         current_time = GetEngineTime();
