@@ -15,6 +15,8 @@
 #include <geoip>
 
 new Handle:g_fwdMapLoaded = INVALID_HANDLE;
+new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
+new Handle:g_fwdPlayerReachedEnd = INVALID_HANDLE;
 
 #include "./include/sql"
 #include "./include/stocks"
@@ -28,6 +30,9 @@ Events_Init()
     
     // public(zone_id, points)
     g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell);
+    
+    // public(client, Float:elapsed)
+    g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Float);
     
     HookEvent("player_jump", Event_PlayerJump);
     HookEvent("player_team", Event_PlayerTeam);

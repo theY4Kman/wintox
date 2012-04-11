@@ -32,6 +32,8 @@ Wintox_Init()
     Timer_Init();
     
     AutoExecConfig(true, "wintox");
+    
+    RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
 }
 
 Wintox_Exit()
@@ -86,13 +88,30 @@ public OnGameFrame()
                 j = h;
             }
             
-            if (odd_nodes)
+            // In zone AND in zone height
+            if (odd_nodes &&
+                origin[2] >= (ZONE_POINT[i][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
+                origin[2] <= (ZONE_POINT[i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
             {
+                if (g_PlayerCurrentZone[client] != i && i != 0)
+                    ZoneTime(client, i);
+                
+                // Yeah, you go, player! YOU ROCK!
+                if (i == g_EndZone)
+                {
+                    g_IsPlaying[client] = false;
+                    
+                    Call_StartForward(g_fwdPlayerReachedEnd);
+                    Call_PushCell(client);
+                    Call_PushFloat(g_StartTimes[client][g_EndZone] - g_StartTimes[client][0]);
+                    Call_Finish();
+                }
+                
                 is_in_zone = true;
                 g_PlayerCurrentZone[client] = i;
                 break;
             }
-            else if (g_PlayerCurrentZone[client] == 0)
+            else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
             {
                 StartTimer(client);
                 g_IsPlaying[client] = true;
@@ -110,18 +129,32 @@ public OnGameFrame()
                 if (g_PlayerCurrentZone[client] == INVALID_ZONE)
                     PrintHintText(client, "[Enter the start zone]");
                 
-                else if (is_in_zone && g_PlayerCurrentZone[client] == 0)
+                else if (is_in_zone && g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
                     PrintHintText(client, "[Leave the start zone]");
                 
                 else if (g_StartTimes[client][0] != 0.0)
                 {
-                    new hours = RoundToFloor(time_elapsed) / SECONDS_IN_HOUR;
-                    new minutes = (RoundToFloor(time_elapsed) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
-                    new Float:seconds = time_elapsed - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+                    new Float:time = (g_StartTimes[client][g_EndZone] == 0.0) ? time_elapsed : g_StartTimes[client][g_EndZone] - g_StartTimes[client][0];
+                    new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
+                    new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
+                    new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
                     
-                    PrintHintText(client, "Time: %02d:%02d:%07.4f\nStage %d\nJumps: %d", hours, minutes, seconds, g_PlayerCurrentZone[client], g_Jumps[client]);
+                    if (g_StartTimes[client][g_EndZone] == 0.0)
+                        PrintHintText(client, "Time: %02d:%02d:%07.4f\nStage %d\nJumps: %d", hours, minutes, seconds, g_PlayerCurrentZone[client], g_Jumps[client]);
+                    else
+                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: <TODO>\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
                 }
             }
         }
     }
+}
+
+public Action:ConCommand_Restart(client, args)
+{
+    ResetTimer(client);
+    ZoneTeleport(client, 0);
+    
+    Reply(client, "Reset timer and teleported to start zone.");
+    
+    return Plugin_Handled;
 }

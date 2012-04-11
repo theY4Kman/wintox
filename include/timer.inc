@@ -93,3 +93,13 @@ public Action:ConCommand_Timer(client, args)
     
     return Plugin_Handled;
 }
+
+// Resets all the zone times and jumps and sets IsPlaying false
+ResetTimer(client)
+{
+    for (new i=0; i<MAX_ZONES; i++)
+        g_StartTimes[client][i] = 0.0;
+    
+    g_IsPlaying[client] = false;
+    g_Jumps[client] = false;
+}

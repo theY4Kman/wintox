@@ -58,6 +58,9 @@ new g_CurMapTier = 1;
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
 #define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
+// Amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
+#define ZONE_HEIGHT_FUDGE 4.0
+
 // Create a static array cache for zones
 // Capacity: 32 zones, 30* points each
 // * The first point is used to store information about the zone, including
@@ -86,7 +89,6 @@ new g_ZoneSyncLastZone = -1;
 new g_ZoneSyncNotifyClient = -1;
 new ReplySource:g_ZoneSyncReplySource = SM_REPLY_TO_CHAT;
 new g_ZonesSynced = 0;
-new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
 
 //////////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings //
@@ -640,30 +642,33 @@ FindEndZone()
     }
 }
 
-// Set's the flag location at the center of all the points
-SetZoneFlagCenter(zone_id)
+GetZoneCenter(zone_id, Float:vec[3])
 {
     if (ZONE_POINTS[zone_id] == 0)
         return;
     else if (ZONE_POINTS[zone_id] == 1)
-        g_ZonesCache[zone_id][ZONE_FLAG_POINT] = g_ZonesCache[zone_id][ZONE_FIRST_POINT];
+        vec = g_ZonesCache[zone_id][ZONE_FIRST_POINT];
     else
     {
-        new Float:sum_x = 0.0;
-        new Float:sum_y = 0.0;
-        new Float:sum_z = 0.0;
+        new Float:sum[3];
         
         for (new i=ZONE_FIRST_POINT; i<ZONE_META_POINTS + ZONE_POINTS[zone_id]; i++)
         {
-            sum_x += ZONE_POINT[zone_id][i][0];
-            sum_y += ZONE_POINT[zone_id][i][1];
-            sum_z += ZONE_POINT[zone_id][i][2];
+            sum[0] += ZONE_POINT[zone_id][i][0];
+            sum[1] += ZONE_POINT[zone_id][i][1];
+            sum[2] += ZONE_POINT[zone_id][i][2];
         }
         
-        ZONE_FLAG[zone_id][0] = sum_x / ZONE_POINTS[zone_id];
-        ZONE_FLAG[zone_id][1] = sum_y / ZONE_POINTS[zone_id];
-        ZONE_FLAG[zone_id][2] = sum_z / ZONE_POINTS[zone_id];
+        vec[0] = sum[0] / ZONE_POINTS[zone_id];
+        vec[1] = sum[1] / ZONE_POINTS[zone_id];
+        vec[2] = sum[2] / ZONE_POINTS[zone_id];
     }
+}
+
+// Set's the flag location at the center of all the points
+SetZoneFlagCenter(zone_id)
+{
+    GetZoneCenter(zone_id, g_ZonesCache[zone_id][ZONE_FLAG_POINT]);
 }
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
@@ -1057,6 +1062,23 @@ public Action:Timer_DrawZones(Handle:timer)
                 DrawFlag(zone_id, client, FLAG_COLOR(zone_id));
         }
     }
+}
+
+
+/* ========================================================================
+                          PLAYER-ZONE INTERACTION
+   ======================================================================== */
+
+ZoneTeleport(client, zone_id)
+{
+    if (ZONE_FLAG_EMPTY(zone_id))
+    {
+        decl Float:tele[3];
+        GetZoneCenter(zone_id, tele);
+        TeleportEntity(client, tele, NULL_VECTOR, NULL_VECTOR);
+    }
+    else
+        TeleportEntity(client, g_ZonesCache[zone_id][ZONE_FLAG_POINT], NULL_VECTOR, NULL_VECTOR);
 }
 
 
