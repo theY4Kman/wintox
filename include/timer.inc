@@ -23,7 +23,7 @@ new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_ZONES];
-new g_PlayerCurrentZone[MAXPLAYERS] = { 0, ... };
+new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new bool:g_IsPlaying[MAXPLAYERS] = { false, ... };
 
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
@@ -32,6 +32,7 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
 #define ZoneTime(%1,%2) g_StartTimes[(%1)][(%2)] = GetEngineTime()
+#define TIMER_STARTED(%1) (g_StartTimes[(%1)][0] != 0.0)
 
 
 Timer_Init()
@@ -90,4 +91,6 @@ public Action:ConCommand_Timer(client, args)
 {
     new Handle:menu = BuildTimerSettingsMenu(client);
     DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+    
+    return Plugin_Handled;
 }

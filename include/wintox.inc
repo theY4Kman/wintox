@@ -61,27 +61,64 @@ public OnGameFrame()
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
-        if (g_IsPlaying[client])
+        decl Float:origin[3];
+        new bool:is_in_zone = false;
+        
+        GetClientAbsOrigin(client, origin);
+        
+        // Check if the player is in their current or next zone only
+        new start_zone = MAX(g_PlayerCurrentZone[client], 0);
+        new end_zone = start_zone + _:(g_PlayerCurrentZone[client] != -1);
+        for (new i=start_zone; i<=end_zone; i++)
         {
-            current_time = GetEngineTime();
-            time_elapsed = current_time - g_StartTimes[client][0];
+            new sides = ZONE_POINTS[i];
+            new j = sides-1 + ZONE_FIRST_POINT;
+            new bool:odd_nodes = false;
             
-            // Display the timer hint text every other frame
-            if (g_CurrentTick % 2 == 0)
+            for (new h=ZONE_FIRST_POINT; h<(ZONE_META_POINTS + sides); h++)
             {
-                if (g_TimerEnabled[client] && g_StartTimes[client][0] != 0.0)
+                if ((ZONE_POINT[i][h][1] < origin[1] && ZONE_POINT[i][j][1] >= origin[1]) ||
+                    (ZONE_POINT[i][j][1] < origin[1] && ZONE_POINT[i][h][1] >= origin[1]))
+                    if (ZONE_POINT[i][h][0] + (origin[1] - ZONE_POINT[i][h][1]) / (ZONE_POINT[i][j][1] -
+                        ZONE_POINT[i][h][1]) * (ZONE_POINT[i][j][0] - ZONE_POINT[i][h][0]) < origin[0])
+                        odd_nodes = !odd_nodes;
+                
+                j = h;
+            }
+            
+            if (odd_nodes)
+            {
+                is_in_zone = true;
+                g_PlayerCurrentZone[client] = i;
+                break;
+            }
+            else if (g_PlayerCurrentZone[client] == 0)
+                StartTimer(client);
+        }
+        
+        current_time = GetEngineTime();
+        time_elapsed = current_time - g_StartTimes[client][0];
+        
+        // Display the timer hint text every other frame
+        if (g_CurrentTick % 2 == 0)
+        {
+            if (g_TimerEnabled[client])
+            {
+                if (g_PlayerCurrentZone[client] == INVALID_ZONE)
+                    PrintHintText(client, "[Enter the start zone]");
+                
+                else if (is_in_zone && g_PlayerCurrentZone[client] == 0)
+                    PrintHintText(client, "[Leave the start zone]");
+                
+                else if (g_StartTimes[client][0] != 0.0)
                 {
                     new hours = RoundToFloor(time_elapsed) / SECONDS_IN_HOUR;
                     new minutes = (RoundToFloor(time_elapsed) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
                     new Float:seconds = time_elapsed - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
                     
-                    PrintHintText(client, "Time: %02d:%02d:%07.4f\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
+                    PrintHintText(client, "Time: %02d:%02d:%07.4f\nStage %d\nJumps: %d", hours, minutes, seconds, g_PlayerCurrentZone[client], g_Jumps[client]);
                 }
             }
-        }
-        
-        else // !g_IsPlaying[client]
-        {
         }
     }
 }

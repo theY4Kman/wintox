@@ -31,6 +31,8 @@ Events_Init()
     
     HookEvent("player_jump", Event_PlayerJump);
     HookEvent("player_team", Event_PlayerTeam);
+    HookEvent("player_spawn", Event_PlayerSpawn);
+    HookEvent("player_death", Event_PlayerDeath);
 }
 
 public OnMapStart()
@@ -61,9 +63,16 @@ public OnClientDisconnected(client)
     }
     
     for (new i=0; i<MAX_ZONES; i++)
+    {
         g_StartTimes[client][i] = 0.0;
+        g_ZoneRecords[client][i] = 0.0;
+    }
     
     g_TimerEnabled[client] = true;
+    g_SideStageInfoEnabled[client] = true;
+    g_PointsToChatEnabled[client] = true;
+    g_PlayerCurrentZone[client] = 0;
+    g_Jumps[client] = 0;
 }
 
 public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
@@ -72,6 +81,10 @@ public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
     
     // How the FUCK did they just jump? Aliens...
     if (!g_IsPlaying[client])
+        return;
+    
+    // Don't record jumps if the timer hasn't started
+    if (!TIMER_STARTED(client))
         return;
     
     if (0 < client <= MaxClients)
@@ -87,6 +100,18 @@ public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
         g_IsPlaying[client] = false;
     else
         g_IsPlaying[client] = true;
+}
+
+public Action:Event_PlayerSpawn(Handle:event, String:name[], bool:dontBroadcast)
+{
+    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    g_IsPlaying[client] = true;
+}
+
+public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    g_IsPlaying[client] = false;
 }
 
 // Tries to retrieve the current map info 
