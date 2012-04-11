@@ -630,6 +630,32 @@ FindEndZone()
     }
 }
 
+// Set's the flag location at the center of all the points
+SetZoneFlagCenter(zone_id)
+{
+    if (ZONE_POINTS[zone_id] == 0)
+        return;
+    else if (ZONE_POINTS[zone_id] == 1)
+        g_ZonesCache[zone_id][ZONE_FLAG_POINT] = g_ZonesCache[zone_id][ZONE_FIRST_POINT];
+    else
+    {
+        new Float:sum_x = 0.0;
+        new Float:sum_y = 0.0;
+        new Float:sum_z = 0.0;
+        
+        for (new i=ZONE_FIRST_POINT; i<ZONE_META_POINTS + ZONE_POINTS[zone_id]; i++)
+        {
+            sum_x += ZONE_POINT[zone_id][i][0];
+            sum_y += ZONE_POINT[zone_id][i][1];
+            sum_z += ZONE_POINT[zone_id][i][2];
+        }
+        
+        ZONE_FLAG[zone_id][0] = sum_x / ZONE_POINTS[zone_id];
+        ZONE_FLAG[zone_id][1] = sum_y / ZONE_POINTS[zone_id];
+        ZONE_FLAG[zone_id][2] = sum_z / ZONE_POINTS[zone_id];
+    }
+}
+
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
 {
     if (zone_id == ZONE_NEXT_NEW_ZONE)
@@ -767,6 +793,9 @@ Zone_FinishZone(client)
     
     ZONE_EDITING[zone_id] = false;
     g_ClientEditZone[client] = INVALID_ZONE;
+    
+    if (ZONE_FLAG_EMPTY(zone_id))
+        SetZoneFlagCenter(zone_id);
     
     CountZonePoints(zone_id);
     FindEndZone();
