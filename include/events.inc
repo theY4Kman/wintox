@@ -111,10 +111,8 @@ public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
     new team = GetEventInt(event, "team");
     
-    if (team == 0 || team == SPECTATOR_TEAM)
-        g_IsTiming[client] = false;
-    else
-        g_IsTiming[client] = true;
+    if (!IS_PLAYING_TEAM(team))
+        ResetTimer(client);
 }
 
 public Action:Event_PlayerSpawn(Handle:event, String:name[], bool:dontBroadcast)

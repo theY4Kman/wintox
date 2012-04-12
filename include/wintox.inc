@@ -71,6 +71,9 @@ public OnGameFrame()
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
+        if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+            continue;
+        
         decl Float:origin[3];
         new bool:is_in_zone = false;
         
