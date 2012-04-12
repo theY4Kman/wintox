@@ -12,6 +12,7 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
+new g_TimerDisplayRefreshRate = 2;
 new bool:g_wintoxExiting = false;
 new g_CurrentTick = 0;
 
@@ -34,11 +35,20 @@ Wintox_Init()
     AutoExecConfig(true, "wintox");
     
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
+    
+    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "2", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
+    g_TimerDisplayRefreshRate = GetConVarBool(timer_refresh);
+    HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
 }
 
 Wintox_Exit()
 {
     g_wintoxExiting = true;
+}
+
+public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_TimerDisplayRefreshRate = MAX(GetConVarInt(cvar), 1);
 }
 
 public OnConfigsExecuted()
@@ -93,13 +103,21 @@ public OnGameFrame()
                 origin[2] >= (ZONE_POINT[i][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
                 origin[2] <= (ZONE_POINT[i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
             {
-                if (g_PlayerCurrentZone[client] != i && i != 0)
+                if (!PLAYER_IN_ZONE(client,i) && i != 0)
+                {
                     ZoneTime(client, i);
+                    
+                    Call_StartForward(g_fwdPlayerReachedZone);
+                    Call_PushCell(client);
+                    Call_PushCell(i);
+                    Call_PushFloat(g_StartTimes[client][i] - g_StartTimes[client][i-1]);
+                    Call_Finish();
+                }
                 
                 // Yeah, you go, player! YOU ROCK!
-                if (i == g_EndZone)
+                if (IS_END_ZONE(i) && g_IsTiming[client])
                 {
-                    g_IsPlaying[client] = false;
+                    g_IsTiming[client] = false;
                     
                     Call_StartForward(g_fwdPlayerReachedEnd);
                     Call_PushCell(client);
@@ -114,7 +132,7 @@ public OnGameFrame()
             else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
             {
                 StartTimer(client);
-                g_IsPlaying[client] = true;
+                g_IsTiming[client] = true;
             }
         }
         
@@ -122,27 +140,33 @@ public OnGameFrame()
         time_elapsed = current_time - g_StartTimes[client][0];
         
         // Display the timer hint text every other frame
-        if (g_CurrentTick % 2 == 0)
+        if (g_CurrentTick % g_TimerDisplayRefreshRate == 0)
         {
             if (g_TimerEnabled[client])
             {
                 if (g_PlayerCurrentZone[client] == INVALID_ZONE)
                     PrintHintText(client, "[Enter the start zone]");
                 
-                else if (is_in_zone && g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
+                else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
                     PrintHintText(client, "[Leave the start zone]");
                 
-                else if (g_StartTimes[client][0] != 0.0)
+                else if (TIMER_STARTED(client))
                 {
                     new Float:time = (g_StartTimes[client][g_EndZone] == 0.0) ? time_elapsed : g_StartTimes[client][g_EndZone] - g_StartTimes[client][0];
                     new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
                     new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
                     new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
                     
+#if defined(WINTOX_BHOP)
+
                     if (g_StartTimes[client][g_EndZone] == 0.0)
-                        PrintHintText(client, "Time: %02d:%02d:%07.4f\nStage %d\nJumps: %d", hours, minutes, seconds, g_PlayerCurrentZone[client], g_Jumps[client]);
+                        PrintHintText(client, "Time: %02d:%02d:%07.4f\nStyle: <TODO>\nStage %d/%d\nJumps: %d", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZonesCount-1, g_Jumps[client]);
                     else
                         PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: <TODO>\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
+
+#elseif defined(WINTOX_SURF)
+#endif
+
                 }
             }
         }

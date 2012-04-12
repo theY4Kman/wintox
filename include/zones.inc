@@ -61,6 +61,8 @@ new g_CurMapTier = 1;
 // Amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
 #define ZONE_HEIGHT_FUDGE 4.0
 
+#define PLAYER_IN_ZONE(%1,%2) (g_PlayerCurrentZone[(%1)] == (%2))
+
 // Create a static array cache for zones
 // Capacity: 32 zones, 30* points each
 // * The first point is used to store information about the zone, including
@@ -1287,6 +1289,8 @@ public T_GetZoneDBIDForInsertZonePoints(Handle:owner, Handle:hndl, const String:
     __win_SQL_InsertZonePoints(zone_id, zone_dbid);
 }
 
+// TODO: have a for loop that SQLTs all the points, instead of chaining SQLTs
+// Chaining them is incredibly slow.
 __win_SQL_InsertZonePoints(zone_id, zone_dbid)
 {
     new Handle:pack = CreateDataPack();

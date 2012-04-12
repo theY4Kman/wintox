@@ -23,7 +23,7 @@ new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_ZONES];
-new bool:g_IsPlaying[MAXPLAYERS] = { false, ... };
+new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
 
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
@@ -94,12 +94,13 @@ public Action:ConCommand_Timer(client, args)
     return Plugin_Handled;
 }
 
-// Resets all the zone times and jumps and sets IsPlaying false
+// Resets all the zone times and jumps and sets IsTiming false
 ResetTimer(client)
 {
     for (new i=0; i<MAX_ZONES; i++)
         g_StartTimes[client][i] = 0.0;
     
-    g_IsPlaying[client] = false;
+    g_PlayerCurrentZone[client] = INVALID_ZONE;
+    g_IsTiming[client] = false;
     g_Jumps[client] = false;
 }

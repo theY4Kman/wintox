@@ -17,6 +17,7 @@
 new Handle:g_fwdMapLoaded = INVALID_HANDLE;
 new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
 new Handle:g_fwdPlayerReachedEnd = INVALID_HANDLE;
+new Handle:g_fwdPlayerReachedZone = INVALID_HANDLE;
 
 #include "./include/sql"
 #include "./include/stocks"
@@ -34,7 +35,12 @@ Events_Init()
     // public(client, Float:elapsed)
     g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Float);
     
+    // public(client, zone_id, Float:elapsed)
+    g_fwdPlayerReachedZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Float);
+    
+#if defined(WINTOX_BHOP)
     HookEvent("player_jump", Event_PlayerJump);
+#endif
     HookEvent("player_team", Event_PlayerTeam);
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_death", Event_PlayerDeath);
@@ -55,7 +61,7 @@ public OnClientAuthorized(client, const String:auth[])
 
 public OnClientDisconnect(client)
 {
-    g_IsPlaying[client] = false;
+    g_IsTiming[client] = false;
 }
 
 public OnClientDisconnected(client)
@@ -80,21 +86,25 @@ public OnClientDisconnected(client)
     g_Jumps[client] = 0;
 }
 
+#if defined(WINTOX_BHOP)
 public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
     
+    if (client < 0 || client > MaxClients)
+        return;
+    
     // How the FUCK did they just jump? Aliens...
-    if (!g_IsPlaying[client])
+    if (!g_IsTiming[client])
         return;
     
     // Don't record jumps if the timer hasn't started
     if (!TIMER_STARTED(client))
         return;
     
-    if (0 < client <= MaxClients)
-        g_Jumps[client]++;
+    g_Jumps[client]++;
 }
+#endif // defined(WINTOX_BHOP)
 
 public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
 {
@@ -102,21 +112,21 @@ public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
     new team = GetEventInt(event, "team");
     
     if (team == 0 || team == SPECTATOR_TEAM)
-        g_IsPlaying[client] = false;
+        g_IsTiming[client] = false;
     else
-        g_IsPlaying[client] = true;
+        g_IsTiming[client] = true;
 }
 
 public Action:Event_PlayerSpawn(Handle:event, String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
-    g_IsPlaying[client] = true;
+    g_IsTiming[client] = true;
 }
 
 public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
-    g_IsPlaying[client] = false;
+    g_IsTiming[client] = false;
 }
 
 // Tries to retrieve the current map info 
