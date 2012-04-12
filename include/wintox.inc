@@ -12,7 +12,7 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
-new g_TimerDisplayRefreshRate = 2;
+new g_TimerDisplayRefreshRate = 5;
 new bool:g_wintoxExiting = false;
 new g_CurrentTick = 0;
 
@@ -34,9 +34,7 @@ Wintox_Init()
     
     AutoExecConfig(true, "wintox");
     
-    RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
-    
-    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "2", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
+    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "5", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
     g_TimerDisplayRefreshRate = GetConVarBool(timer_refresh);
     HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
 }
@@ -169,16 +167,10 @@ public OnGameFrame()
 
                 }
             }
+            
+            // Actively hide the hint text
+            else
+                HideHintText(client);
         }
     }
-}
-
-public Action:ConCommand_Restart(client, args)
-{
-    ResetTimer(client);
-    ZoneTeleport(client, 0);
-    
-    Reply(client, "Reset timer and teleported to start zone.");
-    
-    return Plugin_Handled;
 }

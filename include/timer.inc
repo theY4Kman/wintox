@@ -37,6 +37,9 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 Timer_Init()
 {
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
+    RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
+    RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
+    RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
 }
 
 #define TSET_MENU_MIDDLE "middle"
@@ -71,7 +74,11 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
         GetMenuItem(menu, param2, STR(info));
         
         if (StrEqual(info, TSET_MENU_MIDDLE))
+        {
             g_TimerEnabled[param1] = !g_TimerEnabled[param1];
+            if (!g_TimerEnabled[param1])
+                HideHintText(param1);
+        }
         else if (StrEqual(info, TSET_MENU_SIDE))
             g_SideStageInfoEnabled[param1] = !g_SideStageInfoEnabled[param1];
         else if (StrEqual(info, TSET_MENU_POINTS))
@@ -90,6 +97,45 @@ public Action:ConCommand_Timer(client, args)
 {
     new Handle:menu = BuildTimerSettingsMenu(client);
     DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Restart(client, args)
+{
+    ResetTimer(client);
+    ZoneTeleport(client, 0);
+    
+    Reply(client, "Reset timer and teleported to start zone.");
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Stop(client, args)
+{
+    ResetTimer(client);
+    
+    Reply(client, "Stopped timer. Pass through the start zone to restart it.");
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Respawn(client, args)
+{
+    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    {
+        Reply(client, "You are not on a playing team and can't be respawned. Nice try.");
+        return Plugin_Handled;
+    }
+    
+    if (IsPlayerAlive(client))
+    {
+        Reply(client, "Living players cannot be respawned. Perhaps you were looking for /restart?");
+        return Plugin_Handled;
+    }
+    
+    RESPAWN_PLAYER(client);
+    Reply(client, "You have been given new life. IT'S ALIVE!");
     
     return Plugin_Handled;
 }

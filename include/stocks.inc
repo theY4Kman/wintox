@@ -46,3 +46,10 @@ stock Reply(client, const String:format[], any:...)
     
     Client_Reply(client, "{R}[WTX]{N} %s", buffer);
 }
+
+stock HideHintText(client)
+{
+    new Handle:userMessage = StartMessageOne("HintText", client);
+    BfWriteByte(userMessage, 0);
+    EndMessage();
+}
