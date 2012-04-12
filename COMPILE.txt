@@ -1,2 +1,4 @@
 To compile the Wintox family of plug-ins, you will need Berni and Chanz' smlib, available here: http://www.sourcemodplugins.org/pages/smlib/
 It will need to be placed inside the sourcemod/scripting/include/ directory.
+
+Also needed is the SDKHooks extension, by Tsunami, available here: http://forums.alliedmods.net/showthread.php?t=106748

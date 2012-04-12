@@ -16,6 +16,11 @@ new g_TimerDisplayRefreshRate = 5;
 new bool:g_wintoxExiting = false;
 new g_CurrentTick = 0;
 
+new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
+
+#include <sourcemod>
+#include <sdkhooks>
+
 #include "./include/game"
 #include "./include/commands"
 #include "./include/sql"
@@ -37,6 +42,9 @@ Wintox_Init()
     new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "5", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
     g_TimerDisplayRefreshRate = GetConVarBool(timer_refresh);
     HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
+    
+    RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
+    RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
 }
 
 Wintox_Exit()
@@ -177,3 +185,37 @@ public OnGameFrame()
         }
     }
 }
+
+
+#define SHOW_OTHER_PLAYERS_MESSAGE "Showing all other players."
+public Action:ConCommand_Hide(client, args)
+{
+    NO_ARGS()
+    
+    g_HideOtherPlayers[client] = !g_HideOtherPlayers[client];
+    
+    if (g_HideOtherPlayers[client])
+        Reply(client, "Hiding all other players.");
+    else
+        Reply(client, SHOW_OTHER_PLAYERS_MESSAGE);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Show(client, args)
+{
+    NO_ARGS()
+    
+    g_HideOtherPlayers[client] = false;
+    Reply(client, SHOW_OTHER_PLAYERS_MESSAGE);
+    
+    return Plugin_Handled;
+}
+
+public Action:Hook_SetTransmit(entity, client) 
+{ 
+    if (client != entity && (0 < entity <= MaxClients) && g_HideOtherPlayers[client]) 
+        return Plugin_Handled; 
+     
+    return Plugin_Continue; 
+}  

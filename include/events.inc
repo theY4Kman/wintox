@@ -59,9 +59,16 @@ public OnClientAuthorized(client, const String:auth[])
     InsertOrUpdatePlayerInfo(client, auth);
 }
 
+public OnClientPutInServer(client)
+{
+    g_HideOtherPlayers[client] = false;
+    SDKHook(client, SDKHook_SetTransmit, Hook_SetTransmit);
+}
+
 public OnClientDisconnect(client)
 {
     g_IsTiming[client] = false;
+    g_HideOtherPlayers[client] = false;
 }
 
 public OnClientDisconnected(client)

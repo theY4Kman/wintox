@@ -95,6 +95,8 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
 
 public Action:ConCommand_Timer(client, args)
 {
+    NO_ARGS()
+    
     new Handle:menu = BuildTimerSettingsMenu(client);
     DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
     
@@ -103,6 +105,8 @@ public Action:ConCommand_Timer(client, args)
 
 public Action:ConCommand_Restart(client, args)
 {
+    NO_ARGS()
+    
     ResetTimer(client);
     ZoneTeleport(client, 0);
     
@@ -113,8 +117,9 @@ public Action:ConCommand_Restart(client, args)
 
 public Action:ConCommand_Stop(client, args)
 {
-    ResetTimer(client);
+    NO_ARGS()
     
+    ResetTimer(client);
     Reply(client, "Stopped timer. Pass through the start zone to restart it.");
     
     return Plugin_Handled;
@@ -122,6 +127,8 @@ public Action:ConCommand_Stop(client, args)
 
 public Action:ConCommand_Respawn(client, args)
 {
+    NO_ARGS()
+    
     if (!IS_PLAYING_TEAM(GetClientTeam(client)))
     {
         Reply(client, "You are not on a playing team and can't be respawned. Nice try.");
