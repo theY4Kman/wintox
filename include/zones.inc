@@ -316,11 +316,11 @@ public Action:ConCommand_SyncZones(client, args)
                           ZONE MANIPULATION MENU
    ======================================================================== */
 
-#define ZMENU_INFO_NEW_ZONE "0"
-#define ZMENU_INFO_REMOVE_ZONE "1"
-#define ZMENU_INFO_CLEAR_ALL_ZONES "2"
-#define ZMENU_INFO_RELOAD_ZONES "3"
-#define ZMENU_INFO_SYNC_ZONES "4"
+#define ZMENU_INFO_NEW_ZONE "new"
+#define ZMENU_INFO_REMOVE_ZONE "remove"
+#define ZMENU_INFO_CLEAR_ALL_ZONES "clear"
+#define ZMENU_INFO_RELOAD_ZONES "reload"
+#define ZMENU_INFO_SYNC_ZONES "sync"
 
 BuildZoneMenu()
 {
@@ -331,7 +331,7 @@ BuildZoneMenu()
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_REMOVE_ZONE, "Remove zone");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_RELOAD_ZONES, "Reload zones from DB");
-    AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB");
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB (slow)");
 }
 
 DisplayZoneMenu(client)
@@ -900,14 +900,21 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, points)
     {
         g_ZoneSyncInProgress = false;
         g_ZoneSyncLastZone = -1;
-    }
     
-    if (g_ZoneSyncNotifyClient != -1)
+        if (g_ZoneSyncNotifyClient != -1)
+        {
+            new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
+            Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones to the database!", g_ZonesSynced);
+            SetCmdReplySource(prev);
+            
+            g_ZoneSyncNotifyClient = -1;
+        }
+    }
+    else if (g_ZoneSyncNotifyClient != -1)
     {
-        SetCmdReplySource(g_ZoneSyncReplySource);
-        Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones to the database!", g_ZonesSynced);
-        
-        g_ZoneSyncNotifyClient = -1;
+        new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
+        Reply(g_ZoneSyncNotifyClient, "Synced zone %d (id %d) of %d...", zone_id+1, zone_id, g_ZonesSynced);
+        SetCmdReplySource(prev);
     }
 }
 
@@ -1289,69 +1296,52 @@ public T_GetZoneDBIDForInsertZonePoints(Handle:owner, Handle:hndl, const String:
     __win_SQL_InsertZonePoints(zone_id, zone_dbid);
 }
 
-// TODO: have a for loop that SQLTs all the points, instead of chaining SQLTs
-// Chaining them is incredibly slow.
 __win_SQL_InsertZonePoints(zone_id, zone_dbid)
 {
-    new Handle:pack = CreateDataPack();
-    
-    WritePackCell(pack, zone_id);
-    WritePackCell(pack, zone_dbid);
-    WritePackCell(pack, 0);
-    ResetPack(pack);
-    
     // Just a last check to make sure our points count is accurate before it's final
     CountZonePoints(zone_id);
     
-    T_InsertZonePoints(INVALID_HANDLE, INVALID_HANDLE, "", pack);
+    for (new zp_number=0; zp_number < (ZONE_POINTS[zone_id] + ZONE_META_POINTS); zp_number++)
+    {
+        decl String:buffer[256];
+        
+        new Float:x = g_ZonesCache[zone_id][zp_number][0];
+        new Float:y = g_ZonesCache[zone_id][zp_number][1];
+        new Float:z = g_ZonesCache[zone_id][zp_number][2];
+        
+        // Need to convert metadata from ints to floats
+        if (zp_number == 0)
+        {
+            x = float(_:x);
+            y = float(_:y);
+            z = float(_:z);
+        }
+        
+        Format(STR(buffer), SQL_QUERY[InsertZonePoint], zone_dbid, zp_number, x, y, z);
+        
+        new Handle:pack = CreateDataPack();
+        WritePackCell(pack, zone_id);
+        WritePackCell(pack, zp_number);
+        ResetPack(pack);
+        
+        SQLT(buffer, T_InsertZonePoints, pack);
+    }
 }
 
 public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
     new Handle:pack = Handle:data;
-    
-    ResetPack(pack);
     new zone_id = ReadPackCell(pack);
-    new zone_dbid = ReadPackCell(pack);
     new zp_number = ReadPackCell(pack);
     CloseHandle(pack);
     
-    if (zp_number > ZONE_POINTS[zone_id]+1)
+    if (zp_number >= (ZONE_POINTS[zone_id] + ZONE_META_POINTS - 1))
     {
         Call_StartForward(g_fwdPointsSyncFinished);
         Call_PushCell(zone_id);
-        Call_PushCell(zp_number);
+        Call_PushCell(zp_number + 1);
         Call_Finish();
-        
-        return;
     }
-    
-    new Float:x = g_ZonesCache[zone_id][zp_number][0];
-    new Float:y = g_ZonesCache[zone_id][zp_number][1];
-    new Float:z = g_ZonesCache[zone_id][zp_number][2];
-    
-    // Need to convert metadata from ints to floats
-    if (zp_number == 0)
-    {
-        x = float(_:x);
-        y = float(_:y);
-        z = float(_:z);
-    }
-    
-    decl String:buffer[256];
-    Format(STR(buffer), SQL_QUERY[InsertZonePoint], zone_dbid, zp_number, x, y, z);
-    
-    zp_number++;
-    
-    // I really don't want to create another pack, but SetPackPosition and
-    // WritePackCell don't seem to work as I want them to.
-    pack = CreateDataPack();
-    WritePackCell(pack, zone_id);
-    WritePackCell(pack, zone_dbid);
-    WritePackCell(pack, zp_number);
-    ResetPack(pack);
-    
-    SQLT(buffer, T_InsertZonePoints, pack);
 }
 
 win_SQL_ClearZonePoints(zone_id)
