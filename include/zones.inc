@@ -50,9 +50,9 @@ new g_CurMapTier = 1;
 
 #define IS_END_ZONE(%1) ((%1) == g_EndZone)
 
-#define FLAG_COLOR_START { 0, 255, 50, 200 }
-#define FLAG_COLOR_END { 255, 100, 0, 200 }
-#define FLAG_COLOR_ZONE { 255, 255, 255, 100 }
+#define FLAG_COLOR_START { 0, 255, 50, 240 }
+#define FLAG_COLOR_END { 255, 100, 0, 240 }
+#define FLAG_COLOR_ZONE { 255, 255, 255, 200 }
 #define FLAG_COLOR(%1) ((%1) == 0 ? FLAG_COLOR_START : (IS_END_ZONE(%1) ? FLAG_COLOR_END : FLAG_COLOR_ZONE))
 
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
@@ -989,7 +989,7 @@ DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
     BEAM(vec_b, vec_a)
     
     g_FlagRotation[zone_id] += FLAG_ROTATE_STEP;
-    if (g_FlagRotation[zone_id] > (2 * FLOAT_PI))
+    if (g_FlagRotation[zone_id] >= (2 * FLOAT_PI) || g_FlagRotation[zone_id] < 0.0)
         g_FlagRotation[zone_id] = 0.0;
 }
 

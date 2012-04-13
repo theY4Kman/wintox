@@ -23,7 +23,11 @@ new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_ZONES];
+
+// Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
+// When the player paused their timer (0.0 for not paused)
+new Float:g_PauseStart[MAXPLAYERS] = { 0.0, ... };
 
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
@@ -32,7 +36,10 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
 #define ZoneTime(%1,%2) g_StartTimes[(%1)][(%2)] = GetEngineTime()
 #define TIMER_STARTED(%1) (g_StartTimes[(%1)][0] != 0.0)
+#define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
 
+#define IS_PAUSED(%1) (g_PauseStart[(%1)] != 0.0)
+#define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone] != 0.0)
 
 Timer_Init()
 {
@@ -40,6 +47,7 @@ Timer_Init()
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
+    RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
 }
 
 #define TSET_MENU_MIDDLE "middle"
@@ -107,8 +115,18 @@ public Action:ConCommand_Restart(client, args)
 {
     NO_ARGS()
     
+    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    {
+        Reply(client, "You are not on a playing team and have no run to restart.");
+        return Plugin_Handled;
+    }
+    
     ResetTimer(client);
     ZoneTeleport(client, 0);
+    
+    // Clear pause, just in case
+    UnpauseTimer(client);
+    SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
     
     Reply(client, "Reset timer and teleported to start zone.");
     
@@ -118,6 +136,12 @@ public Action:ConCommand_Restart(client, args)
 public Action:ConCommand_Stop(client, args)
 {
     NO_ARGS()
+    
+    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    {
+        Reply(client, "You are not on a playing team and have no timer to stop.");
+        return Plugin_Handled;
+    }
     
     ResetTimer(client);
     Reply(client, "Stopped timer. Pass through the start zone to restart it.");
@@ -147,6 +171,34 @@ public Action:ConCommand_Respawn(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_Pause(client, args)
+{
+    NO_ARGS()
+    
+    if (!g_IsTiming[client])
+    {
+        Reply(client, "The timer is not running. There's no need to pause.");
+        return Plugin_Handled;
+    }
+    
+    if (IS_PAUSED(client))
+    {
+        UnpauseTimer(client);
+        SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
+        
+        Reply(client, "Unpaused timer and your movement.");
+    }
+    else
+    {
+        PauseTimer(client);
+        SetEntityMoveType(client, MOVETYPE_NONE);
+        
+        Reply(client, "Paused timer and your movement.");
+    }
+    
+    return Plugin_Handled;
+}
+
 // Resets all the zone times and jumps and sets IsTiming false
 ResetTimer(client)
 {
@@ -156,4 +208,23 @@ ResetTimer(client)
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_IsTiming[client] = false;
     g_Jumps[client] = false;
+}
+
+// Pauses the timer, recording the pause time for use in correcting zone times on unpause
+PauseTimer(client)
+{
+    g_PauseStart[client] = GetEngineTime();
+}
+
+// Unpauses the timer, correcting zone times for pause time elapsed
+UnpauseTimer(client)
+{
+    if (g_IsTiming[client])
+    {
+        new Float:pause_time_elapsed = GetEngineTime() - g_PauseStart[client];
+        for (new i=0; i<=g_PlayerCurrentZone[client]; i++)
+            ZONE_TIME[client][i] += pause_time_elapsed;
+    }
+    
+    g_PauseStart[client] = 0.0;
 }

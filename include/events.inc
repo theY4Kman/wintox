@@ -91,6 +91,7 @@ public OnClientDisconnected(client)
     g_PointsToChatEnabled[client] = true;
     g_PlayerCurrentZone[client] = 0;
     g_Jumps[client] = 0;
+    g_PauseStart[client] = 0.0;
 }
 
 #if defined(WINTOX_BHOP)
