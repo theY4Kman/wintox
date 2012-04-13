@@ -59,11 +59,6 @@ new Handle:g_cv_DBConfig = INVALID_HANDLE;
 new Handle:g_Database = INVALID_HANDLE;
 new Handle:g_DatabaseDriver = INVALID_HANDLE;
 
-//////////////////////////////////////////////////////
-// This may be needed later (heh), and I hate warnings
-//////////////////////////////////////////////////////
-#pragma unused g_DatabaseDriver
-
 
 
 // ===========================================================================
