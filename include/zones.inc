@@ -23,6 +23,9 @@
 
 #define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
 
+// An arbitrary, unique number to identify a particular text entry routine
+#define TEXT_ENTRY_ZONE_NAME 97
+
 // Current map info
 new g_CurMapID = -1;
 new String:g_CurMapName[256];
@@ -106,6 +109,7 @@ Zones_Init()
     RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_setname", ConCommand_SetName, "sm_setname | Set the name of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC);
@@ -130,6 +134,9 @@ Zones_Init()
     
     new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPlayerReachedZone");
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
+    
+    new Function:on_text_entry_complete = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnTextEntryComplete");
+    AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, on_text_entry_complete);
     
     BuildZoneMenu();
 
@@ -157,6 +164,12 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
 public fwd_Zone_OnPlayerReachedZone(client, zone_id, Float:elapsed)
 {
     
+}
+
+public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
+{
+    if (data == TEXT_ENTRY_ZONE_NAME)
+        Zone_SetName(client, text);
 }
 
 
@@ -235,6 +248,19 @@ public Action:ConCommand_SetFlag(client, args)
     RESET_REPLY()
     
     Zone_SetFlag(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_SetName(client, args)
+{
+    EXACT_ARGS(1)
+    RESET_REPLY()
+    
+    decl String:name[64];
+    GetCmdArg(1, STR(name));
+    
+    Zone_SetName(client, name);
     
     return Plugin_Handled;
 }
@@ -451,6 +477,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 #define ZMENU_EDIT_CLEAR_ALL "clear"
 #define ZMENU_EDIT_FINISH "finish"
 #define ZMENU_EDIT_SET_FLAG "flag"
+#define ZMENU_EDIT_SET_NAME "name"
 
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -477,6 +504,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
         AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
         AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
+        AddMenuItem(zone_menu, ZMENU_EDIT_SET_NAME, "Set name (in chat)");
         AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
         
         // Pop the zone index submenu, but don't redisplay the root zone menu
@@ -558,6 +586,20 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             Zone_ClearAllPoints(param1);
         else if (StrEqual(info, ZMENU_EDIT_SET_FLAG))
             Zone_SetFlag(param1);
+        else if (StrEqual(info, ZMENU_EDIT_SET_NAME))
+        {
+            decl String:reason[32];
+            
+            new zone_id = g_ClientEditZone[param1];
+            if (zone_id == INVALID_ZONE)
+            {
+                Reply(param1, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+                return;
+            }
+            
+            Format(STR(reason), "set zone %d name", zone_id);
+            BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME);
+        }
         else if (StrEqual(info, ZMENU_EDIT_FINISH))
         {
             Zone_FinishZone(param1);
@@ -763,6 +805,20 @@ Zone_SetFlag(client)
     
     Reply(client, "Set zone %d flag at point (%f, %f, %f)", zone_id,
         ZONE_FLAG[zone_id][0], ZONE_FLAG[zone_id][1], ZONE_FLAG[zone_id][2]);
+}
+
+Zone_SetName(client, const String:name[])
+{
+    new zone_id = g_ClientEditZone[client];
+    if (zone_id == INVALID_ZONE)
+    {
+        Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
+        return;
+    }
+    
+    strcopy(g_ZoneNames[zone_id], sizeof(g_ZoneNames[]), name);
+    
+    Reply(client, "Set zone %d name to \"%s\"", zone_id, g_ZoneNames[zone_id]);
 }
 
 Zone_RemoveLastPoint(client)
