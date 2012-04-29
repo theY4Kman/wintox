@@ -44,6 +44,16 @@
  *   y                  FLOAT
  *   z                  FLOAT
  *   UNIQUE(fk_zone, number)
+ * 
+ * TABLE wintox_zone_records
+ *   id                 pk
+ *   fk_player          INT,FK(wintox_players)
+ *   fk_map             INT,FK(wintox_maps)
+ *   fk_zone            INT,FK(wintox_zones)
+ *   type               VARCHAR(16)         NOTE: bhop: normal, sideways, w-only
+ *   time               FLOAT
+ *   date_set           FLOAT
+ *   UNIQUE(fk_player, fk_map, fk_zone, type)
  */
 
 enum DatabaseType
@@ -119,6 +129,23 @@ NEW_SQL_QUERY(CreateZonePoints) = {
        z                FLOAT NOT NULL, \
        FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE \
        UNIQUE(fk_zone, number) \
+     );",
+    
+    ""
+};
+NEW_SQL_QUERY(CreateZoneRecords) = {
+    "CREATE TABLE IF NOT EXISTS wintox_zone_records ( \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       fk_player        INTEGER NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       fk_zone          INTEGER NOT NULL, \
+       type             TEXT DEFAULT NULL, \
+       time             FLOAT NOT NULL, \
+       date_set         FLOAT NOT NULL, \
+       FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE, \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE, \
+       UNIQUE(fk_player, fk_map, fk_zone, type) \
      );",
     
     ""
@@ -202,14 +229,15 @@ win_SQL_Init()
 // Because this uses the `wintox_dbconfig` cvar, this must be called from OnConfigsExecuted (or later)
 win_SQL_Connect()
 {
-    decl String:buffer[256];
+    decl String:config[256];
+    decl String:error[256];
     decl String:driver[64];
     
-    GetConVarString(g_cv_DBConfig, STR(buffer));
-    g_Database = SQL_Connect(buffer, true, STR(buffer));
+    GetConVarString(g_cv_DBConfig, STR(config));
+    g_Database = SQL_Connect(config, true, STR(error));
     
     if (g_Database == INVALID_HANDLE)
-        SetFailState("%s", buffer);
+        SetFailState("Error connecting to database config \"%s\": %s", config, error);
     
     g_DatabaseDriver = SQL_ReadDriver(g_Database, STR(driver));
     if (StrEqual(driver, "mysql"))
@@ -222,7 +250,7 @@ win_SQL_Connect()
     // Get the product name for display
     SQL_GetDriverProduct(g_DatabaseDriver, STR(driver));
     
-    LogMessage("Successfully connected to %s database \"%s\"", driver, buffer);
+    LogMessage("Successfully connected to %s database config \"%s\"", driver, config);
 }
 
 win_SQL_CreateTables()
@@ -231,11 +259,12 @@ win_SQL_CreateTables()
     
     #define CREATE_TABLE(%1,%2) if (!SQL_FastQuery(g_Database, SQL_QUERY[%1])) { \
         SQL_GetError(g_Database, STR(buffer)); \
-        SetFailState("Error executing %s: %s", %2, buffer); \
+        SetFailState("Error executing %s: %s", (%2), buffer); \
     }
     
-    CREATE_TABLE(CreatePlayers,"CreatePlayers")
-    CREATE_TABLE(CreateMaps,"CreateMaps")
-    CREATE_TABLE(CreateZones,"CreateZones")
-    CREATE_TABLE(CreateZonePoints,"CreateZonePoints")
+    CREATE_TABLE(CreatePlayers, "CreatePlayers")
+    CREATE_TABLE(CreateMaps, "CreateMaps")
+    CREATE_TABLE(CreateZones, "CreateZones")
+    CREATE_TABLE(CreateZonePoints, "CreateZonePoints")
+    CREATE_TABLE(CreateZonePoints, "CreateZoneRecords")
 }

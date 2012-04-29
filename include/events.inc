@@ -13,6 +13,7 @@
 
 #include <sourcemod>
 #include <geoip>
+#include <sdkhooks>
 
 new Handle:g_fwdMapLoaded = INVALID_HANDLE;
 new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
