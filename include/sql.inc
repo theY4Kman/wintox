@@ -266,5 +266,5 @@ win_SQL_CreateTables()
     CREATE_TABLE(CreateMaps, "CreateMaps")
     CREATE_TABLE(CreateZones, "CreateZones")
     CREATE_TABLE(CreateZonePoints, "CreateZonePoints")
-    CREATE_TABLE(CreateZonePoints, "CreateZoneRecords")
+    CREATE_TABLE(CreateZoneRecords, "CreateZoneRecords")
 }

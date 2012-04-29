@@ -14,6 +14,7 @@
 #include "./include/commands"
 #include "./include/sql"
 #include "./include/stocks"
+#include "./include/events"
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
@@ -121,11 +122,14 @@ Zones_Init()
     g_DrawFlags = GetConVarBool(draw_flags);
     HookConVarChange(draw_flags, ConVar_DrawFlags);
     
-    new Function:on_map_loaded = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnMapLoaded");
+    new Function:on_map_loaded = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnMapLoaded");
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, on_map_loaded);
     
-    new Function:on_points_sync_finished = GetFunctionByName(GetMyHandle(), "fwd_Zone_OnPointsSyncFinished");
+    new Function:on_points_sync_finished = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPointsSyncFinished");
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, on_points_sync_finished);
+    
+    new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPlayerReachedZone");
+    AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
     
     BuildZoneMenu();
 
@@ -148,6 +152,11 @@ public ConVar_DrawFlags(Handle:cvar, const String:oldVal[], const String:newVal[
 public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
 {
     CacheZones(0);
+}
+
+public fwd_Zone_OnPlayerReachedZone(client, zone_id, Float:elapsed)
+{
+    
 }
 
 
