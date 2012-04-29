@@ -25,6 +25,7 @@ new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
 #include "./include/commands"
 #include "./include/sql"
 #include "./include/events"
+#include "./include/utils"
 #include "./include/menus"
 #include "./include/zones"
 
@@ -34,6 +35,7 @@ Wintox_Init()
     Commands_Init();
     win_SQL_Init();
     Events_Init();
+    Utils_Init();
     Zones_Init();
     Timer_Init();
     

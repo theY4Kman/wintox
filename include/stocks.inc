@@ -22,6 +22,7 @@
 
 #define VEC_PRINT(%1) (%1)[0], (%1)[1], (%1)[2]
 
+
 // For debugging stacks
 stock PrintStack(Handle:stack)
 {
@@ -45,6 +46,14 @@ stock Reply(client, const String:format[], any:...)
     VFormat(STR(buffer), format, 3);
     
     Client_Reply(client, "{R}[WTX]{N} %s", buffer);
+}
+
+stock WTX_PrintToChat(client, const String:format[], any:...)
+{
+    decl String:buffer[1024];
+    VFormat(STR(buffer), format, 3);
+    
+    Client_PrintToChat(client, false, "{R}[WTX]{N} %s", buffer);
 }
 
 stock HideHintText(client)
