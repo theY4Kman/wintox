@@ -749,8 +749,7 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
     ZONE_HEIGHT[zone_id] = DEFAULT_ZONE_HEIGHT;
     ZONE_EDITING[zone_id] = true;
     
-    // TODO: zone name
-    win_SQL_UpsertZone(zone_id, "Zone");
+    win_SQL_UpsertZone(zone_id);
 }
 
 Zone_NewZonePoint(client)
@@ -1289,7 +1288,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Reply(client, "Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
-win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
+win_SQL_UpsertZone(zone_id)
 {
     decl String:buffer[256];
     decl String:esc_name[256];
@@ -1298,7 +1297,7 @@ win_SQL_UpsertZone(zone_id, const String:name[]="Zone")
     if (g_ZoneIDs[zone_id] != -1)
         IntToString(g_ZoneIDs[zone_id], STR(sz_zone_dbid));
     
-    SQL_EscapeString(g_Database, name, STR(esc_name));
+    SQL_EscapeString(g_Database, g_ZoneNames[zone_id], STR(esc_name));
     Format(STR(buffer), SQL_QUERY[InsertZone], sz_zone_dbid, g_CurMapID, zone_id, esc_name);
     SQLT(buffer, T_UpsertZone, zone_id);
 }
