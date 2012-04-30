@@ -499,7 +499,7 @@ DisplayZoneMenu(client, track=MAIN_TRACK)
 
 DisplayTrackMenu(client)
 {
-    DisplaySubmenu(g_TrackMenu, client, MENU_TIME_FOREVER, false);
+    DisplaySubmenu(g_TrackMenu, client, MENU_TIME_FOREVER, false, GetMenuSelectionPosition());
 }
 
 SetZoneMenuTitle()
@@ -549,7 +549,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             AddMenuItem(confirm_menu, "no", "No");
             AddMenuItem(confirm_menu, "kinda yes", "Yes");
             
-            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
+            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true);
         }
         else if (StrEqual(info, ZMENU_INFO_RELOAD_ZONES))
         {
@@ -596,6 +596,7 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
+            PrevSubmenu(param1, false);
             DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
         }
         else if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_REMOVE)
@@ -624,11 +625,12 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
+            PrevSubmenu(param1, false);
             DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
         }
     }
     else if (action == MenuAction_Cancel)
-        PrevSubmenu(param1);
+        HANDLE_CANCEL();
 }
 
 #define ZMENU_EDIT_NEW_POINT "new"
