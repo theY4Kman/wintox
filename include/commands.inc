@@ -30,6 +30,13 @@
         return Plugin_Handled; \
     }
 
+#define CHECK_ARGS_SPAN(%1,%2) \
+    if (args < (%1) || args > (%2)) \
+    { \
+        ReplyWithDescription(client); \
+        return Plugin_Handled; \
+    }
+
 #define NO_ARGS() CHECK_ARGS_UPPER(0)
 
 new Handle:g_PublicCommands = INVALID_HANDLE;

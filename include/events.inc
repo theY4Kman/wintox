@@ -34,7 +34,7 @@ Events_Init()
     
     // Called when all points are synced to the database
     // public(zone_id, points)
-    g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell);
+    g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     
     // Called when a player reaches the end zone
     // public(client, Float:elapsed)

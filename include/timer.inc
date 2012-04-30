@@ -39,7 +39,8 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 #define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
 
 #define IS_PAUSED(%1) (g_PauseStart[(%1)] != 0.0)
-#define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone] != 0.0)
+// TODO: track?
+#define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone[track]] != 0.0)
 
 Timer_Init()
 {

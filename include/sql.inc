@@ -32,6 +32,7 @@
  * TABLE wintox_zones
  *   id                 pk
  *   fk_map             INT,FK(wintox_maps)
+ *   track              INT,DEFAULT 0
  *   number             INT
  *   name               VARCHAR(64),NULL
  *   UNIQUE(fk_map, number)
@@ -111,10 +112,11 @@ NEW_SQL_QUERY(CreateZones) = {
     "CREATE TABLE IF NOT EXISTS wintox_zones ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
        fk_map           INTEGER NOT NULL, \
+       track            INTEGER NOT NULL DEFAULT 0, \
        number           INTEGER NOT NULL, \
        name             TEXT DEFAULT 'Zone' NOT NULL, \
        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE \
-       UNIQUE(fk_map, number) \
+       UNIQUE(fk_map, track, number) \
      );",
     
     ""
@@ -127,7 +129,7 @@ NEW_SQL_QUERY(CreateZonePoints) = {
        x                FLOAT NOT NULL, \
        y                FLOAT NOT NULL, \
        z                FLOAT NOT NULL, \
-       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE, \
        UNIQUE(fk_zone, number) \
      );",
     
@@ -182,8 +184,8 @@ NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
 // ===========================================================================
 //   Zones and points
 // ===========================================================================
-NEW_SQL_QUERY_PARAMS(InsertZone,3) = {
-    "INSERT OR REPLACE INTO wintox_zones (id, fk_map, number, name) VALUES(%s, %d, %d, '%s');",
+NEW_SQL_QUERY_PARAMS(InsertZone,5) = {
+    "INSERT OR REPLACE INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s');",
     ""
 };
 NEW_SQL_QUERY_PARAMS(DeleteZone,2) = {
@@ -203,19 +205,27 @@ NEW_SQL_QUERY_PARAMS(ClearZonePoints,1) = {
     ""
 };
 NEW_SQL_QUERY_PARAMS(GetZones,1) = {
-    "SELECT id,number,name FROM wintox_zones WHERE fk_map = %d;",
+    "SELECT id,number,name,track FROM wintox_zones WHERE fk_map = %d;",
     ""
 };
 NEW_SQL_QUERY_PARAMS(GetZone,1) = {
-    "SELECT id,name FROM wintox_zones WHERE fk_map = %d AND number = %d;",
+    "SELECT id,name FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d;",
     ""
 };
 NEW_SQL_QUERY_PARAMS(GetZonePoints,1) = {
-    "SELECT wzp.id,wzp.number,x,y,z,wz.number AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);",
+    "SELECT wzp.id,wzp.number,x,y,z,wz.number,wz.track AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);",
     ""
 };
 NEW_SQL_QUERY_PARAMS(InsertZonePoint,5) = {
     "INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) VALUES(%d, %d, %f, %f, %f);",
+    ""
+};
+
+// ===========================================================================
+//   Zone records
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(InsertZoneRecord,6) = {
+    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d);",
     ""
 };
 

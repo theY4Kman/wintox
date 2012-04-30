@@ -86,6 +86,9 @@ public OnGameFrame()
         
         GetClientAbsOrigin(client, origin);
         
+        // TODO: track support
+        new track = MAIN_TRACK;
+        
         // Check if the player is in their current or next zone only
         if (!IS_PAUSED(client))
         {
@@ -131,7 +134,7 @@ public OnGameFrame()
                         
                         Call_StartForward(g_fwdPlayerReachedEnd);
                         Call_PushCell(client);
-                        Call_PushFloat(g_StartTimes[client][g_EndZone] - g_StartTimes[client][0]);
+                        Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
                         Call_Finish();
                     }
                     
@@ -162,7 +165,7 @@ public OnGameFrame()
                 {
                     new Float:relative_from = GetEngineTime();
                     if (IS_FINISHED(client))
-                        relative_from = g_StartTimes[client][g_EndZone];
+                        relative_from = g_StartTimes[client][g_EndZone[track]];
                     else if (IS_PAUSED(client))
                         relative_from = g_PauseStart[client];
                     
@@ -173,8 +176,8 @@ public OnGameFrame()
                     
 #if defined(WINTOX_BHOP)
 
-                    if (g_StartTimes[client][g_EndZone] == 0.0)
-                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: <TODO>\nStage %d/%d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZonesCount-1, g_Jumps[client]);
+                    if (g_StartTimes[client][g_EndZone[track]] == 0.0)
+                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: <TODO>\nStage %d/%d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZonesCount[track]-1, g_Jumps[client]);
                     else
                         PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: <TODO>\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
 

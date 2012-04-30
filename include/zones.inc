@@ -18,10 +18,12 @@
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
+#define INVALID_TRACK -1
 #define DEFAULT_ZONE_HEIGHT 80
 #define MIN_FLAG_HEIGHT 80.0
+#define TRACK_MENU_NEXT_INVALID -1
 
-#define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s)"
+#define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s in %d track%s)"
 
 // An arbitrary, unique number to identify a particular text entry routine
 #define TEXT_ENTRY_ZONE_NAME 97
@@ -38,21 +40,36 @@ new g_CurMapTier = 1;
 #define ZONE_META_POINTS 2
 #define ZONE_FIRST_POINT ZONE_META_POINTS
 
+#define MAX_TRACKS 8
 #define MAX_ZONES 64
 #define MAX_POINTS 30
 #define POINTS_LENGTH (MAX_POINTS + ZONE_META_POINTS)
 
-#define ZONE_POINT[%1][%2] (g_ZonesCache[(%1)][(%2)])
-#define ZONE_POINTS[%1] (_:g_ZonesCache[(%1)][0][0])
-#define ZONE_HEIGHT[%1] (_:g_ZonesCache[(%1)][0][1])
-#define ZONE_EDITING[%1] (bool:g_ZonesCache[(%1)][0][2])
-#define ZONE_POINT_EMPTY(%1,%2) (g_ZonesCache[%1][%2][0] == 0.0 && g_ZonesCache[%1][%2][1] == 0.0 && g_ZonesCache[%1][%2][2] == 0.0)
+#define MAIN_TRACK 0
+
+#define ZONE_POINT[%1][%2] (g_ZonesCache[MAIN_TRACK][(%1)][(%2)])
+#define ZONE_POINTS[%1] (_:g_ZonesCache[MAIN_TRACK][(%1)][0][0])
+#define ZONE_HEIGHT[%1] (_:g_ZonesCache[MAIN_TRACK][(%1)][0][1])
+#define ZONE_EDITING[%1] (bool:g_ZonesCache[MAIN_TRACK][(%1)][0][2])
+#define ZONE_POINT_EMPTY(%1,%2) (g_ZonesCache[MAIN_TRACK][%1][%2][0] == 0.0 && g_ZonesCache[MAIN_TRACK][%1][%2][1] == 0.0 && g_ZonesCache[MAIN_TRACK][%1][%2][2] == 0.0)
 #define ZONE_EMPTY(%1) (ZONE_POINTS[%1] == 0 || ZONE_POINT_EMPTY(%1,ZONE_FIRST_POINT))
 
-#define ZONE_FLAG[%1][%2] (g_ZonesCache[(%1)][ZONE_FLAG_POINT][(%2)])
+// Ugh. I should've planned ahead of time for tracks
+#define ZONE_POINT_T[%1][%2][%3] (g_ZonesCache[(%1)][(%2)][(%3)])
+#define ZONE_POINTS_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][0])
+#define ZONE_HEIGHT_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][1])
+#define ZONE_EDITING_T[%1][%2] (bool:g_ZonesCache[(%1)][(%2)][0][2])
+#define ZONE_POINT_EMPTY_T(%1,%2,%3) (g_ZonesCache[(%1)][(%2)][(%3)][0] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][1] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][2] == 0.0)
+#define ZONE_EMPTY_T(%1,%2) (ZONE_POINTS_T[%1][%2] == 0 || ZONE_POINT_EMPTY_T(%1,%2,ZONE_FIRST_POINT))
+
+#define ZONE_FLAG[%1][%2] (g_ZonesCache[MAIN_TRACK][(%1)][ZONE_FLAG_POINT][(%2)])
 #define ZONE_FLAG_EMPTY(%1) (ZONE_FLAG[%1][0] == 0.0 && ZONE_FLAG[%1][1] == 0.0 && ZONE_FLAG[%1][2] == 0.0)
 
-#define IS_END_ZONE(%1) ((%1) == g_EndZone)
+#define ZONE_FLAG_T[%1][%2][%3] (g_ZonesCache[(%1)][(%2)][ZONE_FLAG_POINT][(%3)])
+#define ZONE_FLAG_EMPTY_T(%1,%2) (ZONE_FLAG_T[%1][%2][0] == 0.0 && ZONE_FLAG_T[%1][%2][1] == 0.0 && ZONE_FLAG_T[%1][%2][2] == 0.0)
+
+#define IS_END_ZONE(%1) ((%1) == g_EndZone[MAIN_TRACK])
+#define IS_END_ZONE_T(%1,%2) ((%2) == g_EndZone[(%1)])
 
 #define FLAG_COLOR_START { 0, 255, 50, 240 }
 #define FLAG_COLOR_END { 255, 100, 0, 240 }
@@ -67,34 +84,55 @@ new g_CurMapTier = 1;
 
 #define PLAYER_IN_ZONE(%1,%2) (g_PlayerCurrentZone[(%1)] == (%2))
 
+#define CREATE_ZONE_TRACK_PACK() \
+    new Handle:pack = CreateDataPack(); \
+    WritePackCell(pack, track); \
+    WritePackCell(pack, zone_id); \
+    ResetPack(pack)
+
+#define READ_TRACK_PACK() \
+    new Handle:pack = Handle:data; \
+    new track = ReadPackCell(pack); \
+    new zone_id = ReadPackCell(pack); \
+    CloseHandle(pack)
+
 // Create a static array cache for zones
-// Capacity: 32 zones, 30* points each
+// Capacity: 64 zones, 30* points each
 // * The first point is used to store information about the zone, including
 //   how many points are in the zone. The second point is used to store the
 //   location of the flag.
-new Float:g_ZonesCache[MAX_ZONES][POINTS_LENGTH][3];
-new g_ZoneIDs[MAX_ZONES] = { -1, ... };
-new String:g_ZoneNames[MAX_ZONES][64];
+new Float:g_ZonesCache[MAX_TRACKS][MAX_ZONES][POINTS_LENGTH][3];
+new g_ZoneIDs[MAX_TRACKS][MAX_ZONES];
+new String:g_ZoneNames[MAX_TRACKS][MAX_ZONES][64];
 
-new g_ZonesCount = 0;
-new g_EndZone = 0;
+new g_TracksCount = 1;
+new g_ZonesCount[MAX_TRACKS];
+new g_EndZone[MAX_TRACKS];
 
 new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+new g_PlayerCurrentTrack[MAXPLAYERS] = { MAIN_TRACK, ... };
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+new g_ClientEditTrack[MAXPLAYERS] = { INVALID_TRACK, ... };
+
 new Handle:g_ZoneMenu = INVALID_HANDLE;
+new Handle:g_TrackMenu = INVALID_HANDLE;
+new g_TrackMenuNext[MAXPLAYERS] = { TRACK_MENU_NEXT_INVALID, ... };
+new g_TrackMenuSelected[MAXPLAYERS] = { INVALID_TRACK, ... };
 
 new bool:g_DrawZones = false;
 new bool:g_DrawFlags = true;
-new Float:g_FlagRotation[MAX_ZONES] = { 0.0, FLAG_ROTATE_INITIAL,  ... };
+new Float:g_FlagRotation[MAX_TRACKS][MAX_ZONES];
 new g_mdlBeam = 0;
 
 new bool:g_ZoneCacheInProgress = false;
 new bool:g_ZoneSyncInProgress = false;
 
 new g_ZoneSyncLastZone = -1;
+new g_ZoneSyncLastTrack = -1;
 new g_ZoneSyncNotifyClient = -1;
 new ReplySource:g_ZoneSyncReplySource = SM_REPLY_TO_CHAT;
-new g_ZonesSynced = 0;
+new g_ZonesSynced[MAX_TRACKS] = 0;
+new g_TracksSynced = 0;
 
 //////////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings //
@@ -104,8 +142,18 @@ new g_ZonesSynced = 0;
 
 Zones_Init()
 {
+    // Initialize g_ZoneIDs, because I can't initialize a multi-dimensional array at declaration >:(
+    for (new i=0; i<MAX_TRACKS; i++)
+    {
+        for (new j=0; j<MAX_ZONES; j++)
+        {
+            g_ZoneIDs[i][j] = -1;
+            g_FlagRotation[i][j] = j * FLAG_ROTATE_INITIAL;
+        }
+    }
+    
     RegisterCommand("sm_zonemenu", ConCommand_ZoneMenu, "sm_zonemenu | Bring up the zone menu.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] | Create a new zone.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] [<track=0>] | Create a new zone.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC);
@@ -113,7 +161,8 @@ Zones_Init()
     RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> [<track=0>] | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_cleartrack", ConCommand_ClearTrack, "sm_cleartrack <track> | Clear all zones in the specified track.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
@@ -138,7 +187,9 @@ Zones_Init()
     new Function:on_text_entry_complete = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnTextEntryComplete");
     AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, on_text_entry_complete);
     
-    BuildZoneMenu();
+    BuildTrackMenu();
+    for (new track=0; track<MAX_TRACKS; track++)
+        BuildZoneMenu(track);
 
     if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
         LogError("Couldn't precache model file(s)!");
@@ -190,12 +241,13 @@ public Action:ConCommand_ZoneMenu(client, args)
 
 public Action:ConCommand_NewZone(client, args)
 {
-    CHECK_ARGS_UPPER(1)
+    CHECK_ARGS_UPPER(2)
     RESET_REPLY()
     
     new zone_id = ZONE_NEXT_NEW_ZONE;
+    new track_id = MAIN_TRACK;
     
-    if (args == 1)
+    if (args >= 1)
     {
         decl String:sz_zone_id[32];
         GetCmdArg(1, STR(sz_zone_id));
@@ -205,9 +257,21 @@ public Action:ConCommand_NewZone(client, args)
             ReplyWithDescription(client);
             return Plugin_Handled;
         }
+        
+        if (args == 2)
+        {
+            decl String:sz_track_id[32];
+            GetCmdArg(2, STR(sz_track_id));
+            
+            if (StringToIntEx(sz_track_id, track_id) == 0)
+            {
+                ReplyWithDescription(client);
+                return Plugin_Handled;
+            }
+        }
     }
     
-    Zone_BeginNewZone(client, zone_id);
+    Zone_BeginNewZone(client, zone_id, track_id);
     
     return Plugin_Handled;
 }
@@ -297,9 +361,11 @@ public Action:ConCommand_FinishZone(client, args)
 
 public Action:ConCommand_RemoveZone(client, args)
 {
-    EXACT_ARGS(1)
+    CHECK_ARGS_SPAN(1,2)
     RESET_REPLY()
     
+    new track_id = MAIN_TRACK;
+
     decl zone_id;
     decl String:sz_zone_id[32];
     GetCmdArg(1, STR(sz_zone_id));
@@ -310,7 +376,39 @@ public Action:ConCommand_RemoveZone(client, args)
         return Plugin_Handled;
     }
     
-    Zone_RemoveZone(client, zone_id);
+    if (args == 2)
+    {
+        decl String:sz_track_id[32];
+        GetCmdArg(2, STR(sz_track_id));
+        
+        if (StringToIntEx(sz_track_id, track_id) == 0)
+        {
+            ReplyWithDescription(client);
+            return Plugin_Handled;
+        }
+    }
+    
+    Zone_RemoveZone(client, zone_id, track_id);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_ClearTrack(client, args)
+{
+    EXACT_ARGS(1)
+    RESET_REPLY()
+    
+    decl track_id;
+    decl String:sz_track_id[32];
+    GetCmdArg(2, STR(sz_track_id));
+    
+    if (StringToIntEx(sz_track_id, track_id) == 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    Zone_ClearTrack(client, track_id);
     
     return Plugin_Handled;
 }
@@ -357,8 +455,11 @@ public Action:ConCommand_SyncZones(client, args)
 #define ZMENU_INFO_RELOAD_ZONES "reload"
 #define ZMENU_INFO_SYNC_ZONES "sync"
 
-BuildZoneMenu()
+BuildZoneMenu(track=MAIN_TRACK)
 {
+    if (g_ZoneMenu != INVALID_HANDLE)
+        CloseHandle(g_ZoneMenu);
+    
     g_ZoneMenu = CreateMenu(MenuHandler_RootZoneMenu);
     
     SetZoneMenuTitle();
@@ -369,19 +470,54 @@ BuildZoneMenu()
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB (slow)");
 }
 
-DisplayZoneMenu(client)
+BuildTrackMenu()
+{
+    if (g_TrackMenu != INVALID_HANDLE)
+        CloseHandle(g_TrackMenu);
+    
+    g_TrackMenu = CreateMenu(MenuHandler_TrackIndex);
+    
+    SetMenuExitButton(g_TrackMenu, true);
+    SetMenuExitBackButton(g_TrackMenu, true);
+    SetMenuTitle(g_TrackMenu, "Select a track index");
+    
+    decl String:buffer[32];
+    Format(STR(buffer), "0, main track");
+    AddMenuItem(g_TrackMenu, "0", buffer);
+    
+    for (new i=1; i<MAX_TRACKS; i++)
+    {
+        Format(STR(buffer), "%d, bonus", i);
+        AddMenuItem(g_TrackMenu, buffer, buffer);
+    }
+}
+
+DisplayZoneMenu(client, track=MAIN_TRACK)
 {
     DisplaySubmenu(g_ZoneMenu, client, MENU_TIME_FOREVER, false);
+}
+
+DisplayTrackMenu(client)
+{
+    DisplaySubmenu(g_TrackMenu, client, MENU_TIME_FOREVER, false);
 }
 
 SetZoneMenuTitle()
 {
     // I should really just keep track of g_ZonesCount better
     // But FUCK THAT, I'M YAK.
-    g_ZonesCount = CountZones();
+    new total_zones = 0;
+    for (new track=0; track<MAX_TRACKS; track++)
+    {
+        g_ZonesCount[track] = CountZones(track);
+        total_zones += g_ZonesCount[track];
+    }
     
-    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, g_ZonesCount, g_ZonesCount == 1 ? "" : "s");
+    SetMenuTitle(g_ZoneMenu, ZONES_MENU_TITLE, total_zones, total_zones == 1 ? "" : "s", g_TracksCount, g_TracksCount == 1 ? "" : "s");
 }
+
+#define TRACK_MENU_NEXT_CREATE 0
+#define TRACK_MENU_NEXT_REMOVE 1
 
 public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -395,6 +531,51 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
         
         if (StrEqual(info, ZMENU_INFO_NEW_ZONE))
         {
+            g_TrackMenuNext[param1] = TRACK_MENU_NEXT_CREATE;
+            DisplayTrackMenu(param1);
+        }
+        else if (StrEqual(info, ZMENU_INFO_REMOVE_ZONE))
+        {
+            g_TrackMenuNext[param1] = TRACK_MENU_NEXT_REMOVE;
+            DisplayTrackMenu(param1);
+        }
+        else if (StrEqual(info, ZMENU_INFO_CLEAR_ALL_ZONES))
+        {
+            new Handle:confirm_menu = CreateMenu(MenuHandler_ConfirmClearZones);
+            SetMenuExitButton(confirm_menu, true);
+            SetMenuExitBackButton(confirm_menu, true);
+            SetMenuTitle(confirm_menu, "Are you sure you want to delete ALL zones?");
+            
+            AddMenuItem(confirm_menu, "no", "No");
+            AddMenuItem(confirm_menu, "kinda yes", "Yes");
+            
+            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
+        }
+        else if (StrEqual(info, ZMENU_INFO_RELOAD_ZONES))
+        {
+            Zone_ReloadFromDB(param1);
+            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+        }
+        else if (StrEqual(info, ZMENU_INFO_SYNC_ZONES))
+        {
+            Zone_SyncToDB(param1);
+            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+        }
+    }
+    else if (action == MenuAction_Cancel)
+        PrevSubmenu(param1);
+}
+
+public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:sz_track[16];
+        GetMenuItem(menu, param2, STR(sz_track));
+        g_TrackMenuSelected[param1] = StringToInt(sz_track);
+        
+        if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_CREATE)
+        {
             // We need to find out what zone index the user wants this zone to be
             // Let's make a menu! YEAH!
             new Handle:zone_id_submenu = CreateMenu(MenuHandler_ZoneIndex);
@@ -406,20 +587,20 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             AddMenuItem(zone_id_submenu, "-2", "Next new zone");
             
             decl String:buffer[32];
-            Format(STR(buffer), "0, start zone (%s)", !ZONE_EMPTY(0) ? "edit" : "create");
+            Format(STR(buffer), "0, start zone (%s)", !ZONE_EMPTY_T(g_TrackMenuSelected[param1],0) ? "edit" : "create");
             AddMenuItem(zone_id_submenu, "0", buffer);
             
             for (new i=1; i<MAX_ZONES; i++)
             {
-                Format(STR(buffer), "%d (%s)", i, !ZONE_EMPTY(i) ? "edit" : "create");
+                Format(STR(buffer), "%d (%s)", i, !ZONE_EMPTY_T(g_TrackMenuSelected[param1],i) ? "edit" : "create");
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
             DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
         }
-        else if (StrEqual(info, ZMENU_INFO_REMOVE_ZONE))
+        else if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_REMOVE)
         {
-            if (g_ZonesCount == 0)
+            if (g_ZonesCount[g_TrackMenuSelected[param1]] == 0)
             {
                 PrintToChat(param1, "There are no zones to delete!");
                 DisplayMenu(menu, param1, MENU_TIME_FOREVER);
@@ -444,28 +625,6 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             }
             
             DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
-        }
-        else if (StrEqual(info, ZMENU_INFO_CLEAR_ALL_ZONES))
-        {
-            new Handle:confirm_menu = CreateMenu(MenuHandler_ConfirmClearZones);
-            SetMenuExitButton(confirm_menu, true);
-            SetMenuExitBackButton(confirm_menu, true);
-            SetMenuTitle(confirm_menu, "Are you sure you want to delete ALL zones?");
-            
-            AddMenuItem(confirm_menu, "no", "No");
-            AddMenuItem(confirm_menu, "kinda yes", "Yes");
-            
-            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
-        }
-        else if (StrEqual(info, ZMENU_INFO_RELOAD_ZONES))
-        {
-            Zone_ReloadFromDB(param1);
-            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
-        }
-        else if (StrEqual(info, ZMENU_INFO_SYNC_ZONES))
-        {
-            Zone_SyncToDB(param1);
-            DisplayMenu(menu, param1, MENU_TIME_FOREVER);
         }
     }
     else if (action == MenuAction_Cancel)
@@ -619,7 +778,7 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
    ======================================================================== */
 
 // For debugging zones
-stock PrintZone(zone_id)
+stock PrintZone(zone_id, track=MAIN_TRACK)
 {
     LogMessage("ZONE %d, %sEMPTY", zone_id, ZONE_EMPTY(zone_id) ? "" : "NOT ");
     
@@ -627,10 +786,10 @@ stock PrintZone(zone_id)
     {
         if (i == 0)
             LogMessage("POINT %d = { %11d %11d %11d }", i,
-                ZONE_POINTS[zone_id], ZONE_HEIGHT[zone_id], ZONE_EDITING[zone_id]);
+                ZONE_POINTS_T[track][zone_id], ZONE_HEIGHT_T[track][zone_id], ZONE_EDITING_T[track][zone_id]);
         else
             LogMessage("POINT %d = { %11.6f %11.6f %11.6f }", i,
-                ZONE_POINT[zone_id][i][0], ZONE_POINT[zone_id][i][1], ZONE_POINT[zone_id][i][2]);
+                ZONE_POINT_T[track][zone_id][i][0], ZONE_POINT_T[track][zone_id][i][1], ZONE_POINT_T[track][zone_id][i][2]);
     }
     
     LogMessage("\n");
@@ -638,97 +797,103 @@ stock PrintZone(zone_id)
 
 WipeZoneCache()
 {
+    for (new track=0; track<MAX_TRACKS; track++)
+        WipeTrackCache(track);
+}
+
+WipeTrackCache(track=MAIN_TRACK)
+{
     for (new i=0; i<MAX_ZONES; i++)
     {
         for (new j=0; j<POINTS_LENGTH; j++)
         {
-            g_ZonesCache[i][j][0] = 0.0;
-            g_ZonesCache[i][j][1] = 0.0;
-            g_ZonesCache[i][j][2] = 0.0;
+            g_ZonesCache[track][i][j][0] = 0.0;
+            g_ZonesCache[track][i][j][1] = 0.0;
+            g_ZonesCache[track][i][j][2] = 0.0;
         }
         
-        g_ZoneIDs[i] = -1;
-        g_ZoneNames[i][0] = '\0';
+        g_ZoneIDs[track][i] = -1;
+        g_ZoneNames[track][i][0] = '\0';
     }
 }
 
-CountZones()
+CountZones(track=MAIN_TRACK)
 {
     new zones_count = 0;
     for (new i=0; i<MAX_ZONES; i++)
     {
-        if (!ZONE_EMPTY(i))
+        if (!ZONE_EMPTY_T(track,i))
             zones_count++;
     }
     
     return zones_count;
 }
 
-CountZonePoints(zone_id)
+CountZonePoints(zone_id, track=MAIN_TRACK)
 {
-    ZONE_POINTS[zone_id] = 0;
+    ZONE_POINTS_T[track][zone_id] = 0;
     
     for (new i=ZONE_FIRST_POINT; i<POINTS_LENGTH; i++)
     {
-        if (!ZONE_POINT_EMPTY(zone_id,i))
-            ZONE_POINTS[zone_id]++;
+        if (!ZONE_POINT_EMPTY_T(track,zone_id,i))
+            ZONE_POINTS_T[track][zone_id]++;
     }
 }
 
-GetNextNewZone()
+GetNextNewZone(track=MAIN_TRACK)
 {
     for (new i=0; i<MAX_ZONES; i++)
     {
-        if (ZONE_EMPTY(i))
+        if (ZONE_EMPTY_T(track,i))
             return i;
     }
     
     return -1;
 }
 
-FindEndZone()
+FindEndZone(track=MAIN_TRACK)
 {
     for (new i=0; i<MAX_ZONES; i++)
     {
-        if (!ZONE_EMPTY(i))
-            g_EndZone = i;
+        if (!ZONE_EMPTY_T(track,i))
+            g_EndZone[track] = i;
     }
 }
 
-GetZoneCenter(zone_id, Float:vec[3])
+GetZoneCenter(zone_id, Float:vec[3], track=MAIN_TRACK)
 {
-    if (ZONE_POINTS[zone_id] == 0)
+    if (ZONE_POINTS_T[track][zone_id] == 0)
         return;
-    else if (ZONE_POINTS[zone_id] == 1)
-        vec = g_ZonesCache[zone_id][ZONE_FIRST_POINT];
+    else if (ZONE_POINTS_T[track][zone_id] == 1)
+        vec = g_ZonesCache[track][zone_id][ZONE_FIRST_POINT];
     else
     {
         new Float:sum[3];
         
-        for (new i=ZONE_FIRST_POINT; i<ZONE_META_POINTS + ZONE_POINTS[zone_id]; i++)
+        for (new i=ZONE_FIRST_POINT; i<ZONE_META_POINTS + ZONE_POINTS_T[track][zone_id]; i++)
         {
-            sum[0] += ZONE_POINT[zone_id][i][0];
-            sum[1] += ZONE_POINT[zone_id][i][1];
-            sum[2] += ZONE_POINT[zone_id][i][2];
+            sum[0] += ZONE_POINT_T[track][zone_id][i][0];
+            sum[1] += ZONE_POINT_T[track][zone_id][i][1];
+            sum[2] += ZONE_POINT_T[track][zone_id][i][2];
         }
         
-        vec[0] = sum[0] / ZONE_POINTS[zone_id];
-        vec[1] = sum[1] / ZONE_POINTS[zone_id];
-        vec[2] = sum[2] / ZONE_POINTS[zone_id];
+        vec[0] = sum[0] / ZONE_POINTS_T[track][zone_id];
+        vec[1] = sum[1] / ZONE_POINTS_T[track][zone_id];
+        vec[2] = sum[2] / ZONE_POINTS_T[track][zone_id];
     }
 }
 
 // Set's the flag location at the center of all the points
-SetZoneFlagCenter(zone_id)
+SetZoneFlagCenter(zone_id, track=MAIN_TRACK)
 {
-    GetZoneCenter(zone_id, g_ZonesCache[zone_id][ZONE_FLAG_POINT]);
+    GetZoneCenter(zone_id, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT], track);
 }
 
-Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
+Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
 {
     if (zone_id == ZONE_NEXT_NEW_ZONE)
     {
-        zone_id = GetNextNewZone();
+        zone_id = GetNextNewZone(track);
         if (zone_id >= MAX_ZONES)
         {
             Reply(client, "You've hit the maximum number of zones (%d).", MAX_ZONES);
@@ -742,109 +907,116 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE)
         return;
     }
     
-    if (ZONE_EMPTY(zone_id))
-        g_ZonesCount++;
+    if (ZONE_EMPTY_T(track,zone_id))
+        g_ZonesCount[track]++;
     
     g_ClientEditZone[client] = zone_id;
-    ZONE_HEIGHT[zone_id] = DEFAULT_ZONE_HEIGHT;
-    ZONE_EDITING[zone_id] = true;
+    g_ClientEditTrack[client] = track;
+    ZONE_HEIGHT_T[track][zone_id] = DEFAULT_ZONE_HEIGHT;
+    ZONE_EDITING_T[track][zone_id] = true;
     
-    win_SQL_UpsertZone(zone_id);
+    win_SQL_UpsertZone(zone_id, track);
 }
 
 Zone_NewZonePoint(client)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    new point = ZONE_POINTS[zone_id] + ZONE_META_POINTS;
+    new point = ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS;
     if (point >= POINTS_LENGTH)
     {
         Reply(client, "You've hit the maximum number of zone points (%d).", MAX_POINTS);
         return;
     }
     
-    GetClientAbsOrigin(client, g_ZonesCache[zone_id][point]);
-    ZONE_POINTS[zone_id]++;
+    GetClientAbsOrigin(client, g_ZonesCache[track][zone_id][point]);
+    ZONE_POINTS_T[track][zone_id]++;
     
-    Reply(client, "New zone %d point at (%f, %f, %f)", zone_id,
-        ZONE_POINT[zone_id][point][0],
-        ZONE_POINT[zone_id][point][1],
-        ZONE_POINT[zone_id][point][2]);
+    Reply(client, "New zone %d (track %d) point at (%f, %f, %f)", zone_id, track,
+        ZONE_POINT_T[track][zone_id][point][0],
+        ZONE_POINT_T[track][zone_id][point][1],
+        ZONE_POINT_T[track][zone_id][point][2]);
 }
 
 Zone_ZoneHeight(client, height)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    ZONE_HEIGHT[zone_id] = height;
+    ZONE_HEIGHT_T[track][zone_id] = height;
     
-    Reply(client, "Set zone %d max height at %d map units.", zone_id, height);
+    Reply(client, "Set zone %d (track %d) max height at %d map units.", zone_id, track, height);
 }
 
 Zone_SetFlag(client)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    GetClientAbsOrigin(client, g_ZonesCache[zone_id][ZONE_FLAG_POINT]);
+    GetClientAbsOrigin(client, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT]);
     
-    Reply(client, "Set zone %d flag at point (%f, %f, %f)", zone_id,
-        ZONE_FLAG[zone_id][0], ZONE_FLAG[zone_id][1], ZONE_FLAG[zone_id][2]);
+    Reply(client, "Set zone %d (track %d) flag at point (%f, %f, %f)", zone_id, track,
+        ZONE_FLAG_T[track][zone_id][0], ZONE_FLAG_T[track][zone_id][1], ZONE_FLAG_T[track][zone_id][2]);
 }
 
 Zone_SetName(client, const String:name[])
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    strcopy(g_ZoneNames[zone_id], sizeof(g_ZoneNames[]), name);
+    strcopy(g_ZoneNames[track][zone_id], sizeof(g_ZoneNames[][]), name);
     
-    Reply(client, "Set zone %d name to \"%s\"", zone_id, g_ZoneNames[zone_id]);
+    Reply(client, "Set zone %d (track %d) name to \"%s\"", zone_id, track, g_ZoneNames[track][zone_id]);
 }
 
 Zone_RemoveLastPoint(client)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    new point = (ZONE_POINTS[zone_id] - 1) + ZONE_META_POINTS;
+    new point = (ZONE_POINTS_T[track][zone_id] - 1) + ZONE_META_POINTS;
     if (point == 0)
     {
         Reply(client, "There are no points to remove.");
         return;
     }
     
-    g_ZonesCache[zone_id][point][0] = 0.0;
-    g_ZonesCache[zone_id][point][1] = 0.0;
-    g_ZonesCache[zone_id][point][2] = 0.0;
-    ZONE_POINTS[zone_id]--;
+    g_ZonesCache[track][zone_id][point][0] = 0.0;
+    g_ZonesCache[track][zone_id][point][1] = 0.0;
+    g_ZonesCache[track][zone_id][point][2] = 0.0;
+    ZONE_POINTS_T[track][zone_id]--;
 }
 
 Zone_ClearAllPoints(client)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
@@ -853,64 +1025,83 @@ Zone_ClearAllPoints(client)
     
     for (new i=ZONE_FIRST_POINT; i<POINTS_LENGTH; i++)
     {
-        g_ZonesCache[zone_id][i][0] = 0.0;
-        g_ZonesCache[zone_id][i][1] = 0.0;
-        g_ZonesCache[zone_id][i][2] = 0.0;
+        g_ZonesCache[track][zone_id][i][0] = 0.0;
+        g_ZonesCache[track][zone_id][i][1] = 0.0;
+        g_ZonesCache[track][zone_id][i][2] = 0.0;
     }
     
-    ZONE_POINTS[zone_id] = 0;
+    ZONE_POINTS_T[track][zone_id] = 0;
     
-    Reply(client, "Cleared all points in zone %d.", zone_id);
+    Reply(client, "Cleared all points in zone %d (track %d).", zone_id, track);
 }
 
 Zone_FinishZone(client)
 {
     new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
     if (zone_id == INVALID_ZONE)
     {
         Reply(client, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
         return;
     }
     
-    ZONE_EDITING[zone_id] = false;
+    ZONE_EDITING_T[track][zone_id] = false;
     g_ClientEditZone[client] = INVALID_ZONE;
+    g_ClientEditTrack[client] = INVALID_TRACK;
     
-    if (ZONE_FLAG_EMPTY(zone_id))
-        SetZoneFlagCenter(zone_id);
+    if (ZONE_FLAG_EMPTY_T(track,zone_id))
+        SetZoneFlagCenter(zone_id, track);
     
-    CountZonePoints(zone_id);
-    FindEndZone();
+    CountZonePoints(zone_id, track);
+    FindEndZone(track);
     
     SetZoneMenuTitle();
     
-    win_SQL_UpsertZone(zone_id);
-    win_SQL_ClearZonePoints(zone_id);
-    win_SQL_InsertZonePoints(zone_id);
+    win_SQL_UpsertZone(zone_id, track);
+    win_SQL_ClearZonePoints(zone_id, track);
+    win_SQL_InsertZonePoints(zone_id, track);
 }
 
-Zone_RemoveZone(client, zone_id)
+Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
 {
     for (new i=0; i<POINTS_LENGTH; i++)
     {
-        g_ZonesCache[zone_id][i][0] = 0.0;
-        g_ZonesCache[zone_id][i][1] = 0.0;
-        g_ZonesCache[zone_id][i][2] = 0.0;
+        g_ZonesCache[track][zone_id][i][0] = 0.0;
+        g_ZonesCache[track][zone_id][i][1] = 0.0;
+        g_ZonesCache[track][zone_id][i][2] = 0.0;
     }
     
-    FindEndZone();
+    FindEndZone(track);
     
-    win_SQL_DeleteZone(zone_id);
+    win_SQL_DeleteZone(zone_id, track);
     
-    Reply(client, "Removed zone %d.", zone_id);
+    Reply(client, "Removed zone %d (track %d).", zone_id, track);
+}
+
+Zone_ClearTrack(client, track)
+{
+    WipeTrackCache(track);
+    
+    g_ZonesCount[track] = 0;
+    g_EndZone[track] = 0;
+    SetZoneMenuTitle();
+    
+    win_SQL_ClearTrackZonePoints(track);
+    win_SQL_ClearTrackZones(track);
+    
+    Reply(client, "Cleared track %d! I feel lighter already.", track);
 }
 
 Zone_ClearAllZones(client)
 {
     WipeZoneCache();
     
-    g_ZonesCount = 0;
-    g_EndZone = 0;
-    SetZoneMenuTitle();
+    for (new track=0; track<MAX_TRACKS; track++)
+    {
+        g_ZonesCount[track] = 0;
+        g_EndZone[track] = 0;
+        SetZoneMenuTitle();
+    }
     
     win_SQL_ClearAllZonePoints();
     win_SQL_ClearAllZones();
@@ -937,30 +1128,43 @@ Zone_SyncToDB(client)
     g_ZoneSyncInProgress = true;
     g_ZoneSyncNotifyClient = client;
     g_ZoneSyncReplySource = GetCmdReplySource();
-    g_ZonesSynced = 0;
+    g_TracksSynced = 0;
     
-    for (new i=0; i<MAX_ZONES; i++)
+    for (new track=0; track<MAX_TRACKS; track++)
     {
-        if (ZONE_EMPTY(i))
-            continue;
+        new bool:track_empty = true;
+        g_ZonesSynced[track] = 0;
         
-        win_SQL_UpsertZone(i);
-        win_SQL_ClearZonePoints(i);
-        win_SQL_InsertZonePoints(i);
+        for (new i=0; i<MAX_ZONES; i++)
+        {
+            if (ZONE_EMPTY(i))
+                continue;
+            
+            track_empty = false;
+            
+            win_SQL_UpsertZone(i, track);
+            win_SQL_ClearZonePoints(i, track);
+            win_SQL_InsertZonePoints(i, track);
+            
+            g_ZonesSynced[track]++;
+            
+            // This will totally cause race conditions, as I'm assuming the
+            // InsertZonePoints callback will complete after the last (or at least
+            // next) iteration. This variable is used to check the last zone synced
+            // in the OnPointsSyncFinished forward to reset g_ZoneSyncInProgress.
+            g_ZoneSyncLastZone = i;
+        }
         
-        g_ZonesSynced++;
+        if (!track_empty)
+            g_TracksSynced++;
         
-        // This will totally cause race conditions, as I'm assuming the
-        // InsertZonePoints callback will complete after the last (or at least
-        // next) iteration. This variable is used to check the last zone synced
-        // in the OnPointsSyncFinished forward to reset g_ZoneSyncInProgress.
-        g_ZoneSyncLastZone = i;
+        g_ZoneSyncLastTrack = track;
     }
 }
 
-public fwd_Zone_OnPointsSyncFinished(zone_id, points)
+public fwd_Zone_OnPointsSyncFinished(zone_id, track, points)
 {
-    if (zone_id == g_ZoneSyncLastZone)
+    if (zone_id == g_ZoneSyncLastZone && track == g_ZoneSyncLastTrack)
     {
         g_ZoneSyncInProgress = false;
         g_ZoneSyncLastZone = -1;
@@ -968,7 +1172,7 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, points)
         if (g_ZoneSyncNotifyClient != -1)
         {
             new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
-            Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones to the database!", g_ZonesSynced);
+            Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones (in %d tracks) to the database!", g_TracksSynced, g_ZonesSynced);
             SetCmdReplySource(prev);
             
             g_ZoneSyncNotifyClient = -1;
@@ -977,7 +1181,7 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, points)
     else if (g_ZoneSyncNotifyClient != -1)
     {
         new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
-        Reply(g_ZoneSyncNotifyClient, "Synced zone %d (id %d) of %d...", zone_id+1, zone_id, g_ZonesSynced);
+        Reply(g_ZoneSyncNotifyClient, "Synced zone %d (id %d) of %d, track %d (id %d) of %d...", zone_id+1, zone_id, g_ZonesSynced[track], track+1, track, g_TracksSynced);
         SetCmdReplySource(prev);
     }
 }
@@ -1007,7 +1211,7 @@ Zone_ReloadFromDB(client)
    ======================================================================== */
 
 
-DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
+DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
 {
     /**
      *  
@@ -1030,34 +1234,34 @@ DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
         TE_SendToClient(client); \
     }
     
-    if (ZONE_FLAG_EMPTY(zone_id))
+    if (ZONE_FLAG_EMPTY_T(track,zone_id))
         return;
     
-    new Float:flag_pole_height = MAX(float(ZONE_HEIGHT[zone_id]), MIN_FLAG_HEIGHT);
+    new Float:flag_pole_height = MAX(float(ZONE_HEIGHT_T[track][zone_id]), MIN_FLAG_HEIGHT);
     new Float:flag_height = flag_pole_height * (1.0 / 6.0);
     
     new Float:vec_a[3];
     new Float:vec_b[3];
     
-    vec_a[0] = ZONE_FLAG[zone_id][0];
-    vec_a[1] = ZONE_FLAG[zone_id][1];
-    vec_a[2] = ZONE_FLAG[zone_id][2] + flag_pole_height;
-    BEAM(g_ZonesCache[zone_id][ZONE_FLAG_POINT], vec_a)
+    vec_a[0] = ZONE_FLAG_T[track][zone_id][0];
+    vec_a[1] = ZONE_FLAG_T[track][zone_id][1];
+    vec_a[2] = ZONE_FLAG_T[track][zone_id][2] + flag_pole_height;
+    BEAM(g_ZonesCache[track][zone_id][ZONE_FLAG_POINT], vec_a)
     
-    vec_b[0] = vec_a[0] + (Cosine(g_FlagRotation[zone_id]) * flag_height * 2.0);
-    vec_b[1] = vec_a[1] + (Sine(g_FlagRotation[zone_id]) * flag_height * 2.0);
+    vec_b[0] = vec_a[0] + (Cosine(g_FlagRotation[track][zone_id]) * flag_height * 2.0);
+    vec_b[1] = vec_a[1] + (Sine(g_FlagRotation[track][zone_id]) * flag_height * 2.0);
     vec_b[2] = vec_a[2] - flag_height / 2.0;
     BEAM(vec_a, vec_b)
     
     vec_a[2] -= flag_height;
     BEAM(vec_b, vec_a)
     
-    g_FlagRotation[zone_id] += FLAG_ROTATE_STEP;
-    if (g_FlagRotation[zone_id] >= (2 * FLOAT_PI) || g_FlagRotation[zone_id] < 0.0)
-        g_FlagRotation[zone_id] = 0.0;
+    g_FlagRotation[track][zone_id] += FLAG_ROTATE_STEP;
+    if (g_FlagRotation[track][zone_id] >= (2 * FLOAT_PI) || g_FlagRotation[track][zone_id] < 0.0)
+        g_FlagRotation[track][zone_id] = 0.0;
 }
 
-DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
+DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
 {
     #if defined(BEAM)
         #undef BEAM
@@ -1068,16 +1272,16 @@ DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE)
     }
     
     // We can only draw if there are 2 or more points
-    if (ZONE_POINTS[zone_id] <= 1)
+    if (ZONE_POINTS_T[track][zone_id] <= 1)
         return;
         
     decl i;
-    for (i=ZONE_FIRST_POINT+1; i<ZONE_POINTS[zone_id] + ZONE_META_POINTS; i++)
-        BEAM(g_ZonesCache[zone_id][i-1], g_ZonesCache[zone_id][i])
+    for (i=ZONE_FIRST_POINT+1; i<ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS; i++)
+        BEAM(g_ZonesCache[track][zone_id][i-1], g_ZonesCache[track][zone_id][i])
     
     // Connect first and last point (if 3 or more points)
     if (i > ZONE_META_POINTS + 1)
-        BEAM(g_ZonesCache[zone_id][i-1], g_ZonesCache[zone_id][ZONE_FIRST_POINT])
+        BEAM(g_ZonesCache[track][zone_id][i-1], g_ZonesCache[track][zone_id][ZONE_FIRST_POINT])
 }
 
 public Action:Timer_DrawZones(Handle:timer)
@@ -1088,51 +1292,56 @@ public Action:Timer_DrawZones(Handle:timer)
             continue;
         
         new cur_zone = MAX(g_PlayerCurrentZone[client], 0);
+        new cur_track = g_PlayerCurrentTrack[client];
         
         if (!g_DrawFlags)
         {
             // Draw start zone flag
-            DrawFlag(0, client, FLAG_COLOR_START);
+            DrawFlag(0, client, FLAG_COLOR_START, cur_track);
             
             // Draw current and next zone flags
             for (new i=cur_zone; i<=cur_zone+1; i++)
-                if (i != 0 && !IS_END_ZONE(i))
-                    DrawFlag(i, client, FLAG_COLOR_ZONE);
+                if (i != 0 && !IS_END_ZONE_T(cur_track,i))
+                    DrawFlag(i, client, FLAG_COLOR_ZONE, cur_track);
             
             // Draw end flag
-            if (g_EndZone != 0)
-                DrawFlag(g_EndZone, client, FLAG_COLOR_END);
+            if (g_EndZone[cur_track] != 0)
+                DrawFlag(g_EndZone[cur_track], client, FLAG_COLOR_END, cur_track);
         }
         
         if (g_DrawZones || g_DrawFlags)
         {
-            for (new i=0; i<MAX_ZONES; i++)
+            for (new track=0; track<MAX_TRACKS; track++)
             {
-                if (g_DrawFlags)
-                    DrawFlag(i, client, FLAG_COLOR(i));
-                
-                if (!g_DrawZones)
-                    continue;
-                
-                // Only draw lines, so no less than 2 points
-                if (ZONE_POINTS[i] <= 1)
-                    continue;
-                
-                DrawZone(i, client, FLAG_COLOR(i));
+                for (new i=0; i<MAX_ZONES; i++)
+                {
+                    if (g_DrawFlags)
+                        DrawFlag(i, client, FLAG_COLOR(i), track);
+                    
+                    if (!g_DrawZones)
+                        continue;
+                    
+                    // Only draw lines, so no less than 2 points
+                    if (ZONE_POINTS_T[track][i] <= 1)
+                        continue;
+                    
+                    DrawZone(i, client, FLAG_COLOR(i), track);
+                }
             }
         }
         
         if (g_ClientEditZone[client] != INVALID_ZONE)
         {
             new zone_id = g_ClientEditZone[client];
+            new track = g_ClientEditTrack[client];
             
             if (!g_DrawZones)
-                DrawZone(zone_id, client, FLAG_COLOR(zone_id));
+                DrawZone(zone_id, client, FLAG_COLOR(zone_id), track);
             
             // Don't draw a flag twice
-            if (zone_id != 0 && zone_id != g_EndZone &&
-                zone_id != cur_zone && zone_id != cur_zone+1)
-                DrawFlag(zone_id, client, FLAG_COLOR(zone_id));
+            if (zone_id != 0 && zone_id != g_EndZone[track] &&
+                zone_id != cur_zone && zone_id != cur_zone+1 || cur_track != track)
+                DrawFlag(zone_id, client, FLAG_COLOR(zone_id), track);
         }
     }
 }
@@ -1142,16 +1351,16 @@ public Action:Timer_DrawZones(Handle:timer)
                           PLAYER-ZONE INTERACTION
    ======================================================================== */
 
-ZoneTeleport(client, zone_id)
+ZoneTeleport(client, zone_id, track=MAIN_TRACK)
 {
     if (ZONE_FLAG_EMPTY(zone_id))
     {
         decl Float:tele[3];
-        GetZoneCenter(zone_id, tele);
+        GetZoneCenter(zone_id, tele, track);
         TeleportEntity(client, tele, NULL_VECTOR, NULL_VECTOR);
     }
     else
-        TeleportEntity(client, g_ZonesCache[zone_id][ZONE_FLAG_POINT], NULL_VECTOR, NULL_VECTOR);
+        TeleportEntity(client, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT], NULL_VECTOR, NULL_VECTOR);
 }
 
 
@@ -1200,11 +1409,14 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     
     WipeZoneCache();
     
+    // Reset zone counts to 0
+    for (new track=0; track<MAX_TRACKS; track++)
+        g_ZonesCount[track] = 0;
+    
     // Cache zones
-    new zone_id_max = 0;
-    g_ZonesCount = 0;
     while (SQL_FetchRow(hndl))
     {
+        decl track;
         decl zone_dbid;
         decl zone_id;
         decl String:zone_name[64];
@@ -1212,13 +1424,12 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         zone_dbid = SQL_FetchInt(hndl, 0);
         zone_id = SQL_FetchInt(hndl, 1);
         SQL_FetchString(hndl, 2, STR(zone_name));
+        track = SQL_FetchInt(hndl, 3);
         
-        g_ZoneIDs[zone_id] = zone_dbid;
-        strcopy(g_ZoneNames[zone_id], sizeof(g_ZoneNames[]), zone_name);
+        g_ZoneIDs[track][zone_id] = zone_dbid;
+        strcopy(g_ZoneNames[track][zone_id], sizeof(g_ZoneNames[][]), zone_name);
         
-        g_ZonesCount++;
-        if (zone_id > zone_id_max)
-            zone_id_max = zone_id;
+        g_ZonesCount[track]++;
     }
     
     if (client != -1)
@@ -1254,6 +1465,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     // Cache zone points
     while (SQL_FetchRow(hndl))
     {
+        decl track;
         decl zone_id;
         decl zp_number;
         decl Float:x, Float:y, Float:z;
@@ -1263,6 +1475,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         x = SQL_FetchFloat(hndl, 2);
         y = SQL_FetchFloat(hndl, 3);
         z = SQL_FetchFloat(hndl, 4);
+        track = SQL_FetchInt(hndl, 6);
         
         if (zp_number == 0)
         {
@@ -1271,85 +1484,97 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
             z = Float:RoundToFloor(z);
         }
         
-        g_ZonesCache[zone_id][zp_number][0] = x;
-        g_ZonesCache[zone_id][zp_number][1] = y;
-        g_ZonesCache[zone_id][zp_number][2] = z;
+        g_ZonesCache[track][zone_id][zp_number][0] = x;
+        g_ZonesCache[track][zone_id][zp_number][1] = y;
+        g_ZonesCache[track][zone_id][zp_number][2] = z;
     }
     
     // Don't trust the database. It's not _one of us_
-    for (new i=0; i<MAX_ZONES; i++)
-        CountZonePoints(i);
-    
-    SetZoneMenuTitle();
-    FindEndZone();
+    for (new track=0; track<MAX_TRACKS; track++)
+    {
+        for (new i=0; i<MAX_ZONES; i++)
+            CountZonePoints(i, track);
+        
+        SetZoneMenuTitle();
+        FindEndZone(track);
+    }
     
     g_ZoneCacheInProgress = false;
     if (client != -1)
         Reply(client, "Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
-win_SQL_UpsertZone(zone_id)
+// TODO: track
+win_SQL_UpsertZone(zone_id, track=MAIN_TRACK)
 {
     decl String:buffer[256];
     decl String:esc_name[256];
     new String:sz_zone_dbid[16] = "NULL";
     
-    if (g_ZoneIDs[zone_id] != -1)
-        IntToString(g_ZoneIDs[zone_id], STR(sz_zone_dbid));
+    if (g_ZoneIDs[track][zone_id] != -1)
+        IntToString(g_ZoneIDs[track][zone_id], STR(sz_zone_dbid));
     
-    SQL_EscapeString(g_Database, g_ZoneNames[zone_id], STR(esc_name));
-    Format(STR(buffer), SQL_QUERY[InsertZone], sz_zone_dbid, g_CurMapID, zone_id, esc_name);
-    SQLT(buffer, T_UpsertZone, zone_id);
+    SQL_EscapeString(g_Database, g_ZoneNames[track][zone_id], STR(esc_name));
+    Format(STR(buffer), SQL_QUERY[InsertZone], sz_zone_dbid, g_CurMapID, track, zone_id, esc_name);
+    
+    CREATE_ZONE_TRACK_PACK();
+    SQLT(buffer, T_UpsertZone, pack);
 }
 
 public T_UpsertZone(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
-    new zone_id = data;
+    READ_TRACK_PACK();
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error upserting zone %d to database: %s", zone_id, error);
+        LogError("Error upserting zone %d (track %d) to database: %s", zone_id, track, error);
         return;
     }
     
-    g_ZoneIDs[zone_id] = SQL_GetInsertId(hndl);
+    g_ZoneIDs[track][zone_id] = SQL_GetInsertId(hndl);
 }
 
-win_SQL_DeleteZone(zone_id)
+// TODO: track
+win_SQL_DeleteZone(zone_id, track=MAIN_TRACK)
 {
     decl String:query[256];
     Format(STR(query), SQL_QUERY[DeleteZone], g_CurMapID, zone_id);
     
-    SQLT(query, T_DeleteZone, zone_id);
+    CREATE_ZONE_TRACK_PACK();
+    SQLT(query, T_DeleteZone, pack);
 }
 
 public T_DeleteZone(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
+    READ_TRACK_PACK();
     if (hndl == INVALID_HANDLE)
-        LogError("Error deleting zone %d from database: %s", data, error);
+        LogError("Error deleting zone %d (track %d) from database: %s", zone_id, track, error);
 }
 
-win_SQL_InsertZonePoints(zone_id)
+// TODO: track
+win_SQL_InsertZonePoints(zone_id, track=MAIN_TRACK)
 {
-    new zone_dbid = g_ZoneIDs[zone_id];
+    new zone_dbid = g_ZoneIDs[track][zone_id];
     
     if (zone_dbid == -1)
     {
         decl String:buffer[256];
-        Format(STR(buffer), SQL_QUERY[GetZone], g_CurMapID, zone_id);
-        SQLT(buffer, T_GetZoneDBIDForInsertZonePoints, zone_id);
+        Format(STR(buffer), SQL_QUERY[GetZone], g_CurMapID, track, zone_id);
+        
+        CREATE_ZONE_TRACK_PACK();
+        SQLT(buffer, T_GetZoneDBIDForInsertZonePoints, pack);
     }
     else
-        __win_SQL_InsertZonePoints(zone_id, zone_dbid);
+        __win_SQL_InsertZonePoints(zone_id, zone_dbid, track);
 }
 
 public T_GetZoneDBIDForInsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
-    new zone_id = data;
+    READ_TRACK_PACK();
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error retrieving zone %d DB ID for points insertion: %s", error);
+        LogError("Error retrieving zone %d (track %d) DB ID for points insertion: %s", zone_id, track, error);
         return;
     }
     
@@ -1357,21 +1582,21 @@ public T_GetZoneDBIDForInsertZonePoints(Handle:owner, Handle:hndl, const String:
         return;
     
     new zone_dbid = SQL_FetchInt(hndl, 0);
-    __win_SQL_InsertZonePoints(zone_id, zone_dbid);
+    __win_SQL_InsertZonePoints(zone_id, zone_dbid, track);
 }
 
-__win_SQL_InsertZonePoints(zone_id, zone_dbid)
+__win_SQL_InsertZonePoints(zone_id, zone_dbid, track)
 {
     // Just a last check to make sure our points count is accurate before it's final
-    CountZonePoints(zone_id);
+    CountZonePoints(zone_id, track);
     
-    for (new zp_number=0; zp_number < (ZONE_POINTS[zone_id] + ZONE_META_POINTS); zp_number++)
+    for (new zp_number=0; zp_number < (ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS); zp_number++)
     {
         decl String:buffer[256];
         
-        new Float:x = g_ZonesCache[zone_id][zp_number][0];
-        new Float:y = g_ZonesCache[zone_id][zp_number][1];
-        new Float:z = g_ZonesCache[zone_id][zp_number][2];
+        new Float:x = g_ZonesCache[track][zone_id][zp_number][0];
+        new Float:y = g_ZonesCache[track][zone_id][zp_number][1];
+        new Float:z = g_ZonesCache[track][zone_id][zp_number][2];
         
         // Need to convert metadata from ints to floats
         if (zp_number == 0)
@@ -1386,6 +1611,7 @@ __win_SQL_InsertZonePoints(zone_id, zone_dbid)
         new Handle:pack = CreateDataPack();
         WritePackCell(pack, zone_id);
         WritePackCell(pack, zp_number);
+        WritePackCell(pack, track);
         ResetPack(pack);
         
         SQLT(buffer, T_InsertZonePoints, pack);
@@ -1397,18 +1623,31 @@ public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:d
     new Handle:pack = Handle:data;
     new zone_id = ReadPackCell(pack);
     new zp_number = ReadPackCell(pack);
+    new track = ReadPackCell(pack);
     CloseHandle(pack);
     
-    if (zp_number >= (ZONE_POINTS[zone_id] + ZONE_META_POINTS - 1))
+    if (zp_number >= (ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS - 1))
     {
         Call_StartForward(g_fwdPointsSyncFinished);
         Call_PushCell(zone_id);
+        Call_PushCell(track);
         Call_PushCell(zp_number + 1);
         Call_Finish();
     }
 }
 
-win_SQL_ClearZonePoints(zone_id)
+// TODO
+win_SQL_ClearTrackZonePoints(track)
+{
+}
+
+// TODO
+win_SQL_ClearTrackZones(track)
+{
+}
+
+// TODO: track
+win_SQL_ClearZonePoints(zone_id, track=MAIN_TRACK)
 {
     decl String:query[256];
     Format(STR(query), SQL_QUERY[ClearZonePoints], g_CurMapID, zone_id);
