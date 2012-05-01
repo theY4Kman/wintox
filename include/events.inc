@@ -97,7 +97,8 @@ public OnClientDisconnected(client)
         {
             if (track == 0)
                 g_StartTimes[client][i] = 0.0;
-            g_ZoneRecords[client][track][i] = 0.0;
+            
+            g_ZoneRecords[client][track][i] = INVALID_ZONE_RECORD;
         }
     }
     

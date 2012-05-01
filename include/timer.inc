@@ -12,6 +12,8 @@
 #include "./include/zones"
 #include "./include/menus"
 
+#define INVALID_ZONE_RECORD -1.0
+
 #define SECONDS_IN_MINUTE 60
 #define SECONDS_IN_HOUR (SECONDS_IN_MINUTE*60)
 #define SECONDS_TO_TIME(%1) RoundToFloor(%1) / SECONDS_IN_HOUR, (RoundToFloor(%1) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE, ((%1) - (RoundToFloor(%1) / SECONDS_IN_MINUTE * SECONDS_IN_MINUTE))
@@ -43,6 +45,12 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 
 Timer_Init()
 {
+    // PAWN YOU BASTARD
+    for (new client=0; client<MAXPLAYERS; client++)
+        for (new track=0; track<MAX_TRACKS; track++)
+            for (new zone=1; zone<MAX_ZONES; zone++)
+                g_ZoneRecords[client][track][zone] = INVALID_ZONE_RECORD;
+    
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
@@ -56,7 +64,9 @@ Timer_Init()
 // TODO: check and upsert zone records
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
 {
-    
+    if (g_ZoneRecords[client][track][zone_id] == INVALID_ZONE_RECORD ||
+        elapsed < g_ZoneRecords[client][track][zone_id])
+        g_ZoneRecords[client][track][zone_id] = elapsed;
 }
 
 win_SQL_UpsertZoneRecord(client, track, zone_id, time)
