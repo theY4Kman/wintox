@@ -96,16 +96,16 @@ public OnGameFrame()
             new end_zone = start_zone + _:(g_PlayerCurrentZone[client] != -1);
             for (new i=start_zone; i<=end_zone; i++)
             {
-                new sides = ZONE_POINTS[i];
+                new sides = ZONE_POINTS_T[track][i];
                 new j = sides-1 + ZONE_FIRST_POINT;
                 new bool:odd_nodes = false;
                 
                 for (new h=ZONE_FIRST_POINT; h<(ZONE_META_POINTS + sides); h++)
                 {
-                    if ((ZONE_POINT[i][h][1] < origin[1] && ZONE_POINT[i][j][1] >= origin[1]) ||
-                        (ZONE_POINT[i][j][1] < origin[1] && ZONE_POINT[i][h][1] >= origin[1]))
-                        if (ZONE_POINT[i][h][0] + (origin[1] - ZONE_POINT[i][h][1]) / (ZONE_POINT[i][j][1] -
-                            ZONE_POINT[i][h][1]) * (ZONE_POINT[i][j][0] - ZONE_POINT[i][h][0]) < origin[0])
+                    if ((ZONE_POINT_T[track][i][h][1] < origin[1] && ZONE_POINT_T[track][i][j][1] >= origin[1]) ||
+                        (ZONE_POINT_T[track][i][j][1] < origin[1] && ZONE_POINT_T[track][i][h][1] >= origin[1]))
+                        if (ZONE_POINT_T[track][i][h][0] + (origin[1] - ZONE_POINT_T[track][i][h][1]) / (ZONE_POINT[i][j][1] -
+                            ZONE_POINT_T[track][i][h][1]) * (ZONE_POINT_T[track][i][j][0] - ZONE_POINT_T[track][i][h][0]) < origin[0])
                             odd_nodes = !odd_nodes;
                     
                     j = h;
@@ -113,8 +113,8 @@ public OnGameFrame()
                 
                 // In zone AND in zone height
                 if (odd_nodes &&
-                    origin[2] >= (ZONE_POINT[i][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
-                    origin[2] <= (ZONE_POINT[i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
+                    origin[2] >= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
+                    origin[2] <= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
@@ -122,6 +122,7 @@ public OnGameFrame()
                         
                         Call_StartForward(g_fwdPlayerReachedZone);
                         Call_PushCell(client);
+                        Call_PushCell(track);
                         Call_PushCell(i);
                         Call_PushFloat(g_StartTimes[client][i] - g_StartTimes[client][i-1]);
                         Call_Finish();
@@ -134,6 +135,7 @@ public OnGameFrame()
                         
                         Call_StartForward(g_fwdPlayerReachedEnd);
                         Call_PushCell(client);
+                        Call_PushCell(track);
                         Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
                         Call_Finish();
                     }

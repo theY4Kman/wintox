@@ -91,10 +91,14 @@ public OnClientDisconnected(client)
         g_ClientEditTrack[client] = INVALID_TRACK;
     }
     
-    for (new i=0; i<MAX_ZONES; i++)
+    for (new track=0; track<MAX_TRACKS; track++)
     {
-        g_StartTimes[client][i] = 0.0;
-        g_ZoneRecords[client][i] = 0.0;
+        for (new i=0; i<MAX_ZONES; i++)
+        {
+            if (track == 0)
+                g_StartTimes[client][i] = 0.0;
+            g_ZoneRecords[client][track][i] = 0.0;
+        }
     }
     
     g_TimerEnabled[client] = true;

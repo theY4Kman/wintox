@@ -184,9 +184,6 @@ Zones_Init()
     new Function:on_points_sync_finished = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPointsSyncFinished");
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, on_points_sync_finished);
     
-    new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPlayerReachedZone");
-    AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
-    
     new Function:on_text_entry_complete = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnTextEntryComplete");
     AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, on_text_entry_complete);
     

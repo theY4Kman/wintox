@@ -22,7 +22,7 @@ new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
-new Float:g_ZoneRecords[MAXPLAYERS][MAX_ZONES];
+new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES];
 
 // Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
@@ -39,8 +39,7 @@ new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 #define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
 
 #define IS_PAUSED(%1) (g_PauseStart[(%1)] != 0.0)
-// TODO: track?
-#define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone[track]] != 0.0)
+#define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone[MAIN_TRACK]] != 0.0)
 
 Timer_Init()
 {
@@ -49,10 +48,13 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
+    
+    new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Timer_OnPlayerReachedZone");
+    AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
 }
 
 // TODO: check and upsert zone records
-public fwd_Zone_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
+public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
 {
     
 }
@@ -216,6 +218,7 @@ ResetTimer(client)
     for (new i=0; i<MAX_ZONES; i++)
         g_StartTimes[client][i] = 0.0;
     
+    g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_IsTiming[client] = false;
     g_Jumps[client] = false;
