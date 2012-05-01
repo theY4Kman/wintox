@@ -24,6 +24,7 @@
 #define TRACK_MENU_NEXT_INVALID -1
 
 #define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s in %d track%s)"
+#define EDIT_ZONE_MENU_TITLE "Editing zone %d, track %d (%s)"
 
 // An arbitrary, unique number to identify a particular text entry routine
 #define TEXT_ENTRY_ZONE_NAME 97
@@ -118,6 +119,7 @@ new Handle:g_ZoneMenu = INVALID_HANDLE;
 new Handle:g_TrackMenu = INVALID_HANDLE;
 new g_TrackMenuNext[MAXPLAYERS] = { TRACK_MENU_NEXT_INVALID, ... };
 new g_TrackMenuSelected[MAXPLAYERS] = { INVALID_TRACK, ... };
+new Handle:g_ClientEditZoneMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 new bool:g_DrawZones = false;
 new bool:g_DrawFlags = true;
@@ -222,7 +224,19 @@ public fwd_Zone_OnPlayerReachedZone(client, zone_id, Float:elapsed)
 public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
 {
     if (data == TEXT_ENTRY_ZONE_NAME)
+    {
         Zone_SetName(client, text);
+        
+        // Set to something other than INVALID_HANDLE (see MenuAction_Cancel of zone edit menu)
+        g_ClientEditZoneMenu[client] = NOT_INVALID_HANDLE;
+        PrevSubmenu(client, false);
+        
+        g_ClientEditZoneMenu[client] = BuildEditZoneMenu(g_ClientEditZone[client], g_ClientEditTrack[client]);
+        DisplaySubmenu(g_ClientEditZoneMenu[client], client, MENU_TIME_FOREVER);
+        
+        // Finally revert to INVALID_HANDLE, so zone edit menu cancel calls PrevSubmenu
+        g_ClientEditZoneMenu[client] = INVALID_HANDLE;
+    }
 }
 
 
@@ -494,6 +508,30 @@ BuildTrackMenu()
     }
 }
 
+#define ZMENU_EDIT_NEW_POINT "new"
+#define ZMENU_EDIT_REMOVE_LAST "removelast"
+#define ZMENU_EDIT_CLEAR_ALL "clear"
+#define ZMENU_EDIT_FINISH "finish"
+#define ZMENU_EDIT_SET_FLAG "flag"
+#define ZMENU_EDIT_SET_NAME "name"
+
+Handle:BuildEditZoneMenu(zone_id, track)
+{
+    new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
+    SetMenuExitButton(zone_menu, true);
+    SetMenuExitBackButton(zone_menu, true);
+    
+    SetMenuTitle(zone_menu, EDIT_ZONE_MENU_TITLE, zone_id, track, g_ZoneNames[track][zone_id]);
+    AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
+    AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
+    AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
+    AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
+    AddMenuItem(zone_menu, ZMENU_EDIT_SET_NAME, "Set name (in chat)");
+    AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
+    
+    return zone_menu;
+}
+
 DisplayZoneMenu(client)
 {
     DisplaySubmenu(g_ZoneMenu, client, MENU_TIME_FOREVER, false);
@@ -591,17 +629,17 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
             AddMenuItem(zone_id_submenu, "-2", "Next new zone");
             
             decl String:buffer[32];
-            Format(STR(buffer), "0, start zone (%s)", !ZONE_EMPTY_T(g_TrackMenuSelected[param1],0) ? "edit" : "create");
+            Format(STR(buffer), "0, start (%s) - %s", g_ZoneNames[g_TrackMenuSelected[param1]][0], !ZONE_EMPTY_T(g_TrackMenuSelected[param1],0) ? "edit" : "create");
             AddMenuItem(zone_id_submenu, "0", buffer);
             
             for (new i=1; i<MAX_ZONES; i++)
             {
-                Format(STR(buffer), "%d (%s)", i, !ZONE_EMPTY_T(g_TrackMenuSelected[param1],i) ? "edit" : "create");
+                Format(STR(buffer), "%d (%s) - %s", i, g_ZoneNames[g_TrackMenuSelected[param1]][i], !ZONE_EMPTY_T(g_TrackMenuSelected[param1],i) ? "edit" : "create");
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
             PrevSubmenu(param1, false);
-            DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetMenuSelectionPosition());
+            DisplaySubmenu(zone_id_submenu, param1, MENU_TIME_FOREVER, true, GetLastMenuPosition(param1));
         }
         else if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_REMOVE)
         {
@@ -625,7 +663,7 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
                 if (ZONE_POINTS[i] == 0)
                     continue;
                 
-                IntToString(i, STR(buffer));
+                Format(STR(buffer), "%d (%s)", i, g_ZoneNames[g_TrackMenuSelected[param1]][i]);
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
@@ -636,13 +674,6 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
     else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
 }
-
-#define ZMENU_EDIT_NEW_POINT "new"
-#define ZMENU_EDIT_REMOVE_LAST "removelast"
-#define ZMENU_EDIT_CLEAR_ALL "clear"
-#define ZMENU_EDIT_FINISH "finish"
-#define ZMENU_EDIT_SET_FLAG "flag"
-#define ZMENU_EDIT_SET_NAME "name"
 
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -660,17 +691,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         
         Zone_BeginNewZone(param1, zone_id, g_TrackMenuSelected[param1]);
         
-        new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
-        SetMenuExitButton(zone_menu, true);
-        SetMenuExitBackButton(zone_menu, true);
-        
-        SetMenuTitle(zone_menu, "Editing zone %d (track %d)", zone_id, g_TrackMenuSelected[param1]);
-        AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
-        AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
-        AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
-        AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
-        AddMenuItem(zone_menu, ZMENU_EDIT_SET_NAME, "Set name (in chat)");
-        AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
+        new Handle:zone_menu = BuildEditZoneMenu(zone_id, g_TrackMenuSelected[param1]);
         
         // Pop the zone index submenu, but don't redisplay the root zone menu
         PrevSubmenu(param1, false);
@@ -767,6 +788,7 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
                 return;
             }
             
+            g_ClientEditZoneMenu[param1] = menu;
             Format(STR(reason), "set zone %d name", zone_id);
             BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME);
         }
@@ -780,7 +802,15 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
     }
     else if (action == MenuAction_Cancel)
-        HANDLE_CANCEL();
+    {
+        // Somehow the menu is cancelled when its handle is closed, which leads
+        // to double-popping when PrevSubmenu is called upon changing zone name
+        // So we won't handle the cancel (calling PrevSubmenu) in that case
+        if (g_ClientEditZoneMenu[param1] != INVALID_HANDLE)
+            g_ClientEditZoneMenu[param1] = INVALID_HANDLE;
+        else
+            HANDLE_CANCEL();
+    }
 }
 
 

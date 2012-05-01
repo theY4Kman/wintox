@@ -76,6 +76,7 @@ stock PrevSubmenu(client, bool:redisplay=true)
     // Pop the info of the menu currently being displayed, so we can close its
     // handle if need be
     decl submenu[Submenu];
+    
     PopStackArray(MENU_STACK[client], submenu[0]);
     
     if (submenu[Submenu_CloseHandle])
@@ -115,6 +116,18 @@ stock CancelSubmenus(client)
     }
 }
 
+// Retrieves the menu position of the topmost submenu
+// Useful when multiple submenus are popped without redisplaying
+// (e.g. the track menu -> zone index menu)
+stock GetLastMenuPosition(client)
+{
+    decl submenu[Submenu];
+    PopStackArray(MENU_STACK[client], submenu[0]);
+    PushStackArray(MENU_STACK[client], submenu[0]);
+    
+    return submenu[Submenu_LastIndex];
+}
+
 #define HANDLE_CANCEL() HandleCancel(menu, param1, param2)
 stock HandleCancel(Handle:menu, client, reason)
 {
@@ -128,4 +141,23 @@ stock HandleCancel(Handle:menu, client, reason)
         CancelSubmenus(client);
     else
         PrevSubmenu(client);
+}
+
+// For debugging purposes
+stock PrintMenuStack(Handle:stack)
+{
+    new Handle:temp = CreateStack(4);
+    decl submenu[Submenu];
+    new length = 0;
+    
+    PrintToServer("%-8s %-10s %-8s %-6s %-10s", "Index", "Handle", "Close", "Time", "Last Index");
+    
+    while (PopStackArray(stack, submenu[0]) && ++length)
+        PushStackArray(temp, submenu[0]);
+    
+    for (new i=0; PopStackArray(temp, submenu[0]); i++)
+    {
+        PrintToServer("%-8d %-10x %-8s %-6d %-10d", i, submenu[Submenu_Handle], submenu[Submenu_CloseHandle] ? "yes" : "no", submenu[Submenu_Time], submenu[Submenu_LastIndex]);
+        PushStackArray(stack, submenu[0]);
+    }
 }

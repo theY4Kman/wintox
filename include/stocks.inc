@@ -22,6 +22,8 @@
 
 #define VEC_PRINT(%1) (%1)[0], (%1)[1], (%1)[2]
 
+#define NOT_INVALID_HANDLE Handle:-1
+
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
