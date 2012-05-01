@@ -51,6 +51,16 @@ Timer_Init()
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
 }
 
+// TODO: check and upsert zone records
+public fwd_Zone_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
+{
+    
+}
+
+win_SQL_UpsertZoneRecord(client, track, zone_id, time)
+{
+}
+
 #define TSET_MENU_MIDDLE "middle"
 #define TSET_MENU_SIDE "side"
 #define TSET_MENU_POINTS "points"

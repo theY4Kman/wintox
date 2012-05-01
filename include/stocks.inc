@@ -64,3 +64,8 @@ stock HideHintText(client)
     BfWriteByte(userMessage, 0);
     EndMessage();
 }
+
+stock Float:FloatMod(Float:value, Float:divisor)
+{
+    return value - RoundToFloor(value / divisor) * divisor;
+}

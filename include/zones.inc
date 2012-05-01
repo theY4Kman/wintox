@@ -215,12 +215,6 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
     CacheZones(0);
 }
 
-// TODO: check and upsert zone records
-public fwd_Zone_OnPlayerReachedZone(client, zone_id, Float:elapsed)
-{
-    
-}
-
 public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
 {
     if (data == TEXT_ENTRY_ZONE_NAME)
@@ -1307,9 +1301,7 @@ DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
     vec_a[2] -= flag_height;
     BEAM(vec_b, vec_a)
     
-    g_FlagRotation[track][zone_id] += FLAG_ROTATE_STEP;
-    if (g_FlagRotation[track][zone_id] >= (2 * FLOAT_PI) || g_FlagRotation[track][zone_id] < 0.0)
-        g_FlagRotation[track][zone_id] = 0.0;
+    g_FlagRotation[track][zone_id] = FloatMod(g_FlagRotation[track][zone_id] + FLAG_ROTATE_STEP, 2 * FLOAT_PI);
 }
 
 DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)

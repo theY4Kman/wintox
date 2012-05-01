@@ -33,16 +33,16 @@ Events_Init()
     g_fwdMapLoaded = CreateForward(ET_Ignore, Param_Cell, Param_String, Param_String, Param_Cell, Param_Cell);
     
     // Called when all points are synced to the database
-    // public(zone_id, points)
+    // public(zone_id, track, points)
     g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     
     // Called when a player reaches the end zone
-    // public(client, Float:elapsed)
-    g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Float);
+    // public(client, track, Float:elapsed)
+    g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Float);
     
     // Called when a player reaches any new zone
-    // public(client, zone_id, Float:elapsed)
-    g_fwdPlayerReachedZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Float);
+    // public(client, track, zone_id, Float:elapsed)
+    g_fwdPlayerReachedZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Float);
     
     // Called when a player has completed their text entry
     // public(client, const String:text[], any:data)
