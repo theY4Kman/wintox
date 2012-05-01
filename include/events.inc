@@ -88,6 +88,7 @@ public OnClientDisconnected(client)
     {
         ZONE_EDITING[editing] = false;
         g_ClientEditZone[client] = INVALID_ZONE;
+        g_ClientEditTrack[client] = INVALID_TRACK;
     }
     
     for (new i=0; i<MAX_ZONES; i++)
@@ -100,8 +101,12 @@ public OnClientDisconnected(client)
     g_SideStageInfoEnabled[client] = true;
     g_PointsToChatEnabled[client] = true;
     g_PlayerCurrentZone[client] = 0;
+    g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_Jumps[client] = 0;
     g_PauseStart[client] = 0.0;
+    
+    g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
+    g_TrackMenuSelected[client] = INVALID_TRACK;
 }
 
 #if defined(WINTOX_BHOP)
