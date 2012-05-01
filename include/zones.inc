@@ -133,6 +133,7 @@ new g_ZoneSyncNotifyClient = -1;
 new ReplySource:g_ZoneSyncReplySource = SM_REPLY_TO_CHAT;
 new g_ZonesSynced[MAX_TRACKS] = 0;
 new g_TracksSynced = 0;
+new g_TotalZonesSynced = 0;
 
 //////////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings //
@@ -189,7 +190,7 @@ Zones_Init()
     
     BuildTrackMenu();
     for (new track=0; track<MAX_TRACKS; track++)
-        BuildZoneMenu(track);
+        BuildZoneMenu();
 
     if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
         LogError("Couldn't precache model file(s)!");
@@ -212,6 +213,7 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
     CacheZones(0);
 }
 
+// TODO: check and upsert zone records
 public fwd_Zone_OnPlayerReachedZone(client, zone_id, Float:elapsed)
 {
     
@@ -455,7 +457,7 @@ public Action:ConCommand_SyncZones(client, args)
 #define ZMENU_INFO_RELOAD_ZONES "reload"
 #define ZMENU_INFO_SYNC_ZONES "sync"
 
-BuildZoneMenu(track=MAIN_TRACK)
+BuildZoneMenu()
 {
     if (g_ZoneMenu != INVALID_HANDLE)
         CloseHandle(g_ZoneMenu);
@@ -482,17 +484,17 @@ BuildTrackMenu()
     SetMenuTitle(g_TrackMenu, "Select a track index");
     
     decl String:buffer[32];
-    Format(STR(buffer), "0, main track");
+    Format(STR(buffer), "0, main (%d zones)", g_ZonesCount[0]);
     AddMenuItem(g_TrackMenu, "0", buffer);
     
     for (new i=1; i<MAX_TRACKS; i++)
     {
-        Format(STR(buffer), "%d, bonus", i);
+        Format(STR(buffer), "%d, bonus (%d zones)", i, g_ZonesCount[i]);
         AddMenuItem(g_TrackMenu, buffer, buffer);
     }
 }
 
-DisplayZoneMenu(client, track=MAIN_TRACK)
+DisplayZoneMenu(client)
 {
     DisplaySubmenu(g_ZoneMenu, client, MENU_TIME_FOREVER, false);
 }
@@ -576,6 +578,8 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
         
         if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_CREATE)
         {
+            g_ClientEditTrack[param1] = g_TrackMenuSelected[param1];
+            
             // We need to find out what zone index the user wants this zone to be
             // Let's make a menu! YEAH!
             new Handle:zone_id_submenu = CreateMenu(MenuHandler_ZoneIndex);
@@ -652,15 +656,15 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         new zone_id = StringToInt(sz_zone_id);
         
         if (zone_id == ZONE_NEXT_NEW_ZONE)
-            zone_id = GetNextNewZone();
+            zone_id = GetNextNewZone(g_TrackMenuSelected[param1]);
         
-        Zone_BeginNewZone(param1, zone_id);
+        Zone_BeginNewZone(param1, zone_id, g_TrackMenuSelected[param1]);
         
         new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
         SetMenuExitButton(zone_menu, true);
         SetMenuExitBackButton(zone_menu, true);
         
-        SetMenuTitle(zone_menu, "Editing zone %d", zone_id);
+        SetMenuTitle(zone_menu, "Editing zone %d (track %d)", zone_id, g_TrackMenuSelected[param1]);
         AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
         AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
         AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
@@ -673,7 +677,12 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         DisplaySubmenu(zone_menu, param1, MENU_TIME_FOREVER);
     }
     else if (action == MenuAction_Cancel)
+    {
+        g_ClientEditZone[param1] = INVALID_ZONE;
+        g_ClientEditTrack[param1] = INVALID_TRACK;
+        
         HANDLE_CANCEL();
+    }
 }
 
 public MenuHandler_RemoveZoneIndex(Handle:menu, MenuAction:action, param1, param2)
@@ -1058,6 +1067,7 @@ Zone_FinishZone(client)
     FindEndZone(track);
     
     SetZoneMenuTitle();
+    BuildTrackMenu();
     
     win_SQL_UpsertZone(zone_id, track);
     win_SQL_ClearZonePoints(zone_id, track);
@@ -1074,6 +1084,7 @@ Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
     }
     
     FindEndZone(track);
+    BuildTrackMenu();
     
     win_SQL_DeleteZone(zone_id, track);
     
@@ -1087,6 +1098,9 @@ Zone_ClearTrack(client, track)
     g_ZonesCount[track] = 0;
     g_EndZone[track] = 0;
     SetZoneMenuTitle();
+    
+    FindEndZone(track);
+    BuildTrackMenu();
     
     win_SQL_ClearTrackZonePoints(track);
     win_SQL_ClearTrackZones(track);
@@ -1104,6 +1118,8 @@ Zone_ClearAllZones(client)
         g_EndZone[track] = 0;
         SetZoneMenuTitle();
     }
+    
+    BuildTrackMenu();
     
     win_SQL_ClearAllZonePoints();
     win_SQL_ClearAllZones();
@@ -1131,6 +1147,7 @@ Zone_SyncToDB(client)
     g_ZoneSyncNotifyClient = client;
     g_ZoneSyncReplySource = GetCmdReplySource();
     g_TracksSynced = 0;
+    g_TotalZonesSynced = 0;
     
     for (new track=0; track<MAX_TRACKS; track++)
     {
@@ -1139,7 +1156,7 @@ Zone_SyncToDB(client)
         
         for (new i=0; i<MAX_ZONES; i++)
         {
-            if (ZONE_EMPTY(i))
+            if (ZONE_EMPTY_T(track,i))
                 continue;
             
             track_empty = false;
@@ -1149,6 +1166,7 @@ Zone_SyncToDB(client)
             win_SQL_InsertZonePoints(i, track);
             
             g_ZonesSynced[track]++;
+            g_TotalZonesSynced++;
             
             // This will totally cause race conditions, as I'm assuming the
             // InsertZonePoints callback will complete after the last (or at least
@@ -1158,9 +1176,10 @@ Zone_SyncToDB(client)
         }
         
         if (!track_empty)
+        {
             g_TracksSynced++;
-        
-        g_ZoneSyncLastTrack = track;
+            g_ZoneSyncLastTrack = track;
+        }
     }
 }
 
@@ -1174,7 +1193,7 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, track, points)
         if (g_ZoneSyncNotifyClient != -1)
         {
             new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
-            Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zones (in %d tracks) to the database!", g_TracksSynced, g_ZonesSynced);
+            Reply(g_ZoneSyncNotifyClient, "Successfully synced %d zone%s (in %d track%s) to the database!", g_TotalZonesSynced, g_TotalZonesSynced == 1 ? "" : "s", g_TracksSynced, g_TracksSynced == 1 ? "" : "s");
             SetCmdReplySource(prev);
             
             g_ZoneSyncNotifyClient = -1;
@@ -1434,6 +1453,9 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         g_ZonesCount[track]++;
     }
     
+    // Rebuild the track menu to display the new number of zones
+    BuildTrackMenu();
+    
     if (client != -1)
         Reply(client, "Successfully retrieved %d rows of zones from DB! Getting zone points...", rows);
     
@@ -1506,8 +1528,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Reply(client, "Successfully retrieved %d rows of zone points from DB!", rows);
 }
 
-// TODO: track
-win_SQL_UpsertZone(zone_id, track=MAIN_TRACK)
+win_SQL_UpsertZone(zone_id, track)
 {
     decl String:buffer[256];
     decl String:esc_name[256];
