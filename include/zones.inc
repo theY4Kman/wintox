@@ -416,7 +416,7 @@ public Action:ConCommand_ClearTrack(client, args)
     
     decl track_id;
     decl String:sz_track_id[32];
-    GetCmdArg(2, STR(sz_track_id));
+    GetCmdArg(1, STR(sz_track_id));
     
     if (StringToIntEx(sz_track_id, track_id) == 0)
     {
@@ -1692,14 +1692,33 @@ public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:d
 // TODO
 win_SQL_ClearTrackZonePoints(track)
 {
+    decl String:query[256];
+    Format(STR(query), SQL_QUERY[ClearTrackZonePoints], g_CurMapID, track);
+    
+    SQLT(query, T_ClearTrackZonePoints, track);
+}
+
+public T_ClearTrackZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+        LogError("Error clearing track %d points from database: %s", data, error);
 }
 
 // TODO
 win_SQL_ClearTrackZones(track)
 {
+    decl String:query[256];
+    Format(STR(query), SQL_QUERY[ClearTrackZones], g_CurMapID, track);
+    
+    SQLT(query, T_ClearTrackZones, track);
 }
 
-// TODO: track
+public T_ClearTrackZones(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+        LogError("Error clearing track %d zones from database: %s", data, error);
+}
+
 win_SQL_ClearZonePoints(zone_id, track)
 {
     decl String:query[256];
