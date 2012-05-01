@@ -1700,10 +1700,10 @@ win_SQL_ClearTrackZones(track)
 }
 
 // TODO: track
-win_SQL_ClearZonePoints(zone_id, track=MAIN_TRACK)
+win_SQL_ClearZonePoints(zone_id, track)
 {
     decl String:query[256];
-    Format(STR(query), SQL_QUERY[ClearZonePoints], g_CurMapID, zone_id);
+    Format(STR(query), SQL_QUERY[ClearZonePoints], g_CurMapID, track, zone_id);
     
     SQLT(query, T_ClearZonePoints, zone_id);
 }

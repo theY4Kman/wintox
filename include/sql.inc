@@ -200,8 +200,8 @@ NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
     "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );",
     ""
 };
-NEW_SQL_QUERY_PARAMS(ClearZonePoints,1) = {
-    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND number = %d );",
+NEW_SQL_QUERY_PARAMS(ClearZonePoints,3) = {
+    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d );",
     ""
 };
 NEW_SQL_QUERY_PARAMS(GetZones,1) = {
