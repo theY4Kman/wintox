@@ -83,35 +83,7 @@ public OnClientDisconnect(client)
 
 public OnClientDisconnected(client)
 {
-    new editing = g_ClientEditZone[client];
-    if (editing != INVALID_ZONE)
-    {
-        ZONE_EDITING[editing] = false;
-        g_ClientEditZone[client] = INVALID_ZONE;
-        g_ClientEditTrack[client] = INVALID_TRACK;
-    }
-    
-    for (new track=0; track<MAX_TRACKS; track++)
-    {
-        for (new i=0; i<MAX_ZONES; i++)
-        {
-            if (track == 0)
-                g_StartTimes[client][i] = 0.0;
-            
-            g_ZoneRecords[client][track][i] = INVALID_ZONE_RECORD;
-        }
-    }
-    
-    g_TimerEnabled[client] = true;
-    g_SideStageInfoEnabled[client] = true;
-    g_PointsToChatEnabled[client] = true;
-    g_PlayerCurrentZone[client] = 0;
-    g_PlayerCurrentTrack[client] = MAIN_TRACK;
-    g_Jumps[client] = 0;
-    g_PauseStart[client] = 0.0;
-    
-    g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
-    g_TrackMenuSelected[client] = INVALID_TRACK;
+    ResetPlayerVariables(client);
 }
 
 #if defined(WINTOX_BHOP)
@@ -244,6 +216,44 @@ InsertOrUpdatePlayerInfo(client, const String:steamid[])
     Format(STR(query), SQL_QUERY[GetPlayer], steamid);
     
     SQLT(query, T_GetPlayerInfo, client);
+}
+
+ResetPlayerVariables(client)
+{
+    new editing = g_ClientEditZone[client];
+    if (editing != INVALID_ZONE)
+    {
+        ZONE_EDITING[editing] = false;
+        g_ClientEditZone[client] = INVALID_ZONE;
+        g_ClientEditTrack[client] = INVALID_TRACK;
+    }
+    
+    for (new track=0; track<MAX_TRACKS; track++)
+    {
+        for (new i=0; i<MAX_ZONES; i++)
+        {
+            if (track == 0)
+                g_StartTimes[client][i] = 0.0;
+            
+            g_ZoneRecords[client][track][i] = INVALID_ZONE_RECORD;
+        }
+    }
+    
+    g_TimerEnabled[client] = true;
+    g_SideStageInfoEnabled[client] = true;
+    g_PointsToChatEnabled[client] = true;
+    
+    g_PlayerCurrentZone[client] = 0;
+    g_PlayerCurrentTrack[client] = MAIN_TRACK;
+    g_Jumps[client] = 0;
+    g_PauseStart[client] = 0.0;
+    
+    g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
+    g_TrackMenuSelected[client] = INVALID_TRACK;
+    
+    g_ClientTextEntry[client] = false;
+    g_ClientTextEntryData[client] = INVALID_HANDLE;
+    g_ClientTextEntryRegurgitate[client] = true;
 }
 
 WarnPlayerNotRecording(client, bool:retrieve=true)

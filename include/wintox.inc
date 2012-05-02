@@ -24,8 +24,8 @@ new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
 #include "./include/game"
 #include "./include/commands"
 #include "./include/sql"
-#include "./include/events"
 #include "./include/utils"
+#include "./include/events"
 #include "./include/menus"
 #include "./include/zones"
 

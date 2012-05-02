@@ -9,10 +9,11 @@
 #endif
 #define _wintox_utils_included
 
-#include "./include/events"
-
 new bool:g_ClientTextEntry[MAXPLAYERS] = { false, ... };
 new any:g_ClientTextEntryData[MAXPLAYERS] = { INVALID_HANDLE, ... };
+new bool:g_ClientTextEntryRegurgitate[MAXPLAYERS] = { true, ... };
+
+#include "./include/events"
 
 
 Utils_Init()
@@ -23,7 +24,8 @@ Utils_Init()
 
 // Intercepts the next message the player enters and calls the OnTextEntryComplete forward.
 // This is useful when an arbitrary string is required of the player in a menu.
-stock BeginTextEntry(client, const String:reason[]="", any:data=INVALID_HANDLE)
+// If `regurgitate` is true, the text entry hook will show the user what they entered.
+stock BeginTextEntry(client, const String:reason[]="", any:data=INVALID_HANDLE, bool:regurgitate=true)
 {
     WTX_PrintToChat(client, "A text entry is required. Your next chat message will be used.");
     if (!IS_STR_EMPTY(reason))
@@ -31,6 +33,7 @@ stock BeginTextEntry(client, const String:reason[]="", any:data=INVALID_HANDLE)
     
     g_ClientTextEntry[client] = true;
     g_ClientTextEntryData[client] = data;
+    g_ClientTextEntryRegurgitate[client] = regurgitate;
 }
 
 public Action:CmdHook_Say_TextEntry(client, const String:command[], argc)
@@ -50,7 +53,8 @@ public Action:CmdHook_Say_TextEntry(client, const String:command[], argc)
     
     g_ClientTextEntry[client] = false;
     
-    WTX_PrintToChat(client, "Text entry complete! You entered: \"%s\"", text);
+    if (g_ClientTextEntryRegurgitate[client])
+        WTX_PrintToChat(client, "Text entry complete! You entered: \"%s\"", text);
     
     Call_StartForward(g_fwdTextEntryComplete);
     Call_PushCell(client);
@@ -59,6 +63,7 @@ public Action:CmdHook_Say_TextEntry(client, const String:command[], argc)
     Call_Finish();
     
     g_ClientTextEntryData[client] = INVALID_HANDLE;
+    g_ClientTextEntryRegurgitate[client] = true;
     
     // Return Plugin_Handled, so the message isn't displayed
     return Plugin_Handled;

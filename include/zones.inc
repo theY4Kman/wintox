@@ -781,7 +781,7 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             
             g_ClientEditZoneMenu[param1] = menu;
             Format(STR(reason), "set zone %d name", zone_id);
-            BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME);
+            BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME, false);
         }
         else if (StrEqual(info, ZMENU_EDIT_FINISH))
         {
