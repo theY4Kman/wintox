@@ -78,6 +78,9 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define NEW_SQL_QUERY(%1) new String:sql_%1[DatabaseType][]
 #define NEW_SQL_QUERY_PARAMS(%1,%2) new String:sql_%1[DatabaseType][]
 
+#define SQLITE_MYSQL(%1) %1, \
+    %1
+
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
 #define SQLF(%1) SQL_FastQuery(g_Database, (%1))
 #define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
@@ -95,7 +98,13 @@ NEW_SQL_QUERY(CreatePlayers) = {
        country          TEXT NOT NULL \
      );",
     
-    ""
+    "CREATE TABLE IF NOT EXISTS wintox_players ( \
+       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       latest_name      VARCHAR(64) NOT NULL, \
+       latest_ip        VARCHAR(48) NOT NULL, \
+       steamid          VARCHAR(64) NOT NULL, \
+       country          VARCHAR(3) NOT NULL \
+    );"
 };
 NEW_SQL_QUERY(CreateMaps) = {
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
@@ -106,7 +115,13 @@ NEW_SQL_QUERY(CreateMaps) = {
        is_staged        BOOLEAN DEFAULT 0 NOT NULL \
      );",
     
-    ""
+    "CREATE TABLE IF NOT EXISTS wintox_maps ( \
+       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       bsp_name         VARCHAR(255) NOT NULL UNIQUE, \
+       human_name       VARCHAR(255) NULL, \
+       tier             TINYINT(3) DEFAULT 1 NOT NULL, \
+       is_staged        BOOLEAN DEFAULT 0 NOT NULL \
+     );"
 };
 NEW_SQL_QUERY(CreateZones) = {
     "CREATE TABLE IF NOT EXISTS wintox_zones ( \
@@ -114,12 +129,20 @@ NEW_SQL_QUERY(CreateZones) = {
        fk_map           INTEGER NOT NULL, \
        track            INTEGER NOT NULL DEFAULT 0, \
        number           INTEGER NOT NULL, \
-       name             TEXT DEFAULT 'Zone' NOT NULL, \
-       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE \
+       name             TEXT DEFAULT NULL, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
        UNIQUE(fk_map, track, number) \
      );",
     
-    ""
+    "CREATE TABLE IF NOT EXISTS wintox_zones ( \
+       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_map           INTEGER(13) NOT NULL, \
+       track            TINYINT(13) NOT NULL DEFAULT 0, \
+       number           INTEGER(13) NOT NULL, \
+       name             VARCHAR(64) DEFAULT NULL, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       UNIQUE(fk_map, track, number) \
+     );"
 };
 NEW_SQL_QUERY(CreateZonePoints) = {
     "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
@@ -129,11 +152,20 @@ NEW_SQL_QUERY(CreateZonePoints) = {
        x                FLOAT NOT NULL, \
        y                FLOAT NOT NULL, \
        z                FLOAT NOT NULL, \
-       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE, \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id), \
        UNIQUE(fk_zone, number) \
      );",
     
-    ""
+    "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
+       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_zone          INTEGER(13) NOT NULL, \
+       number           INTEGER(13) NOT NULL, \
+       x                FLOAT NOT NULL, \
+       y                FLOAT NOT NULL, \
+       z                FLOAT NOT NULL, \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       UNIQUE(fk_zone, number) \
+     );"
 };
 NEW_SQL_QUERY(CreateZoneRecords) = {
     "CREATE TABLE IF NOT EXISTS wintox_zone_records ( \
@@ -144,41 +176,48 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        type             TEXT DEFAULT NULL, \
        time             FLOAT NOT NULL, \
        date_set         FLOAT NOT NULL, \
-       FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE, \
-       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE, \
-       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE, \
+       FOREIGN KEY(fk_player) REFERENCES wintox_players(id), \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id), \
        UNIQUE(fk_player, fk_map, fk_zone, type) \
      );",
     
-    ""
+    "CREATE TABLE IF NOT EXISTS wintox_zone_records ( \
+       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_player        INTEGER(13) NOT NULL, \
+       fk_map           INTEGER(13) NOT NULL, \
+       fk_zone          INTEGER(13) NOT NULL, \
+       type             VARCHAR(16) DEFAULT NULL, \
+       time             FLOAT NOT NULL, \
+       date_set         FLOAT NOT NULL, \
+       FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       UNIQUE(fk_player, fk_map, fk_zone, type) \
+     );"
 };
 
 // ===========================================================================
 //   Map records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertMap,4) = {
-    "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d');",
-    ""
+    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d');")
 };
 NEW_SQL_QUERY_PARAMS(GetMap,1) = {
-    "SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s';",
-    ""
+    SQLITE_MYSQL("SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s';")
 };
 
 // ===========================================================================
 //   Player records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertPlayer,4) = {
-    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country) VALUES('%s','%s','%s','%s');",
-    ""
+    SQLITE_MYSQL("INSERT INTO wintox_players (latest_name,latest_ip,steamid,country) VALUES('%s','%s','%s','%s');")
 };
 NEW_SQL_QUERY_PARAMS(UpdatePlayer,4) = {
-    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s';",
-    ""
+    SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s';")
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
-    "SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';",
-    ""
+    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';")
 };
 
 // ===========================================================================
@@ -186,55 +225,54 @@ NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertZone,5) = {
     "INSERT OR REPLACE INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s');",
-    ""
+    
+    "INSERT INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s') \
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name);"
 };
 NEW_SQL_QUERY_PARAMS(DeleteZone,2) = {
-    "DELETE FROM wintox_zones WHERE fk_map = %d AND number = %d;",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d;")
 };
 NEW_SQL_QUERY_PARAMS(ClearAllZones,1) = {
-    "DELETE FROM wintox_zones WHERE fk_map = %d;",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zones WHERE fk_map = %d;")
 };
 NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
-    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );")
 };
 NEW_SQL_QUERY_PARAMS(ClearZonePoints,3) = {
-    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d );",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d );")
 };
 NEW_SQL_QUERY_PARAMS(ClearTrackZones,1) = {
-    "DELETE FROM wintox_zones WHERE fk_map = %d AND track = %d;",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zones WHERE fk_map = %d AND track = %d;")
 };
 NEW_SQL_QUERY_PARAMS(ClearTrackZonePoints,3) = {
-    "DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d );",
-    ""
+    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d );" )
 };
 NEW_SQL_QUERY_PARAMS(GetZones,1) = {
-    "SELECT id,number,name,track FROM wintox_zones WHERE fk_map = %d;",
-    ""
+    SQLITE_MYSQL("SELECT id,number,name,track FROM wintox_zones WHERE fk_map = %d;")
 };
 NEW_SQL_QUERY_PARAMS(GetZone,1) = {
-    "SELECT id,name FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d;",
-    ""
+    SQLITE_MYSQL("SELECT id,name FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d;")
 };
 NEW_SQL_QUERY_PARAMS(GetZonePoints,1) = {
-    "SELECT wzp.id,wzp.number,x,y,z,wz.number,wz.track AS zone_id FROM wintox_zone_points AS wzp JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);",
-    ""
+    SQLITE_MYSQL("SELECT wzp.id,wzp.number,x,y,z,wz.number,wz.track AS zone_id \
+            FROM wintox_zone_points AS wzp \
+            JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id \
+            WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);")
 };
 NEW_SQL_QUERY_PARAMS(InsertZonePoint,5) = {
-    "INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) VALUES(%d, %d, %f, %f, %f);",
-    ""
+    SQLITE_MYSQL("INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) VALUES(%d, %d, %f, %f, %f);")
 };
 
 // ===========================================================================
 //   Zone records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertZoneRecord,6) = {
-    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d);",
-    ""
+    "INSERT OR REPLACE INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d);",
+    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d) \
+        ON DUPLICATE KEY UPDATE \
+            id = LAST_INSERT_ID(id), \
+            time = VALUES(time), \
+            date_set = VALUES(date_set);"
 };
 
 

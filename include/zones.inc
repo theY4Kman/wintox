@@ -619,7 +619,7 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
             
             AddMenuItem(zone_id_submenu, "-2", "Next new zone");
             
-            decl String:buffer[32];
+            decl String:buffer[96];
             Format(STR(buffer), "0, start (%s) - %s", g_ZoneNames[g_TrackMenuSelected[param1]][0], !ZONE_EMPTY_T(g_TrackMenuSelected[param1],0) ? "edit" : "create");
             AddMenuItem(zone_id_submenu, "0", buffer);
             
@@ -1202,6 +1202,13 @@ Zone_SyncToDB(client)
             g_ZoneSyncLastTrack = track;
         }
     }
+    
+    // We don't want to freeze later syncs because we forgot to turn off the in-progress indicator
+    if (g_TotalZonesSynced == 0)
+    {
+        g_ZoneSyncInProgress = false;
+        Reply(client, "There are no zones to sync! Use sm_newzone or /zonemenu to create some.");
+    }
 }
 
 public fwd_Zone_OnPointsSyncFinished(zone_id, track, points)
@@ -1432,6 +1439,8 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
         LogError("%s", buffer);
         if (client != -1)
             Reply(client, "%s", buffer);
+        
+        g_ZoneCacheInProgress = false;
         return;
     }
     
@@ -1444,6 +1453,7 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
             Reply(client, "Use sm_newzone%s to create some.", client == 0 ? "" : " or /zonemenu");
         }
         
+        g_ZoneCacheInProgress = false;
         return;
     }
     
@@ -1494,6 +1504,8 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         LogError("%s", buffer);
         if (client != -1)
             Reply(client, "%s", buffer);
+        
+        g_ZoneCacheInProgress = false;
         return;
     }
     
@@ -1502,6 +1514,8 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     {
         if (client != -1)
             Reply(client, "Successfully retrieved zone points from DB, but there were none.");
+        
+        g_ZoneCacheInProgress = false;
         return;
     }
     
@@ -1576,11 +1590,10 @@ public T_UpsertZone(Handle:owner, Handle:hndl, const String:error[], any:data)
     g_ZoneIDs[track][zone_id] = SQL_GetInsertId(hndl);
 }
 
-// TODO: track
-win_SQL_DeleteZone(zone_id, track=MAIN_TRACK)
+win_SQL_DeleteZone(zone_id, track)
 {
     decl String:query[256];
-    Format(STR(query), SQL_QUERY[DeleteZone], g_CurMapID, zone_id);
+    Format(STR(query), SQL_QUERY[DeleteZone], g_CurMapID, track, zone_id);
     
     CREATE_ZONE_TRACK_PACK();
     SQLT(query, T_DeleteZone, pack);
@@ -1593,8 +1606,7 @@ public T_DeleteZone(Handle:owner, Handle:hndl, const String:error[], any:data)
         LogError("Error deleting zone %d (track %d) from database: %s", zone_id, track, error);
 }
 
-// TODO: track
-win_SQL_InsertZonePoints(zone_id, track=MAIN_TRACK)
+win_SQL_InsertZonePoints(zone_id, track)
 {
     new zone_dbid = g_ZoneIDs[track][zone_id];
     
@@ -1668,6 +1680,12 @@ public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:d
     new track = ReadPackCell(pack);
     CloseHandle(pack);
     
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error inserting zone %d (track %d) point %d: %s", zone_id, track, zp_number, error);
+        return;
+    }
+    
     if (zp_number >= (ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS - 1))
     {
         Call_StartForward(g_fwdPointsSyncFinished);
@@ -1678,7 +1696,6 @@ public T_InsertZonePoints(Handle:owner, Handle:hndl, const String:error[], any:d
     }
 }
 
-// TODO
 win_SQL_ClearTrackZonePoints(track)
 {
     decl String:query[256];
@@ -1693,7 +1710,6 @@ public T_ClearTrackZonePoints(Handle:owner, Handle:hndl, const String:error[], a
         LogError("Error clearing track %d points from database: %s", data, error);
 }
 
-// TODO
 win_SQL_ClearTrackZones(track)
 {
     decl String:query[256];
