@@ -14,9 +14,11 @@
 
 new g_TimerDisplayRefreshRate = 5;
 new bool:g_wintoxExiting = false;
+new bool:g_wintoxLateLoad = false;
 new g_CurrentTick = 0;
 
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
+new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
 
 #include <sourcemod>
 #include <sdkhooks>
@@ -67,6 +69,21 @@ public OnConfigsExecuted()
     
     // Cache map info from database
     GetOrInsertMap(g_CurMapName);
+    
+    // If we're late loaded, we need to grab all player's info
+    if (g_wintoxLateLoad)
+    {
+        for (new client=1; client<=MaxClients; client++)
+        {
+            if (IsClientConnected(client) && IsClientAuthorized(client))
+            {
+                decl String:steamid[64];
+                
+                GetClientAuthString(client, STR(steamid));
+                InsertOrUpdatePlayerInfo(client, steamid);
+            }
+        }
+    }
 }
 
 public OnGameFrame()

@@ -53,7 +53,7 @@
  *   fk_zone            INT,FK(wintox_zones)
  *   type               VARCHAR(16)         NOTE: bhop: normal, sideways, w-only
  *   time               FLOAT
- *   date_set           FLOAT
+ *   date_set           INTEGER             NOTE: timestamp
  *   UNIQUE(fk_player, fk_map, fk_zone, type)
  */
 
@@ -84,6 +84,12 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define SQL_QUERY[%1] sql_%1[g_DatabaseType]
 #define SQLF(%1) SQL_FastQuery(g_Database, (%1))
 #define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
+
+#define SQLT_HANDLER(%1,%2) public T_%1(Handle:owner, Handle:hndl, const String:error[], any:data) \
+{ \
+    if (hndl == INVALID_HANDLE) \
+        LogError(%2, error); \
+}
 
 
 // ===========================================================================
@@ -175,7 +181,7 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        fk_zone          INTEGER NOT NULL, \
        type             TEXT DEFAULT NULL, \
        time             FLOAT NOT NULL, \
-       date_set         FLOAT NOT NULL, \
+       date_set         INTEGER NOT NULL, \
        FOREIGN KEY(fk_player) REFERENCES wintox_players(id), \
        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
        FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id), \
@@ -189,7 +195,7 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        fk_zone          INTEGER(13) NOT NULL, \
        type             VARCHAR(16) DEFAULT NULL, \
        time             FLOAT NOT NULL, \
-       date_set         FLOAT NOT NULL, \
+       date_set         INTEGER(13) NOT NULL, \
        FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE ON UPDATE CASCADE, \
@@ -266,9 +272,9 @@ NEW_SQL_QUERY_PARAMS(InsertZonePoint,5) = {
 // ===========================================================================
 //   Zone records
 // ===========================================================================
-NEW_SQL_QUERY_PARAMS(InsertZoneRecord,6) = {
-    "INSERT OR REPLACE INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d);",
-    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %d, %d) \
+NEW_SQL_QUERY_PARAMS(UpsertZoneRecord,6) = {
+    "INSERT OR REPLACE INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %f, %d);",
+    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %f, %d) \
         ON DUPLICATE KEY UPDATE \
             id = LAST_INSERT_ID(id), \
             time = VALUES(time), \

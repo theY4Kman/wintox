@@ -15,6 +15,7 @@
 #include "./include/sql"
 #include "./include/stocks"
 #include "./include/events"
+#include "./include/utils"
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1

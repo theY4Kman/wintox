@@ -11,6 +11,7 @@
 
 #include "./include/zones"
 #include "./include/menus"
+#include "./include/sql"
 
 #define INVALID_ZONE_RECORD -1.0
 
@@ -61,15 +62,62 @@ Timer_Init()
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
 }
 
-// TODO: check and upsert zone records
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
 {
     if (g_ZoneRecords[client][track][zone_id] == INVALID_ZONE_RECORD ||
         elapsed < g_ZoneRecords[client][track][zone_id])
+    {
         g_ZoneRecords[client][track][zone_id] = elapsed;
+        win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed);
+    }
 }
 
-win_SQL_UpsertZoneRecord(client, track, zone_id, time)
+win_SQL_UpsertZoneRecord(client, track, zone_id, Float:time, const String:type[]="")
+{
+    decl String:query[512];
+    decl String:esc_type[32];
+    
+    // The player has no database ID; we can't record their progress!
+    if (g_PlayerIDs[client] == -1)
+        return;
+    
+    SQL_EscapeString(g_Database, type, STR(esc_type));
+    
+    Format(STR(query), SQL_QUERY[UpsertZoneRecord], g_CurMapID, g_PlayerIDs[client], g_ZoneIDs[track][zone_id], esc_type, time, GetTime());
+    
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, zone_id);
+    ResetPack(pack);
+    
+    SQLT(query, T_UpsertZoneRecord, pack);
+}
+
+public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl track;
+    decl zone_id;
+    
+    new Handle:pack = Handle:data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        client = ReadPackCell(pack);
+        track = ReadPackCell(pack);
+        zone_id = ReadPackCell(pack);
+        
+        LogError("Error upserting zone record (client %d %L, track %d, zone %d): %s", client, client, track, zone_id, error);
+    }
+    
+    CloseHandle(pack);
+}
+
+// This function requires the client's DB ID, so this must be called after
+// that has been retrieved (after InsertOrUpdatePlayerInfo and its threaded
+// queries are complete)
+CacheZoneRecords(client)
 {
 }
 

@@ -64,6 +64,13 @@ public OnMapStart()
     String_ToLower(mapname, STR(g_CurMapName));
 }
 
+public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
+{
+    g_wintoxLateLoad = late;
+    
+    return APLRes_Success;
+}
+
 public OnClientAuthorized(client, const String:auth[])
 {
     InsertOrUpdatePlayerInfo(client, auth);
@@ -209,15 +216,6 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     }
 }
 
-// Inserts or updates a player's info
-InsertOrUpdatePlayerInfo(client, const String:steamid[])
-{
-    decl String:query[256];
-    Format(STR(query), SQL_QUERY[GetPlayer], steamid);
-    
-    SQLT(query, T_GetPlayerInfo, client);
-}
-
 ResetPlayerVariables(client)
 {
     new editing = g_ClientEditZone[client];
@@ -267,6 +265,15 @@ WarnPlayerNotRecording(client, bool:retrieve=true)
     PrintToChat(client, "Contact an administrator if this continues. Thanks!");
 }
 
+// Inserts or updates a player's info
+InsertOrUpdatePlayerInfo(client, const String:steamid[])
+{
+    decl String:query[256];
+    Format(STR(query), SQL_QUERY[GetPlayer], steamid);
+    
+    SQLT(query, T_GetPlayerInfo, client);
+}
+
 public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
     decl String:buffer[512];
@@ -297,6 +304,8 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         decl String:db_country[4];
         
         SQL_FetchRow(hndl);
+        
+        g_PlayerIDs[client] = SQL_FetchInt(hndl, 0);
         SQL_FetchString(hndl, 1, STR(db_latest_name));
         SQL_FetchString(hndl, 2, STR(db_latest_ip));
         SQL_FetchString(hndl, 4, STR(db_country));
@@ -308,14 +317,10 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
             SQL_EscapeString(g_Database, latest_name, STR(db_latest_name));
             Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid);
             
-            if (!SQLF(buffer))
-            {
-                SQL_GetError(g_Database, STR(buffer));
-                LogError("Error updating player info: %s", buffer);
-                
-                return;
-            }
+            SQLT(buffer, T_UpdatePlayerInfo, client);
         }
+        
+        CacheZoneRecords(client);
     }
     
     // Insert all the player's info
@@ -327,13 +332,22 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         SQL_EscapeString(g_Database, latest_name, STR(escaped_name));
         Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country);
         
-        if (!SQLF(buffer))
-        {
-            SQL_GetError(g_Database, STR(buffer));
-            LogError("Error inserting player info: %s", buffer);
-            WarnPlayerNotRecording(client, false);
-            
-            return;
-        }
+        SQLT(buffer, T_InsertPlayerInfo, client);
     }
+}
+
+SQLT_HANDLER(UpdatePlayerInfo,"Error updating player (%L) info: %s", data)
+
+public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error inserting player (%L) info: %s", data, error);
+        WarnPlayerNotRecording(data, false);
+        return;
+    }
+    
+    g_PlayerIDs[data] = SQL_GetInsertId(hndl);
+    
+    CacheZoneRecords(client);
 }
