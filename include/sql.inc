@@ -20,14 +20,14 @@
  *   latest_name        VARCHAR(64)
  *   latest_ip          VARCHAR(48)
  *   steamid            VARCHAR(64)
- *   country            VARCHAR(3)          NOTE: only recorded on first join
+ *   country            VARCHAR(3)              NOTE: only recorded on first join
  * 
  * TABLE wintox_maps
  *   id                 pk
- *   bsp_name           VARCHAR(255),UNIQUE NOTE: filename of map, without ".bsp"
- *   human_name         VARCHAR(255),NULL   NOTE: optional human readable name
- *   tier               TINYINT             NOTE: ranges from 1-6
- *   is_staged          BOOLEAN             NOTE: whether map is linear or staged
+ *   bsp_name           VARCHAR(255),UNIQUE     NOTE: filename of map, without ".bsp"
+ *   human_name         VARCHAR(255),NULL       NOTE: optional human readable name
+ *   tier               TINYINT                 NOTE: ranges from 1-6
+ *   is_staged          BOOLEAN                 NOTE: whether map is linear or staged
  * 
  * TABLE wintox_zones
  *   id                 pk
@@ -51,9 +51,9 @@
  *   fk_player          INT,FK(wintox_players)
  *   fk_map             INT,FK(wintox_maps)
  *   fk_zone            INT,FK(wintox_zones)
- *   type               VARCHAR(16)         NOTE: bhop: normal, sideways, w-only
+ *   type               VARCHAR(16),DEFAULT ''  NOTE: bhop: normal, sideways, w-only
  *   time               FLOAT
- *   date_set           INTEGER             NOTE: timestamp
+ *   date_set           INTEGER                 NOTE: timestamp
  *   UNIQUE(fk_player, fk_map, fk_zone, type)
  */
 
@@ -179,7 +179,7 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        fk_player        INTEGER NOT NULL, \
        fk_map           INTEGER NOT NULL, \
        fk_zone          INTEGER NOT NULL, \
-       type             TEXT DEFAULT NULL, \
+       type             TEXT NOT NULL DEFAULT '', \
        time             FLOAT NOT NULL, \
        date_set         INTEGER NOT NULL, \
        FOREIGN KEY(fk_player) REFERENCES wintox_players(id), \
@@ -193,7 +193,7 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        fk_player        INTEGER(13) NOT NULL, \
        fk_map           INTEGER(13) NOT NULL, \
        fk_zone          INTEGER(13) NOT NULL, \
-       type             VARCHAR(16) DEFAULT NULL, \
+       type             VARCHAR(16) NOT NULL DEFAULT '', \
        time             FLOAT NOT NULL, \
        date_set         INTEGER(13) NOT NULL, \
        FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE ON UPDATE CASCADE, \
