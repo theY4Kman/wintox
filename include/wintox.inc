@@ -142,6 +142,7 @@ public OnGameFrame()
                         Call_PushCell(track);
                         Call_PushCell(i);
                         Call_PushFloat(g_StartTimes[client][i] - g_StartTimes[client][i-1]);
+                        Call_PushCell(0); // TODO: style
                         Call_Finish();
                     }
                     
@@ -154,6 +155,7 @@ public OnGameFrame()
                         Call_PushCell(client);
                         Call_PushCell(track);
                         Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
+                        Call_PushCell(0); // TODO: style
                         Call_Finish();
                     }
                     

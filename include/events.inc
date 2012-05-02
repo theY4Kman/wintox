@@ -37,12 +37,12 @@ Events_Init()
     g_fwdPointsSyncFinished = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     
     // Called when a player reaches the end zone
-    // public(client, track, Float:elapsed)
-    g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Float);
+    // public(client, track, Float:elapsed, style)
+    g_fwdPlayerReachedEnd = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Float, Param_Cell);
     
     // Called when a player reaches any new zone
-    // public(client, track, zone_id, Float:elapsed)
-    g_fwdPlayerReachedZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Float);
+    // public(client, track, zone_id, Float:elapsed, style)
+    g_fwdPlayerReachedZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
     
     // Called when a player has completed their text entry
     // public(client, const String:text[], any:data)
@@ -233,7 +233,8 @@ ResetPlayerVariables(client)
             if (track == 0)
                 g_StartTimes[client][i] = 0.0;
             
-            g_ZoneRecords[client][track][i] = INVALID_ZONE_RECORD;
+            for (new style=0; style<MAX_STYLES; style++)
+                g_ZoneRecords[client][track][i][style] = INVALID_ZONE_RECORD;
         }
     }
     
@@ -340,14 +341,16 @@ SQLT_HANDLER(UpdatePlayerInfo,"Error updating player (%L) info: %s", data)
 
 public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
+    new client = data;
+    
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error inserting player (%L) info: %s", data, error);
-        WarnPlayerNotRecording(data, false);
+        LogError("Error inserting player (%L) info: %s", client, error);
+        WarnPlayerNotRecording(client, false);
         return;
     }
     
-    g_PlayerIDs[data] = SQL_GetInsertId(hndl);
+    g_PlayerIDs[client] = SQL_GetInsertId(hndl);
     
     CacheZoneRecords(client);
 }

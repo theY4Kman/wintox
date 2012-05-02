@@ -280,6 +280,13 @@ NEW_SQL_QUERY_PARAMS(UpsertZoneRecord,6) = {
             time = VALUES(time), \
             date_set = VALUES(date_set);"
 };
+NEW_SQL_QUERY_PARAMS(GetZoneRecords,2) = {
+    SQLITE_MYSQL( \
+        "SELECT wzr.id,wz.number,wz.track,type,time,date_set \
+            FROM wintox_zone_records AS wzr \
+            JOIN wintox_zones AS wz ON wzr.fk_zone = wz.id \
+            WHERE wzr.fk_map = %d AND fk_player = %d")
+};
 
 
 // SQL helper functions

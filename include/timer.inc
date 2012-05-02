@@ -15,6 +15,25 @@
 
 #define INVALID_ZONE_RECORD -1.0
 
+#if defined(WINTOX_BHOP)
+    #define STYLE_NORMAL 0
+    #define STYLE_SIDEWAYS 1
+    #define STYLE_WONLY 2
+    #define MAX_STYLES 3
+    
+    new String:STYLE_NAMES[MAX_STYLES][] = {
+        "normal",
+        "sideways",
+        "w-only"
+    };
+#else
+    #define MAX_STYLES 1
+    
+    new String:STYLE_NAMES[MAX_STYLES][] = {
+        ""
+    };
+#endif
+
 #define SECONDS_IN_MINUTE 60
 #define SECONDS_IN_HOUR (SECONDS_IN_MINUTE*60)
 #define SECONDS_TO_TIME(%1) RoundToFloor(%1) / SECONDS_IN_HOUR, (RoundToFloor(%1) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE, ((%1) - (RoundToFloor(%1) / SECONDS_IN_MINUTE * SECONDS_IN_MINUTE))
@@ -25,7 +44,7 @@ new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 new g_Jumps[MAXPLAYERS];
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
-new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES];
+new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 
 // Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
@@ -50,7 +69,8 @@ Timer_Init()
     for (new client=0; client<MAXPLAYERS; client++)
         for (new track=0; track<MAX_TRACKS; track++)
             for (new zone=1; zone<MAX_ZONES; zone++)
-                g_ZoneRecords[client][track][zone] = INVALID_ZONE_RECORD;
+                for (new style=0; style<MAX_STYLES; style++)
+                    g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
     
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
@@ -62,13 +82,13 @@ Timer_Init()
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
 }
 
-public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed)
+public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
 {
-    if (g_ZoneRecords[client][track][zone_id] == INVALID_ZONE_RECORD ||
-        elapsed < g_ZoneRecords[client][track][zone_id])
+    if (g_ZoneRecords[client][track][zone_id][style] == INVALID_ZONE_RECORD ||
+        elapsed < g_ZoneRecords[client][track][zone_id][style])
     {
-        g_ZoneRecords[client][track][zone_id] = elapsed;
-        win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed);
+        g_ZoneRecords[client][track][zone_id][style] = elapsed;
+        win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed, STYLE_NAMES[style]);
     }
 }
 
@@ -119,6 +139,42 @@ public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:d
 // queries are complete)
 CacheZoneRecords(client)
 {
+    decl String:query[256];
+    
+    if (g_PlayerIDs[client] == -1)
+    {
+        LogError("Attempted to retrieve the zone records of player %L with bad DB ID %d.", client, g_PlayerIDs[client]);
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[GetZoneRecords], g_CurMapID, g_PlayerIDs[client]);
+    SQLT(query, T_CacheZoneRecords, client);
+}
+
+public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving zone records for client %d (%L): %s", client, client, error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl zone_id;
+        decl track;
+        decl String:stylename[16];
+        decl Float:time;
+        
+        zone_id = SQL_FetchInt(hndl, 1);
+        track = SQL_FetchInt(hndl, 2);
+        SQL_FetchString(hndl, 3, STR(stylename));
+        time = SQL_FetchFloat(hndl, 4);
+        
+        g_ZoneRecords[client][track][zone_id][StyleNameToIndex(stylename)] = time;
+    }
 }
 
 #define TSET_MENU_MIDDLE "middle"
@@ -299,4 +355,13 @@ UnpauseTimer(client)
     }
     
     g_PauseStart[client] = 0.0;
+}
+
+StyleNameToIndex(const String:stylename[])
+{
+    for (new style=0; style<MAX_STYLES; style++)
+        if (StrEqual(stylename, STYLE_NAMES[style]))
+            return style;
+    
+    return 0;
 }
