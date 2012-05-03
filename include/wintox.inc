@@ -123,7 +123,7 @@ public OnConfigsExecuted()
     {
         for (new client=1; client<=MaxClients; client++)
         {
-            if (IsClientConnected(client) && IsClientAuthorized(client))
+            if (IsClientConnected(client) && IsClientAuthorized(client) && !IsFakeClient(client))
             {
                 decl String:steamid[64];
                 
@@ -277,7 +277,7 @@ Handle:BuildFpsMenu()
         decl String:buffer[96];
         decl String:sz_client[4];
         
-        if (!IsClientConnected(client) || !IsClientInGame(client))
+        if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
         IntToString(client, STR(sz_client));

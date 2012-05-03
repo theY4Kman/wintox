@@ -342,7 +342,6 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         SQLT(buffer, T_InsertPlayerInfo, client);
     }
 }
-
 SQLT_HANDLER(UpdatePlayerInfo,"Error updating player (%L) info: %s", data)
 
 public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
