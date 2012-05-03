@@ -214,14 +214,9 @@ Zones_Init()
     g_DrawFlags = GetConVarBool(draw_flags);
     HookConVarChange(draw_flags, ConVar_DrawFlags);
     
-    new Function:on_map_loaded = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnMapLoaded");
-    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, on_map_loaded);
-    
-    new Function:on_points_sync_finished = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnPointsSyncFinished");
-    AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, on_points_sync_finished);
-    
-    new Function:on_text_entry_complete = GetFunctionByName(INVALID_HANDLE, "fwd_Zone_OnTextEntryComplete");
-    AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, on_text_entry_complete);
+    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
+    AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
+    AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
     
     BuildTrackMenu();
     for (new track=0; track<MAX_TRACKS; track++)
@@ -231,6 +226,24 @@ Zones_Init()
         LogError("Couldn't precache model file(s)!");
     
     CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
+}
+
+Zone_DeinitPlayer(client)
+{
+    g_PlayerCurrentZone[client] = INVALID_ZONE;
+    g_PlayerCurrentTrack[client] = MAIN_TRACK;
+    g_PlayerCurrentPath[client] = INVALID_PATH;
+    
+    g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
+    g_TrackMenuSelected[client] = INVALID_TRACK;
+    
+    new editing = g_ClientEditZone[client];
+    if (editing != INVALID_ZONE)
+    {
+        ZONE_EDITING[editing] = false;
+        g_ClientEditZone[client] = INVALID_ZONE;
+        g_ClientEditTrack[client] = INVALID_TRACK;
+    }
 }
 
 public ConVar_DrawZones(Handle:cvar, const String:oldVal[], const String:newVal[])

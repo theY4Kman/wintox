@@ -9,6 +9,8 @@
 #define WINTOX_BHOP
 #define WINTOX_BHOP_VERSION "0.1dev"
 
+#define WINTOX_GAMETYPE "bhop"
+
 #include <sourcemod>
 #include "./include/version"
 #include "./include/wintox"

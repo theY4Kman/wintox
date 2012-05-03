@@ -23,6 +23,13 @@ Utils_Init()
     AddCommandListener(CmdHook_Say_TextEntry, "say_team");
 }
 
+Utils_DeinitPlayer(client)
+{
+    g_ClientTextEntry[client] = false;
+    g_ClientTextEntryData[client] = INVALID_HANDLE;
+    g_ClientTextEntryRegurgitate[client] = true;
+}
+
 // Intercepts the next message the player enters and calls the OnTextEntryComplete forward.
 // This is useful when an arbitrary string is required of the player in a menu.
 // If `regurgitate` is true, the text entry hook will show the user what they entered.

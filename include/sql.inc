@@ -21,14 +21,17 @@
  *   latest_ip          VARCHAR(48)
  *   steamid            VARCHAR(64)
  *   country            VARCHAR(3)              NOTE: only recorded on first join
- *   points             INTEGER,DEFAULT 0
+ *   gametype           VARCHAR(4)              NOTE: surf or bhop
+ *   UNIQUE(steamid, gametype)
  * 
  * TABLE wintox_maps
  *   id                 pk
- *   bsp_name           VARCHAR(255),UNIQUE     NOTE: filename of map, without ".bsp"
+ *   bsp_name           VARCHAR(255)            NOTE: filename of map, without ".bsp"
  *   human_name         VARCHAR(255),NULL       NOTE: optional human readable name
  *   tier               TINYINT                 NOTE: ranges from 1-6
  *   is_staged          BOOLEAN                 NOTE: whether map is linear or staged
+ *   gametype           VARCHAR(4)              NOTE: surf or bhop
+ *   UNIQUE(bsp_name, gametype)
  * 
  * TABLE wintox_zones
  *   id                 pk
@@ -103,7 +106,8 @@ NEW_SQL_QUERY(CreatePlayers) = {
        latest_ip        TEXT NOT NULL, \
        steamid          TEXT NOT NULL, \
        country          TEXT NOT NULL, \
-       points           INTEGER NOT NULL DEFAULT 0 \
+       gametype         TEXT NOT NULL, \
+       UNIQUE(steamid, gametype) \
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
@@ -112,24 +116,29 @@ NEW_SQL_QUERY(CreatePlayers) = {
        latest_ip        VARCHAR(48) NOT NULL, \
        steamid          VARCHAR(64) NOT NULL, \
        country          VARCHAR(3) NOT NULL, \
-       points           INTEGER(13) NOT NULL DEFAULT 0 \
+       gametype         VARCHAR(4) NOT NULL, \
+       UNIQUE(steamid, gametype) \
     );"
 };
 NEW_SQL_QUERY(CreateMaps) = {
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
-       bsp_name         TEXT NOT NULL UNIQUE, \
+       bsp_name         TEXT NOT NULL, \
        human_name       TEXT NULL, \
        tier             TINYINT DEFAULT 1 NOT NULL, \
-       is_staged        BOOLEAN DEFAULT 0 NOT NULL \
+       is_staged        BOOLEAN DEFAULT 0 NOT NULL, \
+       gametype         TEXT NOT NULL, \
+       UNIQUE(bsp_name, gametype) \
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
        id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
-       bsp_name         VARCHAR(255) NOT NULL UNIQUE, \
+       bsp_name         VARCHAR(255) NOT NULL, \
        human_name       VARCHAR(255) NULL, \
        tier             TINYINT(3) DEFAULT 1 NOT NULL, \
-       is_staged        BOOLEAN DEFAULT 0 NOT NULL \
+       is_staged        BOOLEAN DEFAULT 0 NOT NULL, \
+       gametype         VARCHAR(4) NOT NULL, \
+       UNIQUE(bsp_name, gametype) \
      );"
 };
 NEW_SQL_QUERY(CreateZones) = {
@@ -209,31 +218,28 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
 // ===========================================================================
 //   Map records
 // ===========================================================================
-NEW_SQL_QUERY_PARAMS(InsertMap,4) = {
-    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged) VALUES('%s','%s','%d','%d');")
+NEW_SQL_QUERY_PARAMS(InsertMap,5) = {
+    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged,gametype) VALUES('%s','%s','%d','%d','%s');")
 };
-NEW_SQL_QUERY_PARAMS(GetMap,1) = {
-    SQLITE_MYSQL("SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s';")
+NEW_SQL_QUERY_PARAMS(GetMap,2) = {
+    SQLITE_MYSQL("SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s' AND `gametype` = '%s';")
 };
 
 // ===========================================================================
 //   Player records
 // ===========================================================================
-NEW_SQL_QUERY_PARAMS(InsertPlayer,4) = {
-    SQLITE_MYSQL("INSERT INTO wintox_players (latest_name,latest_ip,steamid,country) VALUES('%s','%s','%s','%s');")
+NEW_SQL_QUERY_PARAMS(InsertPlayer,5) = {
+    SQLITE_MYSQL("INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype) VALUES('%s','%s','%s','%s','%s');")
 };
-NEW_SQL_QUERY_PARAMS(UpdatePlayer,4) = {
-    SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s';")
+NEW_SQL_QUERY_PARAMS(UpdatePlayer,5) = {
+    SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s' AND gametype = '%s';")
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
-    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,points FROM wintox_players WHERE steamid = '%s';")
-};
-NEW_SQL_QUERY_PARAMS(UpdatePlayerPoints,2) = {
-    SQLITE_MYSQL("UPDATE wintox_players SET points=%d WHERE id = %d")
+    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")
 };
 
 // ===========================================================================
-//   Zones and points
+//   Zones and zone points
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertZone,5) = {
     "INSERT OR REPLACE INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s');",
@@ -292,6 +298,13 @@ NEW_SQL_QUERY_PARAMS(GetZoneRecords,2) = {
             FROM wintox_zone_records AS wzr \
             JOIN wintox_zones AS wz ON wzr.fk_zone = wz.id \
             WHERE wzr.fk_map = %d AND fk_player = %d")
+};
+
+// ===========================================================================
+//   Player points
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(UpdatePlayerPoints,2) = {
+    SQLITE_MYSQL("")
 };
 
 

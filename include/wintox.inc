@@ -88,6 +88,15 @@ Wintox_Exit()
     g_wintoxExiting = true;
 }
 
+Wintox_DeinitPlayer(client)
+{
+    g_ClientFpsMax[client] = -1;
+    
+#if defined(WINTOX_BHOP)
+    g_PlayerLowGrav[client] = false;
+#endif
+}
+
 public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_TimerDisplayRefreshRate = MAX(GetConVarInt(cvar), 1);

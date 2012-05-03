@@ -176,7 +176,7 @@ GetOrInsertMap(const String:mapname[], bool:curmap=true)
     decl String:query[512];
     decl String:buffer[256];
     SQL_EscapeString(g_Database, mapname, STR(buffer));
-    Format(STR(query), SQL_QUERY[GetMap], buffer);
+    Format(STR(query), SQL_QUERY[GetMap], buffer, WINTOX_GAMETYPE);
     
     new Handle:pack = CreateDataPack();
     WritePackCell(pack, _:curmap);
@@ -222,7 +222,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
     }
     else
     {
-        Format(STR(buffer), SQL_QUERY[InsertMap], mapname, human_name, tier, is_staged);
+        Format(STR(buffer), SQL_QUERY[InsertMap], mapname, human_name, tier, is_staged, WINTOX_GAMETYPE);
         
         if (!SQLF(buffer))
         {
@@ -254,58 +254,10 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
 
 ResetPlayerVariables(client)
 {
-    new editing = g_ClientEditZone[client];
-    if (editing != INVALID_ZONE)
-    {
-        ZONE_EDITING[editing] = false;
-        g_ClientEditZone[client] = INVALID_ZONE;
-        g_ClientEditTrack[client] = INVALID_TRACK;
-    }
-    
-    for (new track=0; track<MAX_TRACKS; track++)
-    {
-        for (new i=0; i<MAX_ZONES; i++)
-        {
-            if (track == 0)
-                g_StartTimes[client][i] = 0.0;
-            
-            for (new style=0; style<MAX_STYLES; style++)
-                g_ZoneRecords[client][track][i][style] = INVALID_ZONE_RECORD;
-        }
-    }
-    
-    g_ClientFpsMax[client] = -1;
-    
-    g_TimerEnabled[client] = true;
-    g_SideStageInfoEnabled[client] = true;
-    g_PointsToChatEnabled[client] = true;
-    
-    g_PlayerCurrentZone[client] = INVALID_ZONE;
-    g_PlayerCurrentTrack[client] = MAIN_TRACK;
-    g_PlayerCurrentPath[client] = INVALID_PATH;
-    
-    g_Jumps[client] = 0;
-    g_PauseStart[client] = 0.0;
-    
-    g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
-    g_TrackMenuSelected[client] = INVALID_TRACK;
-    
-    g_ClientTextEntry[client] = false;
-    g_ClientTextEntryData[client] = INVALID_HANDLE;
-    g_ClientTextEntryRegurgitate[client] = true;
-    
-#if defined(WINTOX_BHOP)
-    g_PlayerLowGrav[client] = false;
-    
-    g_PlayerCurrentTele[client] = INVALID_TELEPORT;
-    g_PlayerTeleCount[client] = 0;
-    g_TeleMenu[client] = INVALID_HANDLE;
-    
-    for (new tele=0; tele<MAX_TELEPORT_SAVES; tele++)
-        for (new i=0; i<3; i++)
-            g_PlayerTele[client][tele][i] = 0.0;
-#endif
-    
+    Wintox_DeinitPlayer(client);
+    Timer_DeinitPlayer(client);
+    Utils_DeinitPlayer(client);
+    Teleport_DeinitPlayer(client);
     Race_DeinitPlayer(client);
 }
 
@@ -324,7 +276,7 @@ WarnPlayerNotRecording(client, bool:retrieve=true)
 InsertOrUpdatePlayerInfo(client, const String:steamid[])
 {
     decl String:query[256];
-    Format(STR(query), SQL_QUERY[GetPlayer], steamid);
+    Format(STR(query), SQL_QUERY[GetPlayer], steamid, WINTOX_GAMETYPE);
     
     SQLT(query, T_GetPlayerInfo, client);
 }
@@ -364,14 +316,13 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         SQL_FetchString(hndl, 1, STR(db_latest_name));
         SQL_FetchString(hndl, 2, STR(db_latest_ip));
         SQL_FetchString(hndl, 4, STR(db_country));
-        g_PlayerPoints[client] = SQL_FetchInt(hndl, 5);
         
         // Check if we need to update the player's name, country, and/or IP
         if (!StrEqual(latest_name, db_latest_name) || !StrEqual(latest_ip, db_latest_ip) ||
             !StrEqual(country, db_country))
         {
             SQL_EscapeString(g_Database, latest_name, STR(db_latest_name));
-            Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid);
+            Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid, WINTOX_GAMETYPE);
             
             SQLT(buffer, T_UpdatePlayerInfo, client);
         }
@@ -386,7 +337,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         
         GeoipCode3(latest_ip, country);
         SQL_EscapeString(g_Database, latest_name, STR(escaped_name));
-        Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country);
+        Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country, WINTOX_GAMETYPE);
         
         SQLT(buffer, T_InsertPlayerInfo, client);
     }

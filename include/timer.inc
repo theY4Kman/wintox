@@ -33,6 +33,7 @@
         "W-only"
     };
 #else
+    #define STYLE_NORMAL 0
     #define MAX_STYLES 1
     
     new String:STYLE_NAMES[MAX_STYLES][] = {
@@ -95,8 +96,31 @@ Timer_Init()
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
 #endif
     
-    new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Timer_OnPlayerReachedZone");
-    AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
+    AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
+}
+
+Timer_DeinitPlayer(client)
+{
+    for (new track=0; track<MAX_TRACKS; track++)
+    {
+        for (new i=0; i<MAX_ZONES; i++)
+        {
+            if (track == 0)
+                g_StartTimes[client][i] = 0.0;
+            
+            for (new style=0; style<MAX_STYLES; style++)
+                g_ZoneRecords[client][track][i][style] = INVALID_ZONE_RECORD;
+        }
+    }
+    
+    g_Jumps[client] = 0;
+    g_PauseStart[client] = 0.0;
+    
+    g_TimerEnabled[client] = true;
+    g_SideStageInfoEnabled[client] = true;
+    g_PointsToChatEnabled[client] = true;
+    
+    g_PlayerCurrentStyle[client] = 0;
 }
 
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
