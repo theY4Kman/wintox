@@ -340,6 +340,7 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         SQL_FetchString(hndl, 1, STR(db_latest_name));
         SQL_FetchString(hndl, 2, STR(db_latest_ip));
         SQL_FetchString(hndl, 4, STR(db_country));
+        g_PlayerPoints[client] = SQL_FetchInt(hndl, 5);
         
         // Check if we need to update the player's name, country, and/or IP
         if (!StrEqual(latest_name, db_latest_name) || !StrEqual(latest_ip, db_latest_ip) ||
@@ -381,6 +382,7 @@ public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:d
     }
     
     g_PlayerIDs[client] = SQL_GetInsertId(hndl);
+    g_PlayerPoints[client] = 0;
     
     CacheZoneRecords(client);
 }

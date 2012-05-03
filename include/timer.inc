@@ -14,6 +14,7 @@
 #include "./include/sql"
 
 #define INVALID_ZONE_RECORD -1.0
+#define INVALID_POINTS -1
 
 #if defined(WINTOX_BHOP)
     #define STYLE_NORMAL 0
@@ -55,6 +56,8 @@ new g_PlayerCurrentStyle[MAXPLAYERS] = { MAX_STYLES-1, ... };
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
+// Total points earned by each player
+new g_PlayerPoints[MAXPLAYERS] = { INVALID_POINTS, ... };
 
 // Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
@@ -105,6 +108,19 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed, STYLE_NAMES[style]);
     }
 }
+
+win_SQL_UpdatePlayerPoints(client)
+{
+    decl String:query[256];
+    
+    // The player isn't in the database, so an update would be pointless
+    if (g_PlayerIDs[client] == -1)
+        return;
+    
+    Format(STR(query), SQL_QUERY[UpdatePlayerPoints], g_PlayerPoints[client], g_PlayerIDs[client]);
+    SQLT(query, T_UpdatePlayerPoints, client);
+}
+SQLT_HANDLER(UpdatePlayerPoints, "Error updating player %L points: %s", data)
 
 win_SQL_UpsertZoneRecord(client, track, zone_id, Float:time, const String:type[]="")
 {

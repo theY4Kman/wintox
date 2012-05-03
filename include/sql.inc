@@ -21,6 +21,7 @@
  *   latest_ip          VARCHAR(48)
  *   steamid            VARCHAR(64)
  *   country            VARCHAR(3)              NOTE: only recorded on first join
+ *   points             INTEGER,DEFAULT 0
  * 
  * TABLE wintox_maps
  *   id                 pk
@@ -101,7 +102,8 @@ NEW_SQL_QUERY(CreatePlayers) = {
        latest_name      TEXT NOT NULL, \
        latest_ip        TEXT NOT NULL, \
        steamid          TEXT NOT NULL, \
-       country          TEXT NOT NULL \
+       country          TEXT NOT NULL, \
+       points           INTEGER NOT NULL DEFAULT 0 \
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
@@ -109,7 +111,8 @@ NEW_SQL_QUERY(CreatePlayers) = {
        latest_name      VARCHAR(64) NOT NULL, \
        latest_ip        VARCHAR(48) NOT NULL, \
        steamid          VARCHAR(64) NOT NULL, \
-       country          VARCHAR(3) NOT NULL \
+       country          VARCHAR(3) NOT NULL, \
+       points           INTEGER(13) NOT NULL DEFAULT 0 \
     );"
 };
 NEW_SQL_QUERY(CreateMaps) = {
@@ -223,7 +226,10 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayer,4) = {
     SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s';")
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
-    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s';")
+    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,points FROM wintox_players WHERE steamid = '%s';")
+};
+NEW_SQL_QUERY_PARAMS(UpdatePlayerPoints,2) = {
+    SQLITE_MYSQL("UPDATE wintox_players SET points=%d WHERE id = %d")
 };
 
 // ===========================================================================
