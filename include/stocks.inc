@@ -24,6 +24,10 @@
 
 #define NOT_INVALID_HANDLE Handle:-1
 
+#define ENTER_REPLY(%1) new ReplySource:__old_reply_to = GetCmdReplySource(); \
+    SetCmdReplySource((%1))
+#define EXIT_REPLY() SetCmdReplySource(__old_reply_to)
+
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
@@ -47,7 +51,9 @@ stock Reply(client, const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 3);
     
-    Client_Reply(client, "{R}[WTX]{N} %s", buffer);
+    if (client != 0)
+        Client_PrintToChat(client, false, "{R}[WTX]{N} %s", buffer);
+    Client_PrintToConsole(client, "{R}[WTX]{N} %s", buffer);
 }
 
 stock WTX_PrintToChat(client, const String:format[], any:...)

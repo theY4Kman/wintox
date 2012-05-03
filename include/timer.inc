@@ -285,7 +285,7 @@ public Action:ConCommand_Stop(client, args)
     }
     
     ResetTimer(client);
-    Reply(client, "Stopped timer. Pass through the start zone to restart it.");
+    Reply(client, "Stopped timer. Pass through the {T}start zone{N} to restart it.");
     
     return Plugin_Handled;
 }
@@ -296,18 +296,18 @@ public Action:ConCommand_Respawn(client, args)
     
     if (!IS_PLAYING_TEAM(GetClientTeam(client)))
     {
-        Reply(client, "You are not on a playing team and can't be respawned. Nice try.");
+        Reply(client, "You are not on a playing team and can't be respawned. {OG}Nice try{N}.");
         return Plugin_Handled;
     }
     
     if (IsPlayerAlive(client))
     {
-        Reply(client, "Living players cannot be respawned. Perhaps you were looking for /restart?");
+        Reply(client, "Living players cannot be respawned. Perhaps you were looking for {T}/restart{N}?");
         return Plugin_Handled;
     }
     
     RESPAWN_PLAYER(client);
-    Reply(client, "You have been given new life. IT'S ALIVE!");
+    Reply(client, "You have been given new life. {T}IT'S ALIVE!{N}");
     
     return Plugin_Handled;
 }
@@ -352,6 +352,8 @@ public Action:ConCommand_Cp(client, args)
     if (target == -1)
         return Plugin_Handled;
     
+    Color_ChatSetSubject(target);
+    
     if (g_IsTiming[target] || IS_FINISHED(target))
     {
         decl Float:relative_from;
@@ -365,10 +367,10 @@ public Action:ConCommand_Cp(client, args)
         new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
         new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
         
-        WTX_PrintToChat(client, g_IsTiming[target] ? "%s | %N is %02d:%02d:%07.4f into the map with %d jump%s." : "%s | %N completed the map in %02d:%02d:%07.4f with %d jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+        WTX_PrintToChat(client, g_IsTiming[target] ? "{OG}%s{N} | {T}%N{N} is {OG}%02d:%02d:%07.4f{N} into the map with {OG}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {OG}%02d:%02d:%07.4f{N} with {OG}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
     }
     else
-        WTX_PrintToChat(client, "%N is not currently being timed.", target);
+        WTX_PrintToChat(client, "{T}%N{N} is not currently being timed.", target);
     
     return Plugin_Handled;
 }

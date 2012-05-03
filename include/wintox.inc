@@ -12,7 +12,7 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
-new g_TimerDisplayRefreshRate = 5;
+new g_TimerDisplayRefreshRate = 8;
 new bool:g_wintoxExiting = false;
 new bool:g_wintoxLateLoad = false;
 new g_CurrentTick = 0;
@@ -59,7 +59,7 @@ Wintox_Init()
     
     AutoExecConfig(true, "wintox");
     
-    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "5", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
+    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "8", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
     g_TimerDisplayRefreshRate = GetConVarBool(timer_refresh);
     HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
     
@@ -253,7 +253,7 @@ public OnGameFrame()
 }
 
 
-#define SHOW_OTHER_PLAYERS_MESSAGE "Showing all other players."
+#define SHOW_OTHER_PLAYERS_MESSAGE "{OG}Showing{N} all other players."
 public Action:ConCommand_Hide(client, args)
 {
     NO_ARGS()
@@ -261,7 +261,7 @@ public Action:ConCommand_Hide(client, args)
     g_HideOtherPlayers[client] = !g_HideOtherPlayers[client];
     
     if (g_HideOtherPlayers[client])
-        Reply(client, "Hiding all other players.");
+        Reply(client, "{OG}Hiding{N} all other players.");
     else
         Reply(client, SHOW_OTHER_PLAYERS_MESSAGE);
     
@@ -292,7 +292,7 @@ public Action:ConCommand_Scout(client, args)
     NO_ARGS()
     
     Client_GiveWeaponAndAmmo(client, "weapon_scout");
-    Reply(client, "You got a scout. YES!");
+    Reply(client, "You got a {T}scout{N}. YES!");
     
     return Plugin_Handled;
 }
@@ -302,7 +302,7 @@ public Action:ConCommand_USP(client, args)
     NO_ARGS()
     
     Client_GiveWeaponAndAmmo(client, "weapon_usp");
-    Reply(client, "You got a USP. BOOYAH!");
+    Reply(client, "You got a {T}USP{N}. BOOYAH!");
     
     return Plugin_Handled;
 }
@@ -317,7 +317,7 @@ public Action:ConCommand_LowGrav(client, args)
     {
         ResetTimer(client);
         SetEntPropFloat(client, Prop_Data, "m_flGravity", g_LowGravMultiplier);
-        Reply(client, "Low gravity enabled. Timer disabled. Use !lowgrav again or !normalgrav and enter the start zone to begin timing again.");
+        Reply(client, "Low gravity enabled. Timer disabled. Use {T}!lowgrav{N} again or {T}!normalgrav{N} and enter the start zone to begin timing again.");
     }
     else
     {

@@ -20,6 +20,7 @@
 new Float:g_PlayerTele[MAXPLAYERS][MAX_TELEPORT_SAVES][3];
 new g_PlayerCurrentTele[MAXPLAYERS] = { INVALID_TELEPORT, ... };
 new g_PlayerTeleCount[MAXPLAYERS];
+new Handle:g_TeleMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 
 Teleport_Init()
@@ -41,8 +42,7 @@ public Action:ConCommand_TeleMenu(client, args)
 {
     NO_ARGS()
     
-    // TODO
-    //new Handle:menu = CreateMenu(MenuHandler_TeleMenu);
+    DisplayTeleMenu(client);
     
     return Plugin_Handled;
 }
@@ -92,6 +92,68 @@ public Action:ConCommand_Delete(client, args)
     return Plugin_Handled;
 }
 
+
+
+/* ========================================================================
+                               MENU SHAZBOT
+   ======================================================================== */
+
+#define TELE_MENU_SAVE "save"
+#define TELE_MENU_TELE "tele"
+#define TELE_MENU_NEXT "next"
+#define TELE_MENU_PREV "prev"
+#define TELE_MENU_DELETE "delete"
+
+BuildTeleMenu(client)
+{
+    if (g_TeleMenu[client] != INVALID_HANDLE)
+        CloseHandle(g_TeleMenu[client]);
+    
+    g_TeleMenu[client] = CreateMenu(MenuHandler_TeleMenu);
+    SetMenuTitle(g_TeleMenu[client], "Teleport Menu (%d of 3 slots used)", g_PlayerTeleCount[client]);
+    
+    AddMenuItem(g_TeleMenu[client], TELE_MENU_SAVE, "Save - save location to empty slot");
+    AddMenuItem(g_TeleMenu[client], TELE_MENU_TELE, "Teleport - teleport to selected slot");
+    AddMenuItem(g_TeleMenu[client], TELE_MENU_NEXT, "Next - choose next slot");
+    AddMenuItem(g_TeleMenu[client], TELE_MENU_PREV, "Previous - choose previous slot");
+    AddMenuItem(g_TeleMenu[client], TELE_MENU_DELETE, "Delete - clear current slot");
+}
+
+DisplayTeleMenu(client)
+{
+    if (g_TeleMenu[client] == INVALID_HANDLE)
+        BuildTeleMenu(client);
+    
+    DisplaySubmenu(g_TeleMenu[client], client, MENU_TIME_FOREVER, false);
+}
+
+public MenuHandler_TeleMenu(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[16];
+        GetMenuItem(menu, param2, STR(info));
+        ENTER_REPLY(SM_REPLY_TO_CHAT);
+        
+        PrevSubmenu(param1, false);
+        
+        if (StrEqual(info, TELE_MENU_SAVE))
+            Teleport_Save(param1);
+        else if (StrEqual(info, TELE_MENU_TELE))
+            Teleport_Tele(param1);
+        else if (StrEqual(info, TELE_MENU_NEXT))
+            Teleport_Next(param1);
+        else if (StrEqual(info, TELE_MENU_PREV))
+            Teleport_Previous(param1);
+        else if (StrEqual(info, TELE_MENU_DELETE))
+            Teleport_Delete(param1);
+        
+        EXIT_REPLY();
+        DisplaySubmenu(g_TeleMenu[param1], param1, MENU_TIME_FOREVER, false);
+    }
+    else if (action == MenuAction_Cancel)
+        CancelSubmenus(param1);
+}
 
 
 /* ========================================================================
@@ -156,6 +218,8 @@ Teleport_Save(client)
     g_PlayerTeleCount[client]++;
     
     Reply(client, "Saved (%f,%f,%f), %d of 3 slots filled", g_PlayerTele[client][next_save][0], g_PlayerTele[client][next_save][1], g_PlayerTele[client][next_save][2], g_PlayerTeleCount[client]);
+    
+    BuildTeleMenu(client);
     
     // Set the selected teleport save to this one if the player doesn't have
     // a selected teleport, yet.
@@ -227,4 +291,6 @@ Teleport_Delete(client)
     g_PlayerTeleCount[client]--;
     
     Reply(client, "Cleared save slot %d of 3. You can now save %d location%s.", old_slot+1, MAX_TELEPORT_SAVES - g_PlayerTeleCount[client], (MAX_TELEPORT_SAVES - g_PlayerTeleCount[client]) == 1 ? "" : "s");
+    
+    BuildTeleMenu(client);
 }
