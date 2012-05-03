@@ -352,14 +352,20 @@ public Action:ConCommand_Cp(client, args)
     if (target == -1)
         return Plugin_Handled;
     
-    if (g_IsTiming[target])
+    if (g_IsTiming[target] || IS_FINISHED(target))
     {
+        decl Float:relative_from;
+        if (g_IsTiming[target])
+            relative_from = GetEngineTime();
+        else
+            relative_from = g_StartTimes[target][g_EndZone[g_PlayerCurrentTrack[target]]];
+        
         new Float:time = GetEngineTime() - g_StartTimes[target][0];
         new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
         new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
         new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
         
-        WTX_PrintToChat(client, "%s | %N is %02d:%02d:%07.4f into the map with %d jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+        WTX_PrintToChat(client, g_IsTiming[target] ? "%s | %N is %02d:%02d:%07.4f into the map with %d jump%s." : "%s | %N completed the map in %02d:%02d:%07.4f with %d jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
     }
     else
         WTX_PrintToChat(client, "%N is not currently being timed.", target);

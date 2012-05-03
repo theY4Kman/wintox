@@ -167,6 +167,12 @@ new g_ZonesSynced[MAX_TRACKS] = 0;
 new g_TracksSynced = 0;
 new g_TotalZonesSynced = 0;
 
+#if defined(WINTOX_BHOP)
+#define MAX_TELEPORT_SAVES 3
+new Float:g_PlayerTele[MAXPLAYERS][MAX_TELEPORT_SAVES][3];
+new g_PlayerCurrentTele[MAXPLAYERS];
+#endif
+
 //////////////////////////////////////////////////////////
 // These may be needed later (heh), and I hate warnings //
 //////////////////////////////////////////////////////////
@@ -199,6 +205,15 @@ Zones_Init()
     RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
+
+#if defined(WINTOX_BHOP)
+    RegisterCommand("sm_telemenu", ConCommand_TeleMenu, "sm_telemenu | Opens a menu providing easy access to the teleport commands.");
+    RegisterCommand("sm_save", ConCommand_Save, "sm_save | Saves your current location for use with !tele (maximum  of 3 saves).");
+    RegisterCommand("sm_tele", ConCommand_Tele, "sm_tele | Teleports to the currently selected save location.");
+    RegisterCommand("sm_next", ConCommand_Next, "sm_next | Selects the next saved location for use with !tele.");
+    RegisterCommand("sm_previous", ConCommand_Previous, "sm_previous | Selects the previous saved location for use with !tele.");
+    RegisterCommand("sm_delete", ConCommand_Delete, "sm_delete | Deletes the currently selected saved location and selects the next available one.");
+#endif
     
     new Handle:draw_zones = CreateConVar("wintox_drawzones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
@@ -1462,6 +1477,67 @@ ZoneTeleport(client, zone_id, track=MAIN_TRACK)
     else
         TeleportEntity(client, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT], NULL_VECTOR, NULL_VECTOR);
 }
+
+
+/* ========================================================================
+                               TELEPORTATION
+   ======================================================================== */
+
+#if defined(WINTOX_BHOP)
+public Action:ConCommand_TeleMenu(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Save(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Tele(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Next(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Previous(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Delete(client, args)
+{
+    NO_ARGS()
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
+#endif
 
 
 /* ========================================================================

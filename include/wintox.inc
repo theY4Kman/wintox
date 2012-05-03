@@ -38,6 +38,8 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 
 Wintox_Init()
 {
+    LoadTranslations("common.phrases");
+    
     Menus_Init();
     Commands_Init();
     win_SQL_Init();
