@@ -49,6 +49,11 @@ Wintox_Init()
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
+
+#if defined(WINTOX_BHOP)
+    RegisterCommand("sm_scout", ConCommand_Scout, "sm_scout | Gives a scout.");
+    RegisterCommand("sm_usp", ConCommand_USP, "sm_usp | Gives a scout.");
+#endif
 }
 
 Wintox_Exit()
@@ -247,4 +252,24 @@ public Action:Hook_SetTransmit(entity, client)
         return Plugin_Handled; 
      
     return Plugin_Continue; 
-}  
+}
+
+#if defined(WINTOX_BHOP)
+public Action:ConCommand_Scout(client, args)
+{
+    NO_ARGS()
+    
+    Client_GiveWeaponAndAmmo(client, "weapon_scout");
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_USP(client, args)
+{
+    NO_ARGS()
+    
+    Client_GiveWeaponAndAmmo(client, "weapon_usp");
+    
+    return Plugin_Handled;
+}
+#endif
