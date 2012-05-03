@@ -20,6 +20,8 @@ new g_CurrentTick = 0;
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
 
+new g_ClientFpsMax[MAXPLAYERS] = { -1, ... };
+
 #if defined(WINTOX_BHOP)
 new Float:g_LowGravMultiplier = 0.5;
 new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
@@ -65,6 +67,7 @@ Wintox_Init()
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
+    RegisterCommand("sm_fps", ConCommand_Fps, "sm_fps | Show a menu displaying the fps_max setting for all the players in the server.");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_scout", ConCommand_Scout, "sm_scout | Gives a scout.");
@@ -253,6 +256,36 @@ public OnGameFrame()
 }
 
 
+Handle:BuildFpsMenu()
+{
+    new Handle:menu = CreateMenu(MenuHandler_FpsMenu);
+    SetMenuTitle(menu, "Player fps_max settings");
+    
+    for (new client=1; client<MaxClients; client++)
+    {
+        decl String:buffer[96];
+        decl String:sz_client[4];
+        
+        if (!IsClientConnected(client) || !IsClientInGame(client))
+            continue;
+        
+        IntToString(client, STR(sz_client));
+        Format(STR(buffer), "%N - %d", client, g_ClientFpsMax[client]);
+        AddMenuItem(menu, sz_client, buffer);
+    }
+    
+    return menu;
+}
+
+public MenuHandler_FpsMenu(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+        DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
+
 #define SHOW_OTHER_PLAYERS_MESSAGE "{OG}Showing{N} all other players."
 public Action:ConCommand_Hide(client, args)
 {
@@ -284,6 +317,15 @@ public Action:Hook_SetTransmit(entity, client)
         return Plugin_Handled; 
      
     return Plugin_Continue; 
+}
+
+public Action:ConCommand_Fps(client, args)
+{
+    NO_ARGS()
+    
+    DisplaySubmenu(BuildFpsMenu(), client, MENU_TIME_FOREVER);
+    
+    return Plugin_Handled;
 }
 
 #if defined(WINTOX_BHOP)

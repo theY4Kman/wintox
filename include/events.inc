@@ -54,6 +54,17 @@ Events_Init()
     HookEvent("player_team", Event_PlayerTeam);
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_death", Event_PlayerDeath);
+    
+    
+    // Grab all fps_max settings
+    if (g_wintoxLateLoad)
+    {
+        for (new client=1; client<MaxClients; client++)
+        {
+            if (IsClientConnected(client) && IsClientInGame(client))
+                QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);
+        }
+    }
 }
 
 public OnMapStart()
@@ -80,6 +91,8 @@ public OnClientPutInServer(client)
 {
     g_HideOtherPlayers[client] = false;
     SDKHook(client, SDKHook_SetTransmit, Hook_SetTransmit);
+    
+    QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);
 }
 
 public OnClientDisconnect(client)
@@ -92,6 +105,13 @@ public OnClientDisconnected(client)
 {
     ResetPlayerVariables(client);
 }
+
+
+public QueryConVar_FpsMax(QueryCookie:cookie, client, ConVarQueryResult:result, const String:cvarName[], const String:cvarValue[])
+{
+    g_ClientFpsMax[client] = StringToInt(cvarValue);
+}
+
 
 #if defined(WINTOX_BHOP)
 public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
@@ -253,6 +273,8 @@ ResetPlayerVariables(client)
                 g_ZoneRecords[client][track][i][style] = INVALID_ZONE_RECORD;
         }
     }
+    
+    g_ClientFpsMax[client] = -1;
     
     g_TimerEnabled[client] = true;
     g_SideStageInfoEnabled[client] = true;
