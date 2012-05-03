@@ -20,6 +20,7 @@
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1
 #define INVALID_TRACK -1
+#define INVALID_PATH -1
 #define DEFAULT_ZONE_HEIGHT 80
 #define MIN_FLAG_HEIGHT 80.0
 #define TRACK_MENU_NEXT_INVALID -1
@@ -98,32 +99,60 @@ new g_CurMapTier = 1;
     new zone_id = ReadPackCell(pack); \
     CloseHandle(pack)
 
+#define IS_TRACK_EMPTY(%1) (g_TrackPath[(%1)][0] == 0)
+
 // Create a static array cache for zones
 // Capacity: 64 zones, 30* points each
 // * The first point is used to store information about the zone, including
 //   how many points are in the zone. The second point is used to store the
-//   location of the flag.
+//   location of the flag. So there are technically 32 points.
 new Float:g_ZonesCache[MAX_TRACKS][MAX_ZONES][POINTS_LENGTH][3];
+
+// The database IDs of each zone
 new g_ZoneIDs[MAX_TRACKS][MAX_ZONES];
+// The names of the zones
 new String:g_ZoneNames[MAX_TRACKS][MAX_ZONES][64];
 
+// The total number of tracks cached
 new g_TracksCount = 1;
+// The total number of zones cached
 new g_ZonesCount[MAX_TRACKS];
+// The zone index of the last zone in each track
 new g_EndZone[MAX_TRACKS];
 
+// Stores the zone indexes in proper order for each track, beginning at the first zone
+// (not the start zone), so 0 is an invalid/empty zone
+new g_TrackPaths[MAX_TRACKS][MAX_ZONES];
+
+// The zone ID the player was last inside of
 new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+// The track ID the player is currently playing in
 new g_PlayerCurrentTrack[MAXPLAYERS] = { MAIN_TRACK, ... };
+// The index into the track path the player is currently on
+new g_PlayerCurrentPath[MAXPLAYERS] = { INVALID_PATH, ... };
+
+// Which zone the player is currently editing
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+// The track the zone is on which the player is currently editing
 new g_ClientEditTrack[MAXPLAYERS] = { INVALID_TRACK, ... };
 
 new Handle:g_ZoneMenu = INVALID_HANDLE;
 new Handle:g_TrackMenu = INVALID_HANDLE;
+// Stores the action to execute next when the player selects a track in the track menu
 new g_TrackMenuNext[MAXPLAYERS] = { TRACK_MENU_NEXT_INVALID, ... };
+// The track the player selected in the track menu
 new g_TrackMenuSelected[MAXPLAYERS] = { INVALID_TRACK, ... };
+
+// The menu of the player's current zone edit menu (used for updating the title
+// when the zone title changes)
 new Handle:g_ClientEditZoneMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
+// Stores the state of the cvar wintox_drawzones
 new bool:g_DrawZones = false;
+// Stores the state of the cvar wintox_drawflags
 new bool:g_DrawFlags = true;
+
+// Stores the amount of rotation for each flag
 new Float:g_FlagRotation[MAX_TRACKS][MAX_ZONES];
 new g_mdlBeam = 0;
 
@@ -834,7 +863,7 @@ WipeZoneCache()
         WipeTrackCache(track);
 }
 
-WipeTrackCache(track=MAIN_TRACK)
+WipeTrackCache(track)
 {
     for (new i=0; i<MAX_ZONES; i++)
     {
@@ -847,10 +876,17 @@ WipeTrackCache(track=MAIN_TRACK)
         
         g_ZoneIDs[track][i] = -1;
         g_ZoneNames[track][i][0] = '\0';
+        g_TrackPaths[track][i] = 0;
     }
 }
 
-CountZones(track=MAIN_TRACK)
+WipeTrackPath(track)
+{
+    for (new zone=0; zone<MAX_ZONES; zone++)
+        g_TrackPaths[track][zone] = 0;
+}
+
+CountZones(track)
 {
     new zones_count = 0;
     for (new i=0; i<MAX_ZONES; i++)
@@ -920,6 +956,17 @@ GetZoneCenter(zone_id, Float:vec[3], track=MAIN_TRACK)
 SetZoneFlagCenter(zone_id, track=MAIN_TRACK)
 {
     GetZoneCenter(zone_id, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT], track);
+}
+
+FindTrackPath(track)
+{
+    new next_path = 0;
+    for (new zone=1; zone<MAX_ZONES; zone++)
+        if (!ZONE_EMPTY_T(track, zone))
+            g_TrackPaths[track][next_path++] = zone;
+    
+    // Stick an empty delimiter on the end, for good measure
+    g_TrackPaths[track][next_path] = 0;
 }
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
@@ -1087,6 +1134,7 @@ Zone_FinishZone(client)
     
     CountZonePoints(zone_id, track);
     FindEndZone(track);
+    FindTrackPath(track);
     
     SetZoneMenuTitle();
     BuildTrackMenu();
@@ -1106,6 +1154,7 @@ Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
     }
     
     FindEndZone(track);
+    FindTrackPath(track);
     BuildTrackMenu();
     
     win_SQL_DeleteZone(zone_id, track);
@@ -1122,6 +1171,7 @@ Zone_ClearTrack(client, track)
     SetZoneMenuTitle();
     
     FindEndZone(track);
+    WipeTrackPath(track);
     BuildTrackMenu();
     
     win_SQL_ClearTrackZonePoints(track);
@@ -1138,9 +1188,11 @@ Zone_ClearAllZones(client)
     {
         g_ZonesCount[track] = 0;
         g_EndZone[track] = 0;
-        SetZoneMenuTitle();
+        
+        WipeTrackPath(track);
     }
     
+    SetZoneMenuTitle();
     BuildTrackMenu();
     
     win_SQL_ClearAllZonePoints();
@@ -1460,9 +1512,12 @@ public T_CacheZones(Handle:owner, Handle:hndl, const String:error[], any:data)
     
     WipeZoneCache();
     
-    // Reset zone counts to 0
+    // Reset zone counts to 0 and wipe track paths
     for (new track=0; track<MAX_TRACKS; track++)
+    {
         g_ZonesCount[track] = 0;
+        WipeTrackPath(track);
+    }
     
     // Cache zones
     while (SQL_FetchRow(hndl))
@@ -1555,6 +1610,9 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         
         SetZoneMenuTitle();
         FindEndZone(track);
+        
+        if (g_ZonesCount[track])
+            FindTrackPath(track);
     }
     
     g_ZoneCacheInProgress = false;
@@ -1704,12 +1762,7 @@ win_SQL_ClearTrackZonePoints(track)
     
     SQLT(query, T_ClearTrackZonePoints, track);
 }
-
-public T_ClearTrackZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    if (hndl == INVALID_HANDLE)
-        LogError("Error clearing track %d points from database: %s", data, error);
-}
+SQLT_HANDLER(ClearTrackZonePoints, "Error clearing track %d points from database: %s", data, error)
 
 win_SQL_ClearTrackZones(track)
 {
@@ -1718,12 +1771,7 @@ win_SQL_ClearTrackZones(track)
     
     SQLT(query, T_ClearTrackZones, track);
 }
-
-public T_ClearTrackZones(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    if (hndl == INVALID_HANDLE)
-        LogError("Error clearing track %d zones from database: %s", data, error);
-}
+SQLT_HANDLER(ClearTrackZones, "Error clearing track %d zones from database: %s", data, error)
 
 win_SQL_ClearZonePoints(zone_id, track)
 {
@@ -1732,12 +1780,7 @@ win_SQL_ClearZonePoints(zone_id, track)
     
     SQLT(query, T_ClearZonePoints, zone_id);
 }
-
-public T_ClearZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    if (hndl == INVALID_HANDLE)
-        LogError("Error clearing zone %d points from database: %s", data, error);
-}
+SQLT_HANDLER(ClearZonePoints, "Error clearing zone %d points from database: %s", data, error)
 
 win_SQL_ClearAllZonePoints()
 {
@@ -1746,12 +1789,7 @@ win_SQL_ClearAllZonePoints()
     
     SQLT(query, T_ClearAllZonePoints, INVALID_HANDLE);
 }
-
-public T_ClearAllZonePoints(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    if (hndl == INVALID_HANDLE)
-        LogError("Error clearing all zone points from database: %s", error);
-}
+SQLT_HANDLER(ClearAllZonePoints, "Error clearing all zone points from database: %s", error)
 
 win_SQL_ClearAllZones()
 {
@@ -1760,9 +1798,4 @@ win_SQL_ClearAllZones()
     
     SQLT(query, T_ClearAllZones, INVALID_HANDLE);
 }
-
-public T_ClearAllZones(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    if (hndl == INVALID_HANDLE)
-        LogError("Error clearing all zones from database: %s", error);
-}
+SQLT_HANDLER(ClearAllZones, "Error clearing all zones from database: %s")

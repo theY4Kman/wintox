@@ -242,8 +242,10 @@ ResetPlayerVariables(client)
     g_SideStageInfoEnabled[client] = true;
     g_PointsToChatEnabled[client] = true;
     
-    g_PlayerCurrentZone[client] = 0;
+    g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
+    g_PlayerCurrentPath[client] = INVALID_PATH;
+    
     g_Jumps[client] = 0;
     g_PauseStart[client] = 0.0;
     

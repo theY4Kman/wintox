@@ -334,6 +334,7 @@ ResetTimer(client)
     
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentZone[client] = INVALID_ZONE;
+    g_PlayerCurrentPath[client] = INVALID_PATH;
     g_IsTiming[client] = false;
     g_Jumps[client] = false;
 }

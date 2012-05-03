@@ -109,8 +109,8 @@ public OnGameFrame()
         // Check if the player is in their current or next zone only
         if (!IS_PAUSED(client))
         {
-            new start_zone = MAX(g_PlayerCurrentZone[client], 0);
-            new end_zone = start_zone + _:(g_PlayerCurrentZone[client] != -1);
+            new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 :g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
+            new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
             for (new i=start_zone; i<=end_zone; i++)
             {
                 new sides = ZONE_POINTS_T[track][i];
@@ -136,6 +136,7 @@ public OnGameFrame()
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
                         ZoneTime(client, i);
+                        g_PlayerCurrentPath[client]++;
                         
                         Call_StartForward(g_fwdPlayerReachedZone);
                         Call_PushCell(client);
@@ -198,7 +199,7 @@ public OnGameFrame()
 #if defined(WINTOX_BHOP)
 
                     if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: <TODO>\nStage %d/%d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZonesCount[track]-1, g_Jumps[client]);
+                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: <TODO>\nLast stage %d (%s) of %d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], g_ZonesCount[track]-1, g_Jumps[client]);
                     else
                         PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: <TODO>\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
 
