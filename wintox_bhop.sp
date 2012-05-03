@@ -12,7 +12,7 @@
 #define WINTOX_GAMETYPE "bhop"
 
 #include <sourcemod>
-#include "./include/version"
+#include "./include/version_build"
 #include "./include/wintox"
 
 public Plugin:myinfo = 

@@ -11,7 +11,7 @@
 
 #include <sourcemod>
 #include "./include/stocks"
-#include "./include/version"
+#include "./include/version_build"
 #include "./include/menus"
 
 #define RESET_REPLY() //SetCmdReplySource(SM_REPLY_TO_CONSOLE);

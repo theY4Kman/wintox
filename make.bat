@@ -1,5 +1,18 @@
 @echo OFF
 
+echo Incrementing build number...
+SET build_file=include\version_build.inc
+FOR /f "skip=2 tokens=3,4 delims= " %%d IN (%build_file%) DO (
+    SET /A b=%%e
+    SET v=%%d
+)
+SET /a build=%b%+1
+echo // The build number is automatically rewritten every build. > %build_file%
+echo #if !defined(WINTOX_VERSION) >> %build_file%
+echo     #define WINTOX_VERSION "%v:~1% %build%" >> %build_file%
+echo #endif >> %build_file%
+
+echo Commencing build #%build%...
 ..\spcomp wintox_bhop.sp && ^
 copy /Y wintox_bhop.smx ..\..\plugins > NUL && ^
 copy /Y wintox_bhop.smx build\addons\sourcemod\plugins > NUL && ^
