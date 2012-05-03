@@ -59,8 +59,8 @@ Commands_Init()
     g_AdminCommands = CreateArray();
     g_CommandDescriptions = CreateTrie();
     
-    RegisterCommand("sm_commands", Command_Commands, "Displays all the public commands");
-    RegisterCommand("sm_admcommands", Command_AdmCommands, "Displays all the admin commands", 0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_commands", Command_Commands, "sm_commands | Displays all the public commands");
+    RegisterCommand("sm_admcommands", Command_AdmCommands, "sm_admcommands | Displays all the admin commands", 0, ADMFLAG_GENERIC);
     
     CreateConVar("wintox_version", WINTOX_VERSION, "Version of Wintox core", FCVAR_SPONLY|FCVAR_DONTRECORD);
 }
@@ -95,9 +95,18 @@ ReplyWithDescription(client)
     decl String:buffer[512];
     
     GetCmdArg(0, STR(buffer));
+    String_ToLower(buffer, STR(buffer));
     GetTrieString(g_CommandDescriptions, buffer, STR(buffer));
     
-    Reply(client, "%s", buffer);
+    // If our description has a pipe, let's give it some flare
+    new pipe = FindCharInString(buffer, '|');
+    if (pipe != -1)
+    {
+        buffer[pipe] = '\0';
+        Format(STR(buffer), "{OG}%s{N}|%s", buffer, buffer[pipe+1]);
+    }
+    
+    Reply(client, buffer);
 }
 
 public Action:Command_Commands(client, args)

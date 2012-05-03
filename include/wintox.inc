@@ -317,11 +317,11 @@ public Action:ConCommand_LowGrav(client, args)
     {
         ResetTimer(client);
         SetEntPropFloat(client, Prop_Data, "m_flGravity", g_LowGravMultiplier);
-        Reply(client, "Low gravity enabled. Timer disabled. Use {T}!lowgrav{N} again or {T}!normalgrav{N} and enter the start zone to begin timing again.");
+        Reply(client, "Low gravity enabled. Timer disabled. Use {T}!lowgrav{N} again or {T}!normalgrav{N} and enter the {T}start zone{N} to begin timing again.");
     }
     else
     {
-        Reply(client, "Low gravity disabled. Enter the start zone to begin timing.");
+        Reply(client, "Low gravity disabled. Enter the {T}start zone{N} to begin timing.");
         SetEntPropFloat(client, Prop_Data, "m_flGravity", 1.0);
     }
     
@@ -334,7 +334,7 @@ public Action:ConCommand_NormalGrav(client, args)
     
     SetEntPropFloat(client, Prop_Data, "m_flGravity", 1.0);
     g_PlayerLowGrav[client] = false;
-    Reply(client, "Low gravity disabled. Enter the start zone to begin timing.");
+    Reply(client, "Low gravity disabled. Enter the {T}start zone{N} to begin timing.");
     
     return Plugin_Handled;
 }

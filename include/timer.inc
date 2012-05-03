@@ -367,7 +367,7 @@ public Action:ConCommand_Cp(client, args)
         new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
         new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
         
-        WTX_PrintToChat(client, g_IsTiming[target] ? "{OG}%s{N} | {T}%N{N} is {OG}%02d:%02d:%07.4f{N} into the map with {OG}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {OG}%02d:%02d:%07.4f{N} with {OG}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+        WTX_PrintToChat(client, g_IsTiming[target] ? "{OG}%s{N} | {T}%N{N} is {R}%02d:%02d:%07.4f{N} into the map with {R}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
     }
     else
         WTX_PrintToChat(client, "{T}%N{N} is not currently being timed.", target);
