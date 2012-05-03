@@ -30,6 +30,13 @@
         return Plugin_Handled; \
     }
 
+#define CHECK_ARGS_LOWER(%1) \
+    if (args < (%1)) \
+    { \
+        ReplyWithDescription(client); \
+        return Plugin_Handled; \
+    }
+
 #define CHECK_ARGS_SPAN(%1,%2) \
     if (args < (%1) || args > (%2)) \
     { \

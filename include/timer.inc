@@ -87,6 +87,10 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
+
+#if defined(WINTOX_BHOP)
+    RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
+#endif
     
     new Function:on_player_reached_zone = GetFunctionByName(INVALID_HANDLE, "fwd_Timer_OnPlayerReachedZone");
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, on_player_reached_zone);
@@ -335,6 +339,34 @@ public Action:ConCommand_Pause(client, args)
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_BHOP)
+public Action:ConCommand_Cp(client, args)
+{
+    CHECK_ARGS_LOWER(1)
+    
+    decl String:filter[128];
+    GetCmdArgString(STR(filter));
+    
+    new target = FindTarget(client, filter, true, false);
+    if (target == -1)
+        return Plugin_Handled;
+    
+    if (g_IsTiming[target])
+    {
+        new Float:time = GetEngineTime() - g_StartTimes[target][0];
+        new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
+        new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
+        new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+        
+        WTX_PrintToChat(client, "%s | %N is %02d:%02d:%07.4f into the map with %d jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+    }
+    else
+        WTX_PrintToChat(client, "%N is not currently being timed.", target);
+    
+    return Plugin_Handled;
+}
+#endif
 
 // Resets all the zone times and jumps and sets IsTiming false
 ResetTimer(client)
