@@ -12,18 +12,29 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
+// Amount of ticks to skip in between sending hint texts
 new g_TimerDisplayRefreshRate = 8;
+
+// This is true after OnPluginEnd (used to properly discard menu handles, as
+// even after OnPluginEnd, their MenuHandlers are still called with MenuAction_Cancel)
 new bool:g_wintoxExiting = false;
+// True when the plug-in is late-loaded
 new bool:g_wintoxLateLoad = false;
 new g_CurrentTick = 0;
 
+// For each player, whether other players should be hidden (not transmitted)
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
+
+// Database IDs for each player
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
 
+// fps_max setting for each client
 new g_ClientFpsMax[MAXPLAYERS] = { -1, ... };
 
 #if defined(WINTOX_BHOP)
+// Stores convar state for wintox_lowgrav_multiplier
 new Float:g_LowGravMultiplier = 0.5;
+// Keeps track of who has low gravity enabled
 new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #endif
 
@@ -64,12 +75,13 @@ Wintox_Init()
     AutoExecConfig(true, "wintox");
     
     new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "8", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
-    g_TimerDisplayRefreshRate = GetConVarBool(timer_refresh);
+    g_TimerDisplayRefreshRate = GetConVarInt(timer_refresh);
     HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
     RegisterCommand("sm_fps", ConCommand_Fps, "sm_fps | Show a menu displaying the fps_max setting for all the players in the server.");
+    RegisterCommand("sm_specinfo", ConCommand_SpecInfo, "sm_specinfo | Show a menu displaying all the players spectating you");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_scout", ConCommand_Scout, "sm_scout | Gives a scout.");
@@ -81,6 +93,19 @@ Wintox_Init()
     g_LowGravMultiplier = GetConVarFloat(cvar_low_grav);
     HookConVarChange(cvar_low_grav, ConVar_LowGravMultiplier);
 #endif
+    
+    if (g_wintoxLateLoad)
+    {
+        // Just for good measure, let's discover the low grav state of all the clients
+        for (new client=1; client<MaxClients; client++)
+        {
+            if (!IsClientConnected(client) || !IsClientInGame(client))
+                continue;
+            
+            if (GetEntPropFloat(client, Prop_Data, "m_flGravity") == g_LowGravMultiplier)
+                g_PlayerLowGrav[client] = true;
+        }
+    }
 }
 
 Wintox_Exit()
@@ -99,7 +124,8 @@ Wintox_DeinitPlayer(client)
 
 public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
-    g_TimerDisplayRefreshRate = MAX(GetConVarInt(cvar), 1);
+    new rate = GetConVarInt(cvar);
+    g_TimerDisplayRefreshRate = MAX(rate, 1);
 }
 
 #if defined(WINTOX_BHOP)
@@ -275,20 +301,51 @@ Handle:BuildFpsMenu()
     for (new client=1; client<MaxClients; client++)
     {
         decl String:buffer[96];
-        decl String:sz_client[4];
+        decl String:sz_userid[16];
         
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
-        IntToString(client, STR(sz_client));
-        Format(STR(buffer), "%N - %d", client, g_ClientFpsMax[client]);
-        AddMenuItem(menu, sz_client, buffer);
+        IntToString(GetClientUserId(client), STR(sz_userid));
+        if (g_ClientFpsMax[client] != -1)
+            Format(STR(buffer), "%N - %d", client, g_ClientFpsMax[client]);
+        else
+            Format(STR(buffer), "%N - ?", client);
+        
+        AddMenuItem(menu, sz_userid, buffer);
     }
     
     return menu;
 }
 
 public MenuHandler_FpsMenu(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+        DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
+Handle:BuildSpecMenu(client)
+{
+    new Handle:menu = CreateMenu(MenuHandler_FpsMenu);
+    SetMenuTitle(menu, "Players spectating you");
+    
+    LOOP_OBSERVERS(client,observer)
+    {
+        decl String:name[64];
+        decl String:sz_userid[16];
+        
+        IntToString(GetClientUserId(observer), STR(sz_userid));
+        GetClientName(observer, STR(name));
+        
+        AddMenuItem(menu, sz_userid, name);
+    }
+    
+    return menu;
+}
+
+public MenuHandler_SpecMenu(Handle:menu, MenuAction:action, param1, param2)
 {
     if (action == MenuAction_Select)
         DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
@@ -335,6 +392,15 @@ public Action:ConCommand_Fps(client, args)
     NO_ARGS()
     
     DisplaySubmenu(BuildFpsMenu(), client, MENU_TIME_FOREVER);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_SpecInfo(client, args)
+{
+    NO_ARGS()
+    
+    DisplaySubmenu(BuildSpecMenu(client), client, MENU_TIME_FOREVER);
     
     return Plugin_Handled;
 }

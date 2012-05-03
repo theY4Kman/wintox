@@ -259,6 +259,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
 
 ResetPlayerVariables(client)
 {
+    Zone_DeinitPlayer(client);
     Wintox_DeinitPlayer(client);
     Timer_DeinitPlayer(client);
     Utils_DeinitPlayer(client);
