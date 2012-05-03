@@ -163,11 +163,16 @@ public Action:Event_PlayerSpawn(Handle:event, String:name[], bool:dontBroadcast)
 
 public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
 {
-    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    new userid = GetEventInt(event, "userid");
+    new client = GetClientOfUserId(userid);
     g_IsTiming[client] = false;
     
     // Reset the player's timer to prevent map exploits, as per request of cLutch
     ResetTimer(client);
+    
+    // This is to counteract losing a point when you kill yourself
+    if (GetEventInt(event, "attacker") == userid)
+        Client_SetScore(client, Client_GetScore(client) + 1);
 }
 
 // Tries to retrieve the current map info 

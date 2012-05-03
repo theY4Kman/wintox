@@ -97,6 +97,7 @@ Timer_Init()
 #endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
+    AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
 }
 
 Timer_DeinitPlayer(client)
@@ -131,6 +132,11 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         g_ZoneRecords[client][track][zone_id][style] = elapsed;
         win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed, STYLE_NAMES[style]);
     }
+}
+
+public fwd_Timer_OnPlayerReachedEnd(client, track, Float:elapsed, style)
+{
+    Client_SetScore(client, Client_GetScore(client) + 1);
 }
 
 win_SQL_UpdatePlayerPoints(client)
