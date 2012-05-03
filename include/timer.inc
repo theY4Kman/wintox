@@ -360,7 +360,7 @@ public Action:ConCommand_Cp(client, args)
         else
             relative_from = g_StartTimes[target][g_EndZone[g_PlayerCurrentTrack[target]]];
         
-        new Float:time = GetEngineTime() - g_StartTimes[target][0];
+        new Float:time = relative_from - g_StartTimes[target][0];
         new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
         new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
         new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);

@@ -28,6 +28,10 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #include <sourcemod>
 #include <sdkhooks>
 
+#if defined(WINTOX_BHOP)
+#include "./include/teleport"
+#endif
+
 #include "./include/game"
 #include "./include/commands"
 #include "./include/sql"
@@ -42,6 +46,11 @@ Wintox_Init()
     
     Menus_Init();
     Commands_Init();
+    
+#if defined(WINTOX_BHOP)
+    Teleport_Init();
+#endif
+    
     win_SQL_Init();
     Events_Init();
     Utils_Init();

@@ -274,6 +274,12 @@ ResetPlayerVariables(client)
     
 #if defined(WINTOX_BHOP)
     g_PlayerLowGrav[client] = false;
+    
+    g_PlayerCurrentTele[client] = INVALID_TELEPORT;
+    g_PlayerTeleCount[client] = 0;
+    for (new tele=0; tele<MAX_TELEPORT_SAVES; tele++)
+        for (new i=0; i<3; i++)
+            g_PlayerTele[client][tele][i] = 0.0;
 #endif
 }
 
