@@ -9,4 +9,4 @@
 #endif
 #define _wintox_version_included
 
-#define WINTOX_VERSION "0.1dev"
+#define WINTOX_VERSION "0.2dev"

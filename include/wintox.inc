@@ -41,6 +41,7 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #include "./include/events"
 #include "./include/menus"
 #include "./include/zones"
+#include "./include/race"
 
 Wintox_Init()
 {
@@ -58,6 +59,7 @@ Wintox_Init()
     Utils_Init();
     Zones_Init();
     Timer_Init();
+    Race_Init();
     
     AutoExecConfig(true, "wintox");
     

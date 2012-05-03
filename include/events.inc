@@ -305,6 +305,8 @@ ResetPlayerVariables(client)
         for (new i=0; i<3; i++)
             g_PlayerTele[client][tele][i] = 0.0;
 #endif
+    
+    Race_DeinitPlayer(client);
 }
 
 WarnPlayerNotRecording(client, bool:retrieve=true)

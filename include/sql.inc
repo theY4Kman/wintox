@@ -301,7 +301,7 @@ win_SQL_Init()
     g_cv_DBConfig = CreateConVar("wintox_dbconfig", "default", "The database.cfg configuration to use with Wintox");
 }
 
-// Because this uses the `wintox_dbconfig` cvar, this must be called from OnConfigsExecuted (or later)
+// Because this uses the `wintox_dbconfig` cvar, it must be called from OnConfigsExecuted (or later)
 win_SQL_Connect()
 {
     decl String:config[256];

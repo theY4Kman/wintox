@@ -370,8 +370,6 @@ public Action:ConCommand_Cp(client, args)
     
     Color_ChatSetSubject(target);
     
-    PrintToServer("target: %d", target);////////////////////
-    
     if (g_IsTiming[target] || IS_FINISHED(target))
     {
         decl Float:relative_from;
