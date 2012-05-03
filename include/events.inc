@@ -111,6 +111,19 @@ public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
     
     g_Jumps[client]++;
 }
+
+public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon)
+{
+    if (!IS_PAUSED(client) && TIMER_STARTED(client) && !IS_FINISHED(client))
+    {
+        if (g_PlayerCurrentStyle[client] >= STYLE_SIDEWAYS && (buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT))
+            g_PlayerCurrentStyle[client] = STYLE_NORMAL;
+        else if (g_PlayerCurrentStyle[client] >= STYLE_WONLY && (buttons & IN_BACK))
+            g_PlayerCurrentStyle[client] = STYLE_SIDEWAYS;
+    }
+    
+    return Plugin_Continue;
+}
 #endif // defined(WINTOX_BHOP)
 
 public Action:Event_PlayerTeam(Handle:event, String:name[], bool:dontBroadcast)
@@ -132,6 +145,9 @@ public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
     g_IsTiming[client] = false;
+    
+    // Reset the player's timer to prevent map exploits, as per request of cLutch
+    ResetTimer(client);
 }
 
 // Tries to retrieve the current map info 

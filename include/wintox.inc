@@ -103,8 +103,7 @@ public OnGameFrame()
         
         GetClientAbsOrigin(client, origin);
         
-        // TODO: track support
-        new track = MAIN_TRACK;
+        new track = g_PlayerCurrentTrack[client];
         
         // Check if the player is in their current or next zone only
         if (!IS_PAUSED(client))
@@ -143,7 +142,7 @@ public OnGameFrame()
                         Call_PushCell(track);
                         Call_PushCell(i);
                         Call_PushFloat(g_StartTimes[client][i] - g_StartTimes[client][i-1]);
-                        Call_PushCell(0); // TODO: style
+                        Call_PushCell(g_PlayerCurrentStyle[client]);
                         Call_Finish();
                     }
                     
@@ -199,9 +198,9 @@ public OnGameFrame()
 #if defined(WINTOX_BHOP)
 
                     if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: <TODO>\nLast stage %d (%s) of %d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], g_ZonesCount[track]-1, g_Jumps[client]);
+                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: %s\nLast stage %d (%s) of %d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], g_ZonesCount[track]-1, g_Jumps[client]);
                     else
-                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: <TODO>\nJumps: %d", hours, minutes, seconds, g_Jumps[client]);
+                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: %s\nJumps: %d", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_Jumps[client]);
 
 #elseif defined(WINTOX_SURF)
 #endif
