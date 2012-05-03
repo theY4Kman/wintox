@@ -369,6 +369,17 @@ UnpauseTimer(client)
     g_PauseStart[client] = 0.0;
 }
 
+// Checks whether the player is allowed to begin timing
+PlayerCanTime(client)
+{
+#if defined(WINTOX_BHOP)
+    if (g_PlayerLowGrav[client])
+        return false;
+#endif
+    
+    return true;
+}
+
 StyleNameToIndex(const String:stylename[])
 {
     for (new style=0; style<MAX_STYLES; style++)

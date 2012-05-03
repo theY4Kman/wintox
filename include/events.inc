@@ -271,6 +271,10 @@ ResetPlayerVariables(client)
     g_ClientTextEntry[client] = false;
     g_ClientTextEntryData[client] = INVALID_HANDLE;
     g_ClientTextEntryRegurgitate[client] = true;
+    
+#if defined(WINTOX_BHOP)
+    g_PlayerLowGrav[client] = false;
+#endif
 }
 
 WarnPlayerNotRecording(client, bool:retrieve=true)

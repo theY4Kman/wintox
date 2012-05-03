@@ -20,6 +20,11 @@ new g_CurrentTick = 0;
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
 
+#if defined(WINTOX_BHOP)
+new Float:g_LowGravMultiplier = 0.5;
+new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
+#endif
+
 #include <sourcemod>
 #include <sdkhooks>
 
@@ -53,6 +58,12 @@ Wintox_Init()
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_scout", ConCommand_Scout, "sm_scout | Gives a scout.");
     RegisterCommand("sm_usp", ConCommand_USP, "sm_usp | Gives a scout.");
+    RegisterCommand("sm_lowgrav", ConCommand_LowGrav, "sm_lowgrav | Toggles low gravity. Low gravity stops your timer.");
+    RegisterCommand("sm_normalgrav", ConCommand_NormalGrav, "sm_normalgrav | Disables low gravity.");
+    
+    new Handle:cvar_low_grav = CreateConVar("wintox_lowgrav_multiplier", "0.5", "The gravity multiplier for the !lowgrav command (1.0 is normal, 0.5 is half grav)");
+    g_LowGravMultiplier = GetConVarFloat(cvar_low_grav);
+    HookConVarChange(cvar_low_grav, ConVar_LowGravMultiplier);
 #endif
 }
 
@@ -65,6 +76,13 @@ public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const 
 {
     g_TimerDisplayRefreshRate = MAX(GetConVarInt(cvar), 1);
 }
+
+#if defined(WINTOX_BHOP)
+public ConVar_LowGravMultiplier(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_LowGravMultiplier = GetConVarFloat(cvar);
+}
+#endif
 
 public OnConfigsExecuted()
 {
@@ -111,7 +129,7 @@ public OnGameFrame()
         new track = g_PlayerCurrentTrack[client];
         
         // Check if the player is in their current or next zone only
-        if (!IS_PAUSED(client))
+        if (!IS_PAUSED(client) && PlayerCanTime(client))
         {
             new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 :g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
             new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
@@ -181,7 +199,10 @@ public OnGameFrame()
         {
             if (g_TimerEnabled[client])
             {
-                if (g_PlayerCurrentZone[client] == INVALID_ZONE)
+                if (g_PlayerLowGrav[client])
+                    PrintHintText(client, "[Disable low gravity to begin timing]");
+                
+                else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
                     PrintHintText(client, "[Enter the start zone]");
                 
                 else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
@@ -260,6 +281,7 @@ public Action:ConCommand_Scout(client, args)
     NO_ARGS()
     
     Client_GiveWeaponAndAmmo(client, "weapon_scout");
+    Reply(client, "You got a scout. YES!");
     
     return Plugin_Handled;
 }
@@ -269,6 +291,39 @@ public Action:ConCommand_USP(client, args)
     NO_ARGS()
     
     Client_GiveWeaponAndAmmo(client, "weapon_usp");
+    Reply(client, "You got a USP. BOOYAH!");
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_LowGrav(client, args)
+{
+    NO_ARGS()
+    
+    g_PlayerLowGrav[client] = !g_PlayerLowGrav[client];
+    
+    if (g_PlayerLowGrav[client])
+    {
+        ResetTimer(client);
+        SetEntPropFloat(client, Prop_Data, "m_flGravity", g_LowGravMultiplier);
+        Reply(client, "Low gravity enabled. Timer disabled. Use !lowgrav again or !normalgrav and enter the start zone to begin timing again.");
+    }
+    else
+    {
+        Reply(client, "Low gravity disabled. Enter the start zone to begin timing.");
+        SetEntPropFloat(client, Prop_Data, "m_flGravity", 1.0);
+    }
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_NormalGrav(client, args)
+{
+    NO_ARGS()
+    
+    SetEntPropFloat(client, Prop_Data, "m_flGravity", 1.0);
+    g_PlayerLowGrav[client] = false;
+    Reply(client, "Low gravity disabled. Enter the start zone to begin timing.");
     
     return Plugin_Handled;
 }
