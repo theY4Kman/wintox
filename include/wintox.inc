@@ -251,7 +251,7 @@ public OnGameFrame()
                     if (g_StartTimes[client][g_EndZone[track]] == 0.0)
                         PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: %s\nLast stage %d (%s) of %d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], g_ZonesCount[track]-1, g_Jumps[client]);
                     else
-                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: %s\nJumps: %d", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_Jumps[client]);
+                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: %s\nFinal stage: %s\nJumps: %d", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_ZoneNames[track][g_PlayerCurrentZone[client]], g_Jumps[client]);
 
 #elseif defined(WINTOX_SURF)
 #endif
@@ -344,7 +344,7 @@ public Action:ConCommand_Scout(client, args)
 {
     NO_ARGS()
     
-    Client_GiveWeaponAndAmmo(client, "weapon_scout");
+    Client_GiveWeaponAndAmmo(client, "weapon_scout", true, 90);
     Reply(client, "You got a {T}scout{N}. YES!");
     
     return Plugin_Handled;
@@ -354,7 +354,7 @@ public Action:ConCommand_USP(client, args)
 {
     NO_ARGS()
     
-    Client_GiveWeaponAndAmmo(client, "weapon_usp");
+    Client_GiveWeaponAndAmmo(client, "weapon_usp", true, 100);
     Reply(client, "You got a {T}USP{N}. BOOYAH!");
     
     return Plugin_Handled;
