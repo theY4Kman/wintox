@@ -56,12 +56,28 @@ stock Reply(client, const String:format[], any:...)
     Client_PrintToConsole(client, "{R}[WTX]{N} %s", buffer);
 }
 
-stock WTX_PrintToChat(client, const String:format[], any:...)
+#define Timer_Reply(%1,%2) ReplyTag((%1), "Timer", %2)
+#define Race_Reply(%1,%2) ReplyTag((%1), "Race", %2)
+#define Tele_Reply(%1,%2) ReplyTag((%1), "Tele", %2)
+stock ReplyTag(client, const String:tag[], const String:format[], any:...)
 {
     decl String:buffer[1024];
-    VFormat(STR(buffer), format, 3);
+    VFormat(STR(buffer), format, 4);
     
-    Client_PrintToChat(client, false, "{R}[WTX]{N} %s", buffer);
+    if (client != 0)
+        Client_PrintToChat(client, false, "{R}[%s]{N} %s", tag, buffer);
+    Client_PrintToConsole(client, "{R}[%s]{N} %s", tag, buffer);
+}
+
+#define WTX_PrintToChat(%1,%2) Tag_PrintToChat((%1), "WTX", %2)
+#define Timer_PrintToChat(%1,%2) Tag_PrintToChat((%1), "Timer", %2)
+#define Race_PrintToChat(%1,%2) Tag_PrintToChat((%1), "Race", %2)
+stock Tag_PrintToChat(client, const String:tag[], const String:format[], any:...)
+{
+    decl String:buffer[1024];
+    VFormat(STR(buffer), format, 4);
+    
+    Client_PrintToChat(client, false, "{R}[%s]{N} %s", tag, buffer);
 }
 
 stock HideHintText(client)

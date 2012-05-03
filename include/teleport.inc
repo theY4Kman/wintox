@@ -210,14 +210,14 @@ Teleport_Save(client)
     new next_save = GetNextTeleForSave(client, g_PlayerCurrentTele[client]);
     if (next_save == INVALID_TELEPORT)
     {
-        Reply(client, "All {T}3{N} of your location slots have been saved to. Use {T}!delete{N} to clear one.");
+        Tele_Reply(client, "All {T}3{N} of your location slots have been saved to. Use {T}!delete{N} to clear one.");
         return;
     }
     
     GetClientAbsOrigin(client, g_PlayerTele[client][next_save]);
     g_PlayerTeleCount[client]++;
     
-    Reply(client, "Saved ({OG}%.3f{N},{OG}%.3f{N},{OG}%.3f{N}), {T}%d{N} of {T}3{N} slots filled", g_PlayerTele[client][next_save][0], g_PlayerTele[client][next_save][1], g_PlayerTele[client][next_save][2], g_PlayerTeleCount[client]);
+    Tele_Reply(client, "Saved ({OG}%.3f{N},{OG}%.3f{N},{OG}%.3f{N}), {T}%d{N} of {T}3{N} slots filled", g_PlayerTele[client][next_save][0], g_PlayerTele[client][next_save][1], g_PlayerTele[client][next_save][2], g_PlayerTeleCount[client]);
     
     BuildTeleMenu(client);
     
@@ -231,12 +231,12 @@ Teleport_Tele(client)
 {
     if (g_PlayerCurrentTele[client] == INVALID_TELEPORT)
     {
-        Reply(client, "You do not currently have any saved locations. Use {T}!save{N} to resolve that.");
+        Tele_Reply(client, "You do not currently have any saved locations. Use {T}!save{N} to resolve that.");
         return;
     }
     
     TeleportEntity(client, g_PlayerTele[client][g_PlayerCurrentTele[client]], NULL_VECTOR, NULL_VECTOR);
-    Reply(client, "Teleported to ({OG}%.3f{N},{OG}%.3f{N},{OG}%.3f{N})", g_PlayerTele[client][g_PlayerCurrentTele[client]][0], g_PlayerTele[client][g_PlayerCurrentTele[client]][1], g_PlayerTele[client][g_PlayerCurrentTele[client]][2]);
+    Tele_Reply(client, "Teleported to ({OG}%.3f{N},{OG}%.3f{N},{OG}%.3f{N})", g_PlayerTele[client][g_PlayerCurrentTele[client]][0], g_PlayerTele[client][g_PlayerCurrentTele[client]][1], g_PlayerTele[client][g_PlayerCurrentTele[client]][2]);
 }
 
 Teleport_Next(client)
@@ -244,17 +244,17 @@ Teleport_Next(client)
     new next_tele = GetNextTele(client, g_PlayerCurrentTele[client]);
     if (next_tele == INVALID_TELEPORT)
     {
-        Reply(client, "You do not currently have other saved locations. Use {T}!save{N} to resolve that.");
+        Tele_Reply(client, "You do not currently have other saved locations. Use {T}!save{N} to resolve that.");
         return;
     }
     else if (next_tele == g_PlayerCurrentTele[client])
     {
-        Reply(client, "You only have {OG}one{N} saved location. Use {T}!save{N} to store more.");
+        Tele_Reply(client, "You only have {OG}one{N} saved location. Use {T}!save{N} to store more.");
         return;
     }
     
     g_PlayerCurrentTele[client] = next_tele;
-    Reply(client, "Switched to save slot {T}%d{N} of {T}3{N}.", next_tele+1);
+    Tele_Reply(client, "Switched to save slot {T}%d{N} of {T}3{N}.", next_tele+1);
 }
 
 Teleport_Previous(client)
@@ -262,24 +262,24 @@ Teleport_Previous(client)
     new prev_tele = GetPreviousTele(client, g_PlayerCurrentTele[client]);
     if (prev_tele == INVALID_TELEPORT)
     {
-        Reply(client, "You do not currently have any other saved locations. Use {T}!save{N} to resolve that.");
+        Tele_Reply(client, "You do not currently have any other saved locations. Use {T}!save{N} to resolve that.");
         return;
     }
     else if (prev_tele == g_PlayerCurrentTele[client])
     {
-        Reply(client, "You only have one saved location. Use {T}!save{N} to store more.");
+        Tele_Reply(client, "You only have one saved location. Use {T}!save{N} to store more.");
         return;
     }
     
     g_PlayerCurrentTele[client] = prev_tele;
-    Reply(client, "Switched to save slot {T}%d{N} of {T}3{N}.", prev_tele+1);
+    Tele_Reply(client, "Switched to save slot {T}%d{N} of {T}3{N}.", prev_tele+1);
 }
 
 Teleport_Delete(client)
 {
     if (g_PlayerCurrentTele[client] == INVALID_TELEPORT)
     {
-        Reply(client, "You do not currently have any saved locations. Use {T}!save{N} to resolve that.");
+        Tele_Reply(client, "You do not currently have any saved locations. Use {T}!save{N} to resolve that.");
         return;
     }
     
@@ -290,7 +290,7 @@ Teleport_Delete(client)
     g_PlayerCurrentTele[client] = GetNextTele(client, g_PlayerCurrentTele[client]);
     g_PlayerTeleCount[client]--;
     
-    Reply(client, "Cleared save slot {T}%d{N} of {T}3{N}. You can now save {T}%d{N} location%s.", old_slot+1, MAX_TELEPORT_SAVES - g_PlayerTeleCount[client], (MAX_TELEPORT_SAVES - g_PlayerTeleCount[client]) == 1 ? "" : "s");
+    Tele_Reply(client, "Cleared save slot {T}%d{N} of {T}3{N}. You can now save {T}%d{N} location%s.", old_slot+1, MAX_TELEPORT_SAVES - g_PlayerTeleCount[client], (MAX_TELEPORT_SAVES - g_PlayerTeleCount[client]) == 1 ? "" : "s");
     
     BuildTeleMenu(client);
 }
