@@ -346,8 +346,8 @@ public MenuHandler_FpsMenu(Handle:menu, MenuAction:action, param1, param2)
 Handle:BuildSpecMenu(client)
 {
     new Handle:menu = CreateMenu(MenuHandler_FpsMenu);
-    SetMenuTitle(menu, "Players spectating you");
     
+    new observers = 0;
     LOOP_OBSERVERS(client,observer)
     {
         decl String:name[64];
@@ -357,7 +357,14 @@ Handle:BuildSpecMenu(client)
         GetClientName(observer, STR(name));
         
         AddMenuItem(menu, sz_userid, name);
+        observers++;
     }
+    
+    // Add a menu item if there were no observers, to prevent crashes
+    if (observers == 0)
+        AddMenuItem(menu, "", "-");
+    
+    SetMenuTitle(menu, "%d players spectating you", observers);
     
     return menu;
 }
@@ -365,7 +372,10 @@ Handle:BuildSpecMenu(client)
 public MenuHandler_SpecMenu(Handle:menu, MenuAction:action, param1, param2)
 {
     if (action == MenuAction_Select)
-        DisplayMenuAtItem(menu, param1, GetMenuSelectionPosition(), MENU_TIME_FOREVER);
+    {
+        PrevSubmenu(param1, false);
+        DisplaySubmenu(BuildSpecMenu(param1), param1, MENU_TIME_FOREVER);
+    }
     else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
 }
@@ -406,7 +416,7 @@ public Action:Hook_SetTransmit(entity, client)
 
 public Hook_WeaponDropPost(client, weapon) 
 { 
-    if (g_RemoveDroppedWeapons)
+    if (g_RemoveDroppedWeapons && weapon != -1)
         Entity_Kill(weapon);
 }
 
