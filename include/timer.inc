@@ -554,8 +554,13 @@ SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
 
 SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plusminus=false)
 {
+    decl String:sz_hours[8];
     decl hours, minutes, Float:seconds;
     SecondsToTime(time, hours, minutes, seconds);
     
-    Format(buffer, maxlength, "%s%02d:%02d:%07.4f", plusminus ? ((time >= 0) ? "+" : "-") : "", hours, minutes, seconds);
+    sz_hours[0] = '\0';
+    if (hours != 0)
+        Format(STR(sz_hours), "%02d:", hours);
+    
+    Format(buffer, maxlength, "%s%s%02d:%07.4f", plusminus ? ((time >= 0) ? "+" : "-") : "", sz_hours, minutes, seconds);
 }
