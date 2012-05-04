@@ -352,6 +352,9 @@ NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,5) = {
     "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time) VALUES(%d, %d, %d, '%s', %f) \
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time);"
 };
+NEW_SQL_QUERY_PARAMS(GetTrackRecords,2) = {
+    SQLITE_MYSQL("SELECT track, type, time FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d")
+};
 
 
 // SQL helper functions

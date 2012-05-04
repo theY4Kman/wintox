@@ -14,6 +14,7 @@
 #include "./include/sql"
 
 #define INVALID_ZONE_RECORD -1.0
+#define INVALID_TRACK_RECORD -1.0
 #define INVALID_POINTS -1
 
 #if defined(WINTOX_BHOP)
@@ -62,6 +63,8 @@ new g_PlayerCurrentStyle[MAXPLAYERS] = { MAX_STYLES-1, ... };
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
+// Best times, in seconds, of each track
+new Float:g_TrackRecords[MAXPLAYERS][MAX_TRACKS][MAX_STYLES];
 // Total points earned by each player
 new g_PlayerPoints[MAXPLAYERS] = { INVALID_POINTS, ... };
 
@@ -101,9 +104,16 @@ Timer_Init()
     // PAWN YOU BASTARD
     for (new client=0; client<MAXPLAYERS; client++)
         for (new track=0; track<MAX_TRACKS; track++)
-            for (new zone=1; zone<MAX_ZONES; zone++)
-                for (new style=0; style<MAX_STYLES; style++)
+            for (new style=0; style<MAX_STYLES; style++)
+            {
+                for (new zone=1; zone<MAX_ZONES; zone++)
+                {
                     g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
+                    g_BestZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
+                }
+                
+                g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
+            }
     
     new Handle:cvar_display_plus_minus_time = CreateConVar("wintox_display_plus_minus_time", "3.0", "The amount of time to display +/- times in the timer display", 0, true, 0.0);
     g_DisplayPlusMinusTime = GetConVarFloat(cvar_display_plus_minus_time);
@@ -128,13 +138,17 @@ Timer_DeinitPlayer(client)
 {
     for (new track=0; track<MAX_TRACKS; track++)
     {
-        for (new i=0; i<MAX_ZONES; i++)
+        for (new zone=0; zone<MAX_ZONES; zone++)
         {
             if (track == 0)
-                g_StartTimes[client][i] = 0.0;
+                g_StartTimes[client][zone] = 0.0;
             
             for (new style=0; style<MAX_STYLES; style++)
-                g_ZoneRecords[client][track][i][style] = INVALID_ZONE_RECORD;
+            {
+                if (zone == 0)
+                    g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
+                g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
+            }
         }
     }
     
@@ -213,12 +227,11 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 {
     Client_SetScore(client, Client_GetScore(client) + 1);
     
-    // TODO: update this for TRACK records, not ZONE records
-    new Float:record = g_ZoneRecords[client][track][g_EndZone[track]][style];
-    if (total_time < record || record == -1)
+    new Float:record = g_TrackRecords[client][track][style];
+    if (total_time < record || record == INVALID_TRACK_RECORD)
     {
         win_SQL_UpsertTrackRecord(client, track, style, total_time);
-        g_ZoneRecords[client][track][g_EndZone[track]][style] = total_time;
+        g_TrackRecords[client][track][style] = total_time;
     }
 }
 
@@ -344,6 +357,39 @@ public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:d
         time = SQL_FetchFloat(hndl, 4);
         
         g_ZoneRecords[client][track][zone_id][StyleNameToIndex(stylename)] = time;
+    }
+}
+
+CacheTrackRecords(client)
+{
+    decl String:query[128];
+    
+    Format(STR(query), SQL_QUERY[GetTrackRecords], g_CurMapID, client);
+    SQLT(query, T_CacheTrackRecords, client);
+}
+
+public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving track records for client %d (%L): %s", client, client, error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl String:sz_type[16];
+        decl Float:time;
+        
+        track = SQL_FetchInt(hndl, 0);
+        SQL_FetchString(hndl, 1, STR(sz_type));
+        time = SQL_FetchFloat(hndl, 2);
+        
+        new style = StyleNameToIndex(sz_type);
+        g_TrackRecords[client][track][style] = time;
     }
 }
 
@@ -582,7 +628,7 @@ WipeBestZoneRecords()
     for (new track=0; track<MAX_TRACKS; track++)
         for (new zone=0; zone<MAX_ZONES; zone++)
             for (new style=0; style<MAX_STYLES; style++)
-                g_BestZoneRecords[track][zone][style] = 0.0;
+                g_BestZoneRecords[track][zone][style] = INVALID_ZONE_RECORD;
 }
 
 // Retrieve and store the fastest times for each zone in each track in each style

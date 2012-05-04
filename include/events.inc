@@ -387,4 +387,5 @@ public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:d
     g_PlayerPoints[client] = 0;
     
     CacheZoneRecords(client);
+    CacheTrackRecords(client);
 }
