@@ -153,7 +153,7 @@ public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_
     CacheBestZoneRecords();
 }
 
-Timer_PlayerReachedZone(client, track, zone)
+Timer_PlayerReachedZone(client, track, zone, style)
 {
     ZoneTime(client, zone);
     g_PlayerCurrentPath[client]++;
@@ -170,11 +170,11 @@ Timer_PlayerReachedZone(client, track, zone)
     Call_PushCell(track);
     Call_PushCell(zone);
     Call_PushFloat(g_StartTimes[client][zone] - g_StartTimes[client][zone-1]);
-    Call_PushCell(g_PlayerCurrentStyle[client]);
+    Call_PushCell(style);
     Call_Finish();
 }
 
-Timer_PlayerReachedEnd(client, track)
+Timer_PlayerReachedEnd(client, track, style)
 {
     g_IsTiming[client] = false;
     
@@ -182,7 +182,7 @@ Timer_PlayerReachedEnd(client, track)
     Call_PushCell(client);
     Call_PushCell(track);
     Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
-    Call_PushCell(g_PlayerCurrentStyle[client]);
+    Call_PushCell(style);
     Call_Finish();
 }
 
@@ -209,10 +209,35 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
     }
 }
 
-public fwd_Timer_OnPlayerReachedEnd(client, track, Float:elapsed, style)
+public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 {
     Client_SetScore(client, Client_GetScore(client) + 1);
+    
+    // TODO: update this for TRACK records, not ZONE records
+    new Float:record = g_ZoneRecords[client][track][g_EndZone[track]][style];
+    if (total_time < record || record == -1)
+    {
+        win_SQL_UpsertTrackRecord(client, track, style, total_time);
+        g_ZoneRecords[client][track][g_EndZone[track]][style] = total_time;
+    }
 }
+
+win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
+{
+    decl String:query[256];
+    
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f)", client, track, style, total_time);
+#endif
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time);
+    SQLT(query, T_UpsertTrackRecord, client);
+}
+SQLT_HANDLER(UpsertTrackRecord, "Error updating player %L track record points: %s", data)
 
 win_SQL_UpdatePlayerPoints(client)
 {
@@ -220,7 +245,12 @@ win_SQL_UpdatePlayerPoints(client)
     
     // The player isn't in the database, so an update would be pointless
     if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpdatePlayerPoints called on invalid client. Params (%d)", client);
+#endif
         return;
+    }
     
     Format(STR(query), SQL_QUERY[UpdatePlayerPoints], g_PlayerPoints[client], g_PlayerIDs[client]);
     SQLT(query, T_UpdatePlayerPoints, client);
@@ -234,7 +264,12 @@ win_SQL_UpsertZoneRecord(client, track, zone_id, Float:time, const String:type[]
     
     // The player has no database ID; we can't record their progress!
     if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f, \"%s\")", client, track, zone_id, time, type);
+#endif
         return;
+    }
     
     SQL_EscapeString(g_Database, type, STR(esc_type));
     

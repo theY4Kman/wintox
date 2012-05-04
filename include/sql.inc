@@ -60,13 +60,14 @@
  *   date_set           INTEGER                 NOTE: timestamp
  *   UNIQUE(fk_player, fk_map, fk_zone, type)
  * 
- * TABLE wintox_map_records
+ * TABLE wintox_track_records
  *   id                 pk
  *   fk_player          INT,FK(wintox_players)
  *   fk_map             INT,FK(wintox_maps)
+ *   track              INT
  *   type               VARCHAR(16),DEFAULT ''
  *   time               FLOAT
- *   UNIQUE(fk_player, fk_map, type)
+ *   UNIQUE(fk_player, fk_map, track, type)
  */
 
 enum DatabaseType
@@ -119,7 +120,7 @@ NEW_SQL_QUERY(CreatePlayers) = {
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_players ( \
-       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
        latest_name      VARCHAR(64) NOT NULL, \
        latest_ip        VARCHAR(48) NOT NULL, \
        steamid          VARCHAR(64) NOT NULL, \
@@ -140,7 +141,7 @@ NEW_SQL_QUERY(CreateMaps) = {
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_maps ( \
-       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
        bsp_name         VARCHAR(255) NOT NULL, \
        human_name       VARCHAR(255) NULL, \
        tier             TINYINT(3) DEFAULT 1 NOT NULL, \
@@ -161,10 +162,10 @@ NEW_SQL_QUERY(CreateZones) = {
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_zones ( \
-       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
-       fk_map           INTEGER(13) NOT NULL, \
-       track            TINYINT(13) NOT NULL DEFAULT 0, \
-       number           INTEGER(13) NOT NULL, \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       track            TINYINT NOT NULL DEFAULT 0, \
+       number           INTEGER NOT NULL, \
        name             VARCHAR(64) DEFAULT NULL, \
        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        UNIQUE(fk_map, track, number) \
@@ -183,9 +184,9 @@ NEW_SQL_QUERY(CreateZonePoints) = {
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_zone_points ( \
-       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
-       fk_zone          INTEGER(13) NOT NULL, \
-       number           INTEGER(13) NOT NULL, \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_zone          INTEGER NOT NULL, \
+       number           INTEGER NOT NULL, \
        x                FLOAT NOT NULL, \
        y                FLOAT NOT NULL, \
        z                FLOAT NOT NULL, \
@@ -209,32 +210,34 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
      );",
     
     "CREATE TABLE IF NOT EXISTS wintox_zone_records ( \
-       id               INTEGER(13) PRIMARY KEY AUTO_INCREMENT NOT NULL, \
-       fk_player        INTEGER(13) NOT NULL, \
-       fk_map           INTEGER(13) NOT NULL, \
-       fk_zone          INTEGER(13) NOT NULL, \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_player        INTEGER NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       fk_zone          INTEGER NOT NULL, \
        type             VARCHAR(16) NOT NULL DEFAULT '', \
        time             FLOAT NOT NULL, \
-       date_set         INTEGER(13) NOT NULL, \
+       date_set         INTEGER NOT NULL, \
        FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        FOREIGN KEY(fk_zone) REFERENCES wintox_zones(id) ON DELETE CASCADE ON UPDATE CASCADE, \
        UNIQUE(fk_player, fk_map, fk_zone, type) \
      );"
 };
-NEW_SQL_QUERY(CreateMapRecords) = {
-    "CREATE TABLE IF NOT EXISTS wintox_map_records ( \
+NEW_SQL_QUERY(CreateTrackRecords) = {
+    "CREATE TABLE IF NOT EXISTS wintox_track_records ( \
         id              INTEGER PRIMARY KEY ASC NOT NULL, \
         fk_player       INTEGER NOT NULL, \
         fk_map          INTEGER NOT NULL, \
+        track           INTEGER NOT NULL, \
         type            TEXT NOT NULL DEFAULT '', \
         time            FLOAT NOT NULL \
     );",
     
-    "CREATE TABLE IF NOT EXISTS wintox_map_records ( \
+    "CREATE TABLE IF NOT EXISTS wintox_track_records ( \
         id              INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
-        fk_player       INTEGER(13) NOT NULL, \
-        fk_map          INTEGER(13) NOT NULL, \
+        fk_player       INTEGER NOT NULL, \
+        fk_map          INTEGER NOT NULL, \
+        track           INTEGER NOT NULL, \
         type            VARCHAR(16) NOT NULL DEFAULT '', \
         time            FLOAT \
     );"
@@ -340,6 +343,16 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayerPoints,2) = {
     SQLITE_MYSQL("")
 };
 
+// ===========================================================================
+//   Track records
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,5) = {
+    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time) VALUES(%d, %d, %d, '%s', %f);",
+    
+    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time) VALUES(%d, %d, %d, '%s', %f) \
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time);"
+};
+
 
 // SQL helper functions
 win_SQL_Init()
@@ -388,5 +401,5 @@ win_SQL_CreateTables()
     CREATE_TABLE(CreateZones, "wintox_zones")
     CREATE_TABLE(CreateZonePoints, "wintox_zone_points")
     CREATE_TABLE(CreateZoneRecords, "wintox_zone_records")
-    CREATE_TABLE(CreateMapRecords, "wintox_map_records")
+    CREATE_TABLE(CreateTrackRecords, "wintox_track_records")
 }

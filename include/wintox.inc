@@ -205,11 +205,11 @@ public OnGameFrame()
                     origin[2] <= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
-                        Timer_PlayerReachedZone(client, track, i);
+                        Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
                     
                     // Yeah, you go, player! YOU ROCK!
                     if (IS_END_ZONE(i) && g_IsTiming[client])
-                        Timer_PlayerReachedEnd(client, track);
+                        Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
                     
                     is_in_zone = true;
                     g_PlayerCurrentZone[client] = i;
