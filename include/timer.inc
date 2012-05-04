@@ -121,6 +121,7 @@ Timer_Init()
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
     AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
+    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Timer_OnMapLoaded);
 }
 
 Timer_DeinitPlayer(client)
@@ -145,6 +146,11 @@ Timer_DeinitPlayer(client)
     g_PointsToChatEnabled[client] = true;
     
     g_PlayerCurrentStyle[client] = 0;
+}
+
+public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
+{
+    CacheBestZoneRecords();
 }
 
 Timer_PlayerReachedZone(client, track, zone)
@@ -534,6 +540,53 @@ PlayerCanTime(client)
 #endif
     
     return true;
+}
+
+WipeBestZoneRecords()
+{
+    for (new track=0; track<MAX_TRACKS; track++)
+        for (new zone=0; zone<MAX_ZONES; zone++)
+            for (new style=0; style<MAX_STYLES; style++)
+                g_BestZoneRecords[track][zone][style] = 0.0;
+}
+
+// Retrieve and store the fastest times for each zone in each track in each style
+CacheBestZoneRecords(bool:wipe=false)
+{
+    decl String:query[256];
+    
+    if (wipe)
+        WipeBestZoneRecords();
+    
+    Format(STR(query), SQL_QUERY[GetBestZoneRecords], g_CurMapID);
+    SQLT(query, T_GetBestZoneRecords, INVALID_HANDLE);
+}
+
+public T_GetBestZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving best zone records: %s", error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl zone;
+        decl String:sz_type[16];
+        decl style;
+        decl Float:time;
+        
+        track = SQL_FetchInt(hndl, 0);
+        zone = SQL_FetchInt(hndl, 1);
+        SQL_FetchString(hndl, 2, STR(sz_type));
+        time = SQL_FetchFloat(hndl, 3);
+        
+        style = StyleNameToIndex(sz_type);
+        
+        g_BestZoneRecords[track][zone][style] = time;
+    }
 }
 
 StyleNameToIndex(const String:stylename[])

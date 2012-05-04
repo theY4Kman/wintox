@@ -59,6 +59,14 @@
  *   time               FLOAT
  *   date_set           INTEGER                 NOTE: timestamp
  *   UNIQUE(fk_player, fk_map, fk_zone, type)
+ * 
+ * TABLE wintox_map_records
+ *   id                 pk
+ *   fk_player          INT,FK(wintox_players)
+ *   fk_map             INT,FK(wintox_maps)
+ *   type               VARCHAR(16),DEFAULT ''
+ *   time               FLOAT
+ *   UNIQUE(fk_player, fk_map, type)
  */
 
 enum DatabaseType
@@ -214,6 +222,23 @@ NEW_SQL_QUERY(CreateZoneRecords) = {
        UNIQUE(fk_player, fk_map, fk_zone, type) \
      );"
 };
+NEW_SQL_QUERY(CreateMapRecords) = {
+    "CREATE TABLE IF NOT EXISTS wintox_map_records ( \
+        id              INTEGER PRIMARY KEY ASC NOT NULL, \
+        fk_player       INTEGER NOT NULL, \
+        fk_map          INTEGER NOT NULL, \
+        type            TEXT NOT NULL DEFAULT '', \
+        time            FLOAT NOT NULL \
+    );",
+    
+    "CREATE TABLE IF NOT EXISTS wintox_map_records ( \
+        id              INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+        fk_player       INTEGER(13) NOT NULL, \
+        fk_map          INTEGER(13) NOT NULL, \
+        type            VARCHAR(16) NOT NULL DEFAULT '', \
+        time            FLOAT \
+    );"
+};
 
 // ===========================================================================
 //   Map records
@@ -299,6 +324,14 @@ NEW_SQL_QUERY_PARAMS(GetZoneRecords,2) = {
             JOIN wintox_zones AS wz ON wzr.fk_zone = wz.id \
             WHERE wzr.fk_map = %d AND fk_player = %d")
 };
+NEW_SQL_QUERY_PARAMS(GetBestZoneRecords,1) = {
+    SQLITE_MYSQL( \
+        "SELECT wz.track, wz.number, type, MIN(time) \
+            FROM `wintox_zone_records` AS wzr \
+            JOIN wintox_zones AS wz ON wz.id = wzr.fk_zone \
+            WHERE wzr.fk_map = %d \
+            GROUP BY wz.track, wz.number, type")
+};
 
 // ===========================================================================
 //   Player points
@@ -347,12 +380,13 @@ win_SQL_CreateTables()
     
     #define CREATE_TABLE(%1,%2) if (!SQL_FastQuery(g_Database, SQL_QUERY[%1])) { \
         SQL_GetError(g_Database, STR(buffer)); \
-        SetFailState("Error executing %s: %s", (%2), buffer); \
+        SetFailState("Error creating table %s: %s", (%2), buffer); \
     }
     
-    CREATE_TABLE(CreatePlayers, "CreatePlayers")
-    CREATE_TABLE(CreateMaps, "CreateMaps")
-    CREATE_TABLE(CreateZones, "CreateZones")
-    CREATE_TABLE(CreateZonePoints, "CreateZonePoints")
-    CREATE_TABLE(CreateZoneRecords, "CreateZoneRecords")
+    CREATE_TABLE(CreatePlayers, "wintox_players")
+    CREATE_TABLE(CreateMaps, "wintox_maps")
+    CREATE_TABLE(CreateZones, "wintox_zones")
+    CREATE_TABLE(CreateZonePoints, "wintox_zone_points")
+    CREATE_TABLE(CreateZoneRecords, "wintox_zone_records")
+    CREATE_TABLE(CreateMapRecords, "wintox_map_records")
 }
