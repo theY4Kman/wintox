@@ -382,6 +382,7 @@ public Hook_WeaponDropPost(client, weapon)
 public Action:ConCommand_Fps(client, args)
 {
     NO_ARGS()
+    NO_FAKECLIENTS()
     
     DisplaySubmenu(BuildFpsMenu(), client, MENU_TIME_FOREVER);
     
@@ -391,6 +392,7 @@ public Action:ConCommand_Fps(client, args)
 public Action:ConCommand_SpecInfo(client, args)
 {
     NO_ARGS()
+    NO_FAKECLIENTS()
     
     DisplaySubmenu(BuildSpecMenu(client), client, MENU_TIME_FOREVER);
     

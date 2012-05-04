@@ -17,7 +17,11 @@
 
 public Plugin:myinfo = 
 {
+#if defined(WINTOX_DEBUG)
+    name = "[Wintox] Bhop DEBUG",
+#else
     name = "[Wintox] Bhop",
+#endif
     author = "Zach \"theY4Kman\" Kanzler",
     description = "Bunnyhop timer and functionality.",
     version = WINTOX_BHOP_VERSION,

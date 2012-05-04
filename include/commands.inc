@@ -46,6 +46,10 @@
 
 #define NO_ARGS() CHECK_ARGS_UPPER(0)
 
+#define NO_FAKECLIENTS() \
+    if (IsFakeClient(client)) \
+        return Plugin_Handled;
+
 new Handle:g_PublicCommands = INVALID_HANDLE;
 new Handle:g_AdminCommands = INVALID_HANDLE;
 new Handle:g_CommandDescriptions = INVALID_HANDLE;
@@ -111,12 +115,18 @@ ReplyWithDescription(client)
 
 public Action:Command_Commands(client, args)
 {
+    NO_ARGS()
+    NO_FAKECLIENTS()
+    
     DisplayCommands(client);
     return Plugin_Handled;
 }
 
 public Action:Command_AdmCommands(client, args)
 {
+    NO_ARGS()
+    NO_FAKECLIENTS()
+    
     DisplayCommands(client, false);
     return Plugin_Handled;
 }

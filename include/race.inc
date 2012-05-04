@@ -83,6 +83,7 @@ public ConVar_RaceChallengeTaunts(Handle:cvar, const String:oldVal[], const Stri
 public Action:ConCommand_Race(client, args)
 {
     NO_ARGS()
+    NO_FAKECLIENTS()
     
     RaceMenu(client);
     
@@ -114,8 +115,13 @@ RaceMenu(challenger)
         if (client == challenger)
             continue;
         
-        if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
+        if (!IsClientConnected(client) || !IsClientInGame(client))
             continue;
+
+#if !defined(WINTOX_DEBUG)
+        if (IsFakeClient(client))
+            continue;
+#endif
         
         if (!IS_PLAYING_TEAM(GetClientTeam(client)))
             continue;

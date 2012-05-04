@@ -291,6 +291,7 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
 public Action:ConCommand_Timer(client, args)
 {
     NO_ARGS()
+    NO_FAKECLIENTS()
     
     new Handle:menu = BuildTimerSettingsMenu(client);
     DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
