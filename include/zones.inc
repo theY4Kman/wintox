@@ -206,11 +206,11 @@ Zones_Init()
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
     
-    new Handle:draw_zones = CreateConVar("wintox_drawzones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
+    new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
     HookConVarChange(draw_zones, ConVar_DrawZones);
     
-    new Handle:draw_flags = CreateConVar("wintox_drawflags", "0", "Whether or not to draw all flags (they will be drawn while editing zones, regardless)");
+    new Handle:draw_flags = CreateConVar("wintox_draw_flags", "0", "Whether or not to draw all flags (they will be drawn while editing zones, regardless)");
     g_DrawFlags = GetConVarBool(draw_flags);
     HookConVarChange(draw_flags, ConVar_DrawFlags);
     

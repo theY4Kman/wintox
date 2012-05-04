@@ -54,15 +54,34 @@ Events_Init()
     HookEvent("player_team", Event_PlayerTeam);
     HookEvent("player_spawn", Event_PlayerSpawn);
     HookEvent("player_death", Event_PlayerDeath);
+}
+
+public OnConfigsExecuted()
+{
+    // Initialize database connections and the such
+    win_SQL_Connect();
+    win_SQL_CreateTables();
     
+    // Cache map info from database
+    GetOrInsertMap(g_CurMapName);
     
-    // Grab all fps_max settings
     if (g_wintoxLateLoad)
     {
+        // Just for good measure, let's discover the low grav state of all the clients
         for (new client=1; client<MaxClients; client++)
         {
-            if (IsClientConnected(client) && IsClientInGame(client))
-                QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);
+            if (!IsClientConnected(client) || !IsClientInGame(client))
+                continue;
+            
+            OnClientPutInServer(client);
+            
+            if (!IsClientAuthorized(client))
+                continue;
+            
+            decl String:steamid[64];
+            
+            GetClientAuthString(client, STR(steamid));
+            OnClientAuthorized(client, steamid);
         }
     }
 }
@@ -92,7 +111,7 @@ public OnClientPutInServer(client)
     g_HideOtherPlayers[client] = false;
     if (!SDKHookEx(client, SDKHook_SetTransmit, Hook_SetTransmit))
         LogError("Could not hook SetTransmit on %L", client);
-    if (!SDKHook(client, SDKHook_WeaponDropPost, Hook_WeaponDropPost))
+    if (!SDKHookEx(client, SDKHook_WeaponDropPost, Hook_WeaponDropPost))
         LogError("Could not hook WeaponDropPost on %L", client);
     
     QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);

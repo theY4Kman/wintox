@@ -20,7 +20,9 @@
 // Whether a player is currently in a race
 #define IS_IN_RACE(%1) (HAS_OUTSTANDING_CHALLENGE(%1) && g_RaceOpponents[g_RaceOpponents[(%1)]] == (%1))
 
-
+// Holds state for wintox_race_challenge_multiple
+new g_RaceAllowMultipleChallenges = false;
+new g_RaceChallengeMenuTime = 20;
 new g_RaceOpponents[MAXPLAYERS];
 
 

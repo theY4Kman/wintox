@@ -13,7 +13,7 @@
 #pragma semicolon 1
 
 // Amount of ticks to skip in between sending hint texts
-new g_TimerDisplayRefreshRate = 8;
+new g_TimerDisplaySkipTicks = 8;
 
 // This is true after OnPluginEnd (used to properly discard menu handles, as
 // even after OnPluginEnd, their MenuHandlers are still called with MenuAction_Cancel)
@@ -76,9 +76,9 @@ Wintox_Init()
     
     AutoExecConfig(true, "wintox");
     
-    new Handle:timer_refresh = CreateConVar("wintox_timerdisplayrefreshrate", "8", "On which frame to refresh the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
-    g_TimerDisplayRefreshRate = GetConVarInt(timer_refresh);
-    HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
+    new Handle:timer_skip_ticks = CreateConVar("wintox_timer_display_skip_ticks", "8", "Amount of ticks to skip in between refreshing the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
+    g_TimerDisplaySkipTicks = GetConVarInt(timer_skip_ticks);
+    HookConVarChange(timer_skip_ticks, ConVar_TimerDisplaySkipTicks);
     
     new Handle:remove_dropped_weapons = CreateConVar("wintox_removedroppedweapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
     g_RemoveDroppedWeapons = GetConVarBool(remove_dropped_weapons);
@@ -108,8 +108,6 @@ Wintox_Init()
             if (!IsClientConnected(client) || !IsClientInGame(client))
                 continue;
             
-            OnClientPutInServer(client);
-            
             if (GetEntPropFloat(client, Prop_Data, "m_flGravity") == g_LowGravMultiplier)
                 g_PlayerLowGrav[client] = true;
         }
@@ -130,10 +128,10 @@ Wintox_DeinitPlayer(client)
 #endif
 }
 
-public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const String:newVal[])
+public ConVar_TimerDisplaySkipTicks(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     new rate = GetConVarInt(cvar);
-    g_TimerDisplayRefreshRate = MAX(rate, 1);
+    g_TimerDisplaySkipTicks = MAX(rate, 1);
 }
 
 public ConVar_RemoveDroppedWeapons(Handle:cvar, const String:oldVal[], const String:newVal[])
@@ -147,31 +145,6 @@ public ConVar_LowGravMultiplier(Handle:cvar, const String:oldVal[], const String
     g_LowGravMultiplier = GetConVarFloat(cvar);
 }
 #endif
-
-public OnConfigsExecuted()
-{
-    // Initialize database connections and the such
-    win_SQL_Connect();
-    win_SQL_CreateTables();
-    
-    // Cache map info from database
-    GetOrInsertMap(g_CurMapName);
-    
-    // If we're late loaded, we need to grab all player's info
-    if (g_wintoxLateLoad)
-    {
-        for (new client=1; client<=MaxClients; client++)
-        {
-            if (IsClientConnected(client) && IsClientAuthorized(client) && !IsFakeClient(client))
-            {
-                decl String:steamid[64];
-                
-                GetClientAuthString(client, STR(steamid));
-                InsertOrUpdatePlayerInfo(client, steamid);
-            }
-        }
-    }
-}
 
 public OnGameFrame()
 {
@@ -259,7 +232,7 @@ public OnGameFrame()
         }
         
         // Display the timer hint text every other frame
-        if (g_CurrentTick % g_TimerDisplayRefreshRate == 0)
+        if (g_CurrentTick % g_TimerDisplaySkipTicks == 0)
         {
             if (g_TimerEnabled[client])
             {
