@@ -24,6 +24,8 @@ new g_CurrentTick = 0;
 
 // For each player, whether other players should be hidden (not transmitted)
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
+// Holds the state of wintox_removedroppedweapons
+new bool:g_RemoveDroppedWeapons = true;
 
 // Database IDs for each player
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
@@ -78,6 +80,10 @@ Wintox_Init()
     g_TimerDisplayRefreshRate = GetConVarInt(timer_refresh);
     HookConVarChange(timer_refresh, ConVar_TimerDisplayRefreshRate);
     
+    new Handle:remove_dropped_weapons = CreateConVar("wintox_removedroppedweapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
+    g_RemoveDroppedWeapons = GetConVarBool(remove_dropped_weapons);
+    HookConVarChange(remove_dropped_weapons, ConVar_RemoveDroppedWeapons);
+    
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
     RegisterCommand("sm_fps", ConCommand_Fps, "sm_fps | Show a menu displaying the fps_max setting for all the players in the server.");
@@ -101,6 +107,8 @@ Wintox_Init()
         {
             if (!IsClientConnected(client) || !IsClientInGame(client))
                 continue;
+            
+            OnClientPutInServer(client);
             
             if (GetEntPropFloat(client, Prop_Data, "m_flGravity") == g_LowGravMultiplier)
                 g_PlayerLowGrav[client] = true;
@@ -126,6 +134,11 @@ public ConVar_TimerDisplayRefreshRate(Handle:cvar, const String:oldVal[], const 
 {
     new rate = GetConVarInt(cvar);
     g_TimerDisplayRefreshRate = MAX(rate, 1);
+}
+
+public ConVar_RemoveDroppedWeapons(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_RemoveDroppedWeapons = GetConVarBool(cvar);
 }
 
 #if defined(WINTOX_BHOP)
@@ -385,6 +398,12 @@ public Action:Hook_SetTransmit(entity, client)
         return Plugin_Handled; 
      
     return Plugin_Continue; 
+}
+
+public Hook_WeaponDropPost(client, weapon) 
+{ 
+    if (g_RemoveDroppedWeapons)
+        Entity_Kill(weapon);
 }
 
 public Action:ConCommand_Fps(client, args)

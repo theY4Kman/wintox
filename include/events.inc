@@ -90,7 +90,10 @@ public OnClientAuthorized(client, const String:auth[])
 public OnClientPutInServer(client)
 {
     g_HideOtherPlayers[client] = false;
-    SDKHook(client, SDKHook_SetTransmit, Hook_SetTransmit);
+    if (!SDKHookEx(client, SDKHook_SetTransmit, Hook_SetTransmit))
+        LogError("Could not hook SetTransmit on %L", client);
+    if (!SDKHook(client, SDKHook_WeaponDropPost, Hook_WeaponDropPost))
+        LogError("Could not hook WeaponDropPost on %L", client);
     
     QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);
 }
