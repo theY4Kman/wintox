@@ -48,6 +48,11 @@
 #define SECONDS_IN_HOUR (SECONDS_IN_MINUTE*60)
 #define SECONDS_TO_TIME(%1) RoundToFloor(%1) / SECONDS_IN_HOUR, (RoundToFloor(%1) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE, ((%1) - (RoundToFloor(%1) / SECONDS_IN_MINUTE * SECONDS_IN_MINUTE))
 
+#define GET_TIME(%1) decl hours, minutes, Float:seconds; \
+    SecondsToTime((%1), hours, minutes, seconds)
+// GET_TIME without the declarations
+#define GET_TIME_D(%1) SecondsToTime((%1), hours, minutes, seconds)
+
 // Timestamps for entering each zone (or for exiting zone 0)
 new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 // Number of jumps in the last attempt
@@ -60,10 +65,24 @@ new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 // Total points earned by each player
 new g_PlayerPoints[MAXPLAYERS] = { INVALID_POINTS, ... };
 
+// The zone completion times of the fastest track run
+new Float:g_TrackWorldRecord[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
+// The fastest zone completion times for each zone and style
+new Float:g_BestZoneRecords[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
+
 // Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
 // When the player paused their timer (0.0 for not paused)
 new Float:g_PauseStart[MAXPLAYERS] = { 0.0, ... };
+
+// Whether to display the timer +/-
+new bool:g_DisplayPlusMinus[MAXPLAYERS] = { false, ... };
+
+// Holds the state of wintox_display_plus_minus_time
+new Float:g_DisplayPlusMinusTime = 3.0;
+// Stores the disable plus minus timer handles, so they can be closed if the 
+// player reaches another zone before g_DisplayPlusMinusTime
+new Handle:g_DisablePlusMinusTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
@@ -85,6 +104,10 @@ Timer_Init()
             for (new zone=1; zone<MAX_ZONES; zone++)
                 for (new style=0; style<MAX_STYLES; style++)
                     g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
+    
+    new Handle:cvar_display_plus_minus_time = CreateConVar("wintox_display_plus_minus_time", "3.0", "The amount of time to display +/- times in the timer display", 0, true, 0.0);
+    g_DisplayPlusMinusTime = GetConVarFloat(cvar_display_plus_minus_time);
+    HookConVarChange(cvar_display_plus_minus_time, ConVar_DisplayPlusMinusTime);
     
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
@@ -122,6 +145,52 @@ Timer_DeinitPlayer(client)
     g_PointsToChatEnabled[client] = true;
     
     g_PlayerCurrentStyle[client] = 0;
+}
+
+Timer_PlayerReachedZone(client, track, zone)
+{
+    ZoneTime(client, zone);
+    g_PlayerCurrentPath[client]++;
+    
+    // Cancel the last disable +/- timer, so we don't end the +/- prematurely
+    if (g_DisablePlusMinusTimer[client] != INVALID_HANDLE)
+        CloseHandle(g_DisablePlusMinusTimer[client]);
+    
+    g_DisplayPlusMinus[client] = true;
+    g_DisablePlusMinusTimer[client] = CreateTimer(g_DisplayPlusMinusTime, Timer_Callback_DisableDisplayPlusMinus, client);
+    
+    Call_StartForward(g_fwdPlayerReachedZone);
+    Call_PushCell(client);
+    Call_PushCell(track);
+    Call_PushCell(zone);
+    Call_PushFloat(g_StartTimes[client][zone] - g_StartTimes[client][zone-1]);
+    Call_PushCell(g_PlayerCurrentStyle[client]);
+    Call_Finish();
+}
+
+Timer_PlayerReachedEnd(client, track)
+{
+    g_IsTiming[client] = false;
+    
+    Call_StartForward(g_fwdPlayerReachedEnd);
+    Call_PushCell(client);
+    Call_PushCell(track);
+    Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
+    Call_PushCell(g_PlayerCurrentStyle[client]);
+    Call_Finish();
+}
+
+public ConVar_DisplayPlusMinusTime(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DisplayPlusMinusTime = GetConVarFloat(cvar);
+}
+
+public Action:Timer_Callback_DisableDisplayPlusMinus(Handle:timer, any:data)
+{
+    g_DisplayPlusMinus[data] = false;
+    g_DisablePlusMinusTimer[data] = INVALID_HANDLE;
+    
+    return Plugin_Stop;
 }
 
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
@@ -474,4 +543,19 @@ StyleNameToIndex(const String:stylename[])
             return style;
     
     return 0;
+}
+
+SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
+{
+    hours = RoundToFloor(time) / SECONDS_IN_HOUR;
+    minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
+    seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+}
+
+SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plusminus=false)
+{
+    decl hours, minutes, Float:seconds;
+    SecondsToTime(time, hours, minutes, seconds);
+    
+    Format(buffer, maxlength, "%s%02d:%02d:%07.4f", plusminus ? ((time >= 0) ? "+" : "-") : "", hours, minutes, seconds);
 }

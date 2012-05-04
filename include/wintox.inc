@@ -24,8 +24,11 @@ new g_CurrentTick = 0;
 
 // For each player, whether other players should be hidden (not transmitted)
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
-// Holds the state of wintox_removedroppedweapons
+// Holds the state of wintox_remove_dropped_weapons, whether to remove dropped weapon entities
 new bool:g_RemoveDroppedWeapons = true;
+// Holds the state of wintox_suppress_hint, whether to actiely suppress hint text
+// if the player disables the hint text timer
+new bool:g_SuppressHintText = true;
 
 // Database IDs for each player
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
@@ -80,9 +83,13 @@ Wintox_Init()
     g_TimerDisplaySkipTicks = GetConVarInt(timer_skip_ticks);
     HookConVarChange(timer_skip_ticks, ConVar_TimerDisplaySkipTicks);
     
-    new Handle:remove_dropped_weapons = CreateConVar("wintox_removedroppedweapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
+    new Handle:remove_dropped_weapons = CreateConVar("wintox_remove_dropped_weapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
     g_RemoveDroppedWeapons = GetConVarBool(remove_dropped_weapons);
     HookConVarChange(remove_dropped_weapons, ConVar_RemoveDroppedWeapons);
+    
+    new Handle:suppress_hint_text = CreateConVar("wintox_suppress_hint_text", "1", "Whether or not to actively suppress the hint text box if the user disables the timer display (if false, hint text boxes take a few seconds to disappear)", 0, true, 0.0, true, 1.0);
+    g_SuppressHintText = GetConVarBool(suppress_hint_text);
+    HookConVarChange(suppress_hint_text, ConVar_SuppressHintText);
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
@@ -139,6 +146,11 @@ public ConVar_RemoveDroppedWeapons(Handle:cvar, const String:oldVal[], const Str
     g_RemoveDroppedWeapons = GetConVarBool(cvar);
 }
 
+public ConVar_SuppressHintText(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_SuppressHintText = GetConVarBool(cvar);
+}
+
 #if defined(WINTOX_BHOP)
 public ConVar_LowGravMultiplier(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
@@ -193,31 +205,11 @@ public OnGameFrame()
                     origin[2] <= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
-                    {
-                        ZoneTime(client, i);
-                        g_PlayerCurrentPath[client]++;
-                        
-                        Call_StartForward(g_fwdPlayerReachedZone);
-                        Call_PushCell(client);
-                        Call_PushCell(track);
-                        Call_PushCell(i);
-                        Call_PushFloat(g_StartTimes[client][i] - g_StartTimes[client][i-1]);
-                        Call_PushCell(g_PlayerCurrentStyle[client]);
-                        Call_Finish();
-                    }
+                        Timer_PlayerReachedZone(client, track, i);
                     
                     // Yeah, you go, player! YOU ROCK!
                     if (IS_END_ZONE(i) && g_IsTiming[client])
-                    {
-                        g_IsTiming[client] = false;
-                        
-                        Call_StartForward(g_fwdPlayerReachedEnd);
-                        Call_PushCell(client);
-                        Call_PushCell(track);
-                        Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
-                        Call_PushCell(0); // TODO: style
-                        Call_Finish();
-                    }
+                        Timer_PlayerReachedEnd(client, track);
                     
                     is_in_zone = true;
                     g_PlayerCurrentZone[client] = i;
@@ -254,16 +246,55 @@ public OnGameFrame()
                         relative_from = g_PauseStart[client];
                     
                     new Float:time = relative_from - g_StartTimes[client][0];
-                    new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
-                    new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
-                    new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+                    decl String:sz_time[24];
+                    
+                    decl String:plus_minus[64];
+                    plus_minus[0] = '\0';
+                    if (g_DisplayPlusMinus[client])
+                    {
+                        new Float:zone_time = g_StartTimes[client][g_PlayerCurrentZone[client]] - g_StartTimes[client][g_PlayerCurrentZone[client]-1];
+                        
+                        // TODO: select closest style
+                        if (g_BestZoneRecords[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]] != 0.0)
+                        {
+                            new Float:zone_pm = zone_time - g_BestZoneRecords[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]];
+                            
+                            SecondsToTimeString(zone_pm, STR(sz_time), true);
+                            Format(STR(plus_minus), " (%s)", sz_time);
+                        }
+                        
+                        new Float:wr_pm = zone_time - g_TrackWorldRecord[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]];
+                        
+                        SecondsToTimeString(wr_pm, STR(sz_time), true);
+                        Format(STR(plus_minus), "\nTotal (%s)", sz_time);
+                    }
+                    
+                    SecondsToTimeString(time, STR(sz_time));
                     
 #if defined(WINTOX_BHOP)
 
                     if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-                        PrintHintText(client, "%sTime: %02d:%02d:%07.4f\nStyle: %s\nLast stage %d (%s) of %d\nJumps: %d", IS_PAUSED(client) ? "[PAUSED]\n" : "", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], g_ZonesCount[track]-1, g_Jumps[client]);
+                        PrintHintText(client, "\
+%s\
+Time: %s\n\
+Style: %s\n\
+Stage %d (%s)%s\n\
+Jumps: %d",
+                        IS_PAUSED(client) ? "[PAUSED]\n" : "", 
+                        sz_time,
+                        STYLE_NAMES_C[g_PlayerCurrentStyle[client]],
+                        g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], plus_minus,
+                        g_Jumps[client]);
                     else
-                        PrintHintText(client, "Final time: %02d:%02d:%07.4f\nStyle: %s\nFinal stage: %s\nJumps: %d", hours, minutes, seconds, STYLE_NAMES_C[g_PlayerCurrentStyle[client]], g_ZoneNames[track][g_PlayerCurrentZone[client]], g_Jumps[client]);
+                        PrintHintText(client, "\
+Final time: %s\n\
+Style: %s\n\
+Final stage: %s\n\
+Jumps: %d",
+                        sz_time,
+                        STYLE_NAMES_C[g_PlayerCurrentStyle[client]],
+                        g_ZoneNames[track][g_PlayerCurrentZone[client]],
+                        g_Jumps[client]);
 
 #elseif defined(WINTOX_SURF)
 #endif
@@ -272,7 +303,7 @@ public OnGameFrame()
             }
             
             // Actively hide the hint text
-            else
+            else if (g_SuppressHintText)
                 HideHintText(client);
         }
     }
