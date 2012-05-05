@@ -101,6 +101,24 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define SQLF(%1) SQL_FastQuery(g_Database, (%1))
 #define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
 
+// If using SQLT_HANDLER, SQLTH can handle both the formatting and querying
+// SQLTH(SQL_QUERY[?], any:data_passed_to_SQLT, any:...)
+#define SQLTH(%1,%2,%3) decl String:query[512]; \
+    Format(STR(query), SQL_QUERY[%1], %3); \
+    SQLT(query, T_%1, (%2))
+#define SQLTH_D(%1,%2,%3) \
+    Format(STR(query), SQL_QUERY[%1], %3); \
+    SQLT(query, T_%1, (%2))
+
+// Also explicitly pass the handler name
+// SQLTH_H(SQL_QUERY[?], handler, any:data_passed_to_SQLT, any:...)
+#define SQLTH_H(%1,%2,%3,%4) decl String:query[512]; \
+    Format(STR(query), SQL_QUERY[%1], %4); \
+    SQLT(query, %2, (%3))
+#define SQLTH_H_D(%1,%2,%3,%4) \
+    Format(STR(query), SQL_QUERY[%1], %4); \
+    SQLT(query, %2, (%3))
+
 #define SQLT_HANDLER(%1,%2) public T_%1(Handle:owner, Handle:hndl, const String:error[], any:data) \
 { \
     if (hndl == INVALID_HANDLE) \
@@ -366,6 +384,9 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRaceRecords,1) = {
 };
 NEW_SQL_QUERY_PARAMS(GetPartialPlayerRaceRecords,2) = {
     SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE latest_name LIKE '%%%s%%' AND gametype = '%s'")
+};
+NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
+    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE gametype = '%s' ORDER BY racewins DESC LIMIT %d,10;")
 };
 
 // ===========================================================================

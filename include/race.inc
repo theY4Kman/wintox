@@ -201,7 +201,7 @@ public T_Rstats(Handle:owner, Handle:hndl, const String:error[], any:data)
         racewins = SQL_FetchInt(hndl, 1);
         racelosses = SQL_FetchInt(hndl, 2);
         
-        Race_Reply(client, "{G}%s{N} - Wins: {G}%d{N}, Losses: {G}%d{N}, Ratio: {G}%.3f{N}", latest_name, racewins, racelosses, float(racewins) / racelosses);
+        Race_Reply(client, "{G}%s{N} - Wins: {G}%d{N}, Losses: {G}%d{N}, Ratio: {G}%.3f{N}", latest_name, racewins, racelosses, float(racewins) / MAX(racelosses, 1));
     }
     else
     {
@@ -219,7 +219,7 @@ public T_Rstats(Handle:owner, Handle:hndl, const String:error[], any:data)
             racewins = SQL_FetchInt(hndl, 1);
             racelosses = SQL_FetchInt(hndl, 2);
             
-            Format(STR(menu_item), "%s - W: %d L: %d %.3f", latest_name, racewins, racelosses, float(racewins) / racelosses);
+            Format(STR(menu_item), "%s - W: %d L: %d %.3f", latest_name, racewins, racelosses, float(racewins) / MAX(racelosses, 1));
             AddMenuItem(menu, latest_name, menu_item);
         }
         
@@ -237,9 +237,36 @@ public Action:ConCommand_Rtop(client, args)
 {
     CHECK_ARGS_UPPER(1)
     
-    // TODO
+    new start = 0;
+    if (args == 1)
+    {
+        decl String:sz_start[8];
+        GetCmdArg(1, STR(sz_start));
+        
+        if (StringToIntEx(sz_start, start) == 0)
+        {
+            ReplyWithDescription(client);
+            return Plugin_Handled;
+        }
+    }
+    
+    ShowRtop(client, start);
     
     return Plugin_Handled;
+}
+
+ShowRtop(client, start=0)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, start);
+    ResetPack(pack);
+    
+    SQLTH(GetRtop, pack, WINTOX_GAMETYPE, start);
+}
+
+public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
 }
 
 IsRacing(client)

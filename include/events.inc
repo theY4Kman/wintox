@@ -197,17 +197,15 @@ public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
 // Tries to retrieve the current map info 
 GetOrInsertMap(const String:mapname[], bool:curmap=true)
 {
-    decl String:query[512];
-    decl String:buffer[256];
-    SQL_EscapeString(g_Database, mapname, STR(buffer));
-    Format(STR(query), SQL_QUERY[GetMap], buffer, WINTOX_GAMETYPE);
+    decl String:esc_mapname[256];
+    SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
     
     new Handle:pack = CreateDataPack();
     WritePackCell(pack, _:curmap);
     WritePackString(pack, mapname);
     ResetPack(pack);
     
-    SQLT(query, T_GetOrInsertMapInfo, pack);
+    SQLTH_H(GetMap, T_GetOrInsertMapInfo, pack, esc_mapname, WINTOX_GAMETYPE);
 }
 
 public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
@@ -300,15 +298,12 @@ WarnPlayerNotRecording(client, bool:retrieve=true)
 // Inserts or updates a player's info
 InsertOrUpdatePlayerInfo(client, const String:steamid[])
 {
-    decl String:query[256];
-    Format(STR(query), SQL_QUERY[GetPlayer], steamid, WINTOX_GAMETYPE);
-    
-    SQLT(query, T_GetPlayerInfo, client);
+    SQLTH(GetPlayer, client, steamid, WINTOX_GAMETYPE);
 }
 
-public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
+public T_GetPlayer(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
-    decl String:buffer[512];
+    decl String:query[512];
     decl String:latest_name[256];
     decl String:latest_ip[48];
     decl String:steamid[64];
@@ -347,9 +342,8 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
             !StrEqual(country, db_country))
         {
             SQL_EscapeString(g_Database, latest_name, STR(db_latest_name));
-            Format(STR(buffer), SQL_QUERY[UpdatePlayer], db_latest_name, latest_ip, country, steamid, WINTOX_GAMETYPE);
             
-            SQLT(buffer, T_UpdatePlayerInfo, client);
+            SQLTH_D(UpdatePlayer, client, db_latest_name, latest_ip, country, steamid, WINTOX_GAMETYPE);
         }
         
         CacheZoneRecords(client);
@@ -362,14 +356,13 @@ public T_GetPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data
         
         GeoipCode3(latest_ip, country);
         SQL_EscapeString(g_Database, latest_name, STR(escaped_name));
-        Format(STR(buffer), SQL_QUERY[InsertPlayer], escaped_name, latest_ip, steamid, country, WINTOX_GAMETYPE);
         
-        SQLT(buffer, T_InsertPlayerInfo, client);
+        SQLTH_D(InsertPlayer, client, escaped_name, latest_ip, steamid, country, WINTOX_GAMETYPE);
     }
 }
-SQLT_HANDLER(UpdatePlayerInfo,"Error updating player (%L) info: %s", data)
+SQLT_HANDLER(UpdatePlayer,"Error updating player (%L) info: %s", data)
 
-public T_InsertPlayerInfo(Handle:owner, Handle:hndl, const String:error[], any:data)
+public T_InsertPlayer(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
     new client = data;
     
