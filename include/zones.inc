@@ -246,6 +246,32 @@ Zone_DeinitPlayer(client)
     }
 }
 
+bool:PointInZone(const Float:point[3], track, zone)
+{
+    new sides = ZONE_POINTS_T[track][zone];
+    new j = sides-1 + ZONE_FIRST_POINT;
+    new bool:odd_nodes = false;
+    
+    for (new h=ZONE_FIRST_POINT; h<(ZONE_META_POINTS + sides); h++)
+    {
+        if ((ZONE_POINT_T[track][zone][h][1] < point[1] && ZONE_POINT_T[track][zone][j][1] >= point[1]) ||
+            (ZONE_POINT_T[track][zone][j][1] < point[1] && ZONE_POINT_T[track][zone][h][1] >= point[1]))
+            if (ZONE_POINT_T[track][zone][h][0] + (point[1] - ZONE_POINT_T[track][zone][h][1]) / (ZONE_POINT[zone][j][1] -
+                ZONE_POINT_T[track][zone][h][1]) * (ZONE_POINT_T[track][zone][j][0] - ZONE_POINT_T[track][zone][h][0]) < point[0])
+                odd_nodes = !odd_nodes;
+        
+        j = h;
+    }
+    
+    // In zone AND in zone height
+    if (odd_nodes &&
+        point[2] >= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
+        point[2] <= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[zone] + ZONE_HEIGHT_FUDGE))
+        return true;
+    
+    return false;
+}
+
 public ConVar_DrawZones(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_DrawZones = GetConVarBool(cvar);

@@ -182,29 +182,31 @@ public OnGameFrame()
         // Check if the player is in their current or next zone only
         if (!IS_PAUSED(client) && PlayerCanTime(client))
         {
+            for (new check_track=0; check_track<MAX_TRACKS; check_track++)
+            {
+                if (track == check_track)
+                    continue;
+                
+                // They've switched tracks
+                if (PointInZone(origin, check_track, 0))
+                {
+                    ResetTimer(client);
+                    g_PlayerCurrentTrack[client] = check_track;
+                    
+                    if (check_track == 0)
+                        Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
+                    else
+                        Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}. Your timer has been reset.", check_track);
+                    
+                    break;
+                }
+            }
+            
             new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 :g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
             new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
-            for (new i=start_zone; i<=end_zone; i++)
+            for (new i=start_zone, _t=-1; _t<1 && ((i=_t ? start_zone : end_zone) || 1); _t++)
             {
-                new sides = ZONE_POINTS_T[track][i];
-                new j = sides-1 + ZONE_FIRST_POINT;
-                new bool:odd_nodes = false;
-                
-                for (new h=ZONE_FIRST_POINT; h<(ZONE_META_POINTS + sides); h++)
-                {
-                    if ((ZONE_POINT_T[track][i][h][1] < origin[1] && ZONE_POINT_T[track][i][j][1] >= origin[1]) ||
-                        (ZONE_POINT_T[track][i][j][1] < origin[1] && ZONE_POINT_T[track][i][h][1] >= origin[1]))
-                        if (ZONE_POINT_T[track][i][h][0] + (origin[1] - ZONE_POINT_T[track][i][h][1]) / (ZONE_POINT[i][j][1] -
-                            ZONE_POINT_T[track][i][h][1]) * (ZONE_POINT_T[track][i][j][0] - ZONE_POINT_T[track][i][h][0]) < origin[0])
-                            odd_nodes = !odd_nodes;
-                    
-                    j = h;
-                }
-                
-                // In zone AND in zone height
-                if (odd_nodes &&
-                    origin[2] >= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
-                    origin[2] <= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
+                if (PointInZone(origin, track, i))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
