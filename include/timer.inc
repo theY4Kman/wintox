@@ -12,6 +12,7 @@
 #include "./include/zones"
 #include "./include/menus"
 #include "./include/sql"
+#include "./include/race"
 
 #define INVALID_ZONE_RECORD -1.0
 #define INVALID_TRACK_RECORD -1.0
@@ -87,12 +88,12 @@ new Float:g_DisplayPlusMinusTime = 3.0;
 // player reaches another zone before g_DisplayPlusMinusTime
 new Handle:g_DisablePlusMinusTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
+// Show the timer display
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
-#define ZoneTime(%1,%2) g_StartTimes[(%1)][(%2)] = GetEngineTime()
 #define TIMER_STARTED(%1) (g_StartTimes[(%1)][0] != 0.0)
 #define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
 
@@ -109,7 +110,9 @@ Timer_Init()
                 for (new zone=1; zone<MAX_ZONES; zone++)
                 {
                     g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
-                    g_BestZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
+                    
+                    if (client == 0)
+                        g_BestZoneRecords[track][zone][style] = INVALID_ZONE_RECORD;
                 }
                 
                 g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
@@ -167,17 +170,170 @@ public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_
     CacheBestZoneRecords();
 }
 
-Timer_PlayerReachedZone(client, track, zone, style)
+ZoneTime(client, zone)
 {
-    ZoneTime(client, zone);
-    g_PlayerCurrentPath[client]++;
+    g_StartTimes[client][zone] = GetEngineTime();
+}
+
+StopTiming(client)
+{
+    g_IsTiming[client] = false;
+}
+
+DisplayTimer(client, is_in_zone)
+{
+    new track = g_PlayerCurrentTrack[client];
+    new zone = g_PlayerCurrentZone[client];
+    new style = g_PlayerCurrentStyle[client];
     
+    if (!IsInRace(client))
+    {
+        if (g_PlayerLowGrav[client])
+            PrintHintText(client, "[Disable low gravity to begin timing]");
+        
+        else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
+            PrintHintText(client, "[Enter the start zone]");
+        
+        else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
+            PrintHintText(client, "[Leave the start zone]");
+        
+        else if (TIMER_STARTED(client))
+        {
+            new Float:relative_from = GetEngineTime();
+            if (IS_FINISHED(client))
+                relative_from = g_StartTimes[client][g_EndZone[track]];
+            else if (IS_PAUSED(client))
+                relative_from = g_PauseStart[client];
+            
+            new Float:time = relative_from - g_StartTimes[client][0];
+            decl String:sz_time[24];
+            
+            decl String:plus_minus[64];
+            plus_minus[0] = '\0';
+            if (g_DisplayPlusMinus[client])
+            {
+                new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
+                
+                // TODO: select closest style
+                if (g_BestZoneRecords[track][zone][style] != 0.0)
+                {
+                    new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][style];
+                    
+                    SecondsToTimeString(zone_pm, STR(sz_time), true);
+                    Format(STR(plus_minus), " (%s)", sz_time);
+                }
+                
+                new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][style];
+                
+                SecondsToTimeString(wr_pm, STR(sz_time), true);
+                Format(STR(plus_minus), "\nTotal (%s)", sz_time);
+            }
+            
+            SecondsToTimeString(time, STR(sz_time));
+            
+    #if defined(WINTOX_BHOP)
+
+            if (g_StartTimes[client][g_EndZone[track]] == 0.0)
+                PrintHintText(client, "\
+%s\
+Time: %s\n\
+Style: %s\n\
+Stage %d (%s)%s\n\
+Jumps: %d",
+                IS_PAUSED(client) ? "[PAUSED]\n" : "", 
+                sz_time,
+                STYLE_NAMES_C[style],
+                zone, g_ZoneNames[track][zone], plus_minus,
+                g_Jumps[client]);
+            else
+                PrintHintText(client, "\
+Final time: %s\n\
+Style: %s\n\
+Final stage: %s\n\
+Jumps: %d",
+                sz_time,
+                STYLE_NAMES_C[style],
+                g_ZoneNames[track][zone],
+                g_Jumps[client]);
+
+    #elseif defined(WINTOX_SURF)
+    #endif
+
+        }
+    }
+    else
+    {
+        new opponent = g_RaceOpponents[client];
+        
+        decl Float:time;
+        if (g_RaceEndElapsed[client] > 0.0)
+            time = g_RaceEndElapsed[client];
+        else
+            time = GetEngineTime() - g_RaceStart[client];
+        decl String:sz_time[24];
+            
+        decl String:plus_minus[64];
+        plus_minus[0] = '\0';
+        if (g_DisplayPlusMinus[client])
+        {
+            decl Float:opponent_pm;
+            if (zone < g_PlayerCurrentZone[opponent])
+            {
+                new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
+                new Float:opponent_time = g_StartTimes[opponent][zone] - g_StartTimes[opponent][zone-1];
+                
+                opponent_pm = zone_time - opponent_time;
+            }
+            else
+                opponent_pm = MAX(g_StartTimes[opponent][MAX(g_PlayerCurrentZone[opponent], 0)], g_RaceStart[opponent]) - g_StartTimes[client][zone];
+            
+            SecondsToTimeString(opponent_pm, STR(sz_time), true);
+            Format(STR(plus_minus), "\n Opponent (%s)", sz_time);
+        }
+        
+        SecondsToTimeString(time, STR(sz_time));
+        
+        if (g_RaceEndElapsed[client] == 0.0)
+            PrintHintText(client, "\
+[RACE]\n\
+Time: %s\n\
+Style: %s (opp %s)\n\
+Stage %d (%s)%s\n\
+Jumps: %d (opp %d)",
+            sz_time,
+            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
+            zone, g_ZoneNames[track][zone], plus_minus,
+            g_Jumps[client], g_Jumps[opponent]);
+        else
+            PrintHintText(client, "\
+[RACE ENDED]\n\
+Time: %s\n\
+Style: %s (opp %s)\n\
+Stage %d (%s)%s\n\
+Jumps: %d (opp %d)",
+            sz_time,
+            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
+            zone, g_ZoneNames[track][zone], plus_minus,
+            g_Jumps[client], g_Jumps[opponent]);
+    }
+}
+
+Timer_DisplayPlusMinus(client)
+{
     // Cancel the last disable +/- timer, so we don't end the +/- prematurely
     if (g_DisablePlusMinusTimer[client] != INVALID_HANDLE)
         CloseHandle(g_DisablePlusMinusTimer[client]);
     
     g_DisplayPlusMinus[client] = true;
     g_DisablePlusMinusTimer[client] = CreateTimer(g_DisplayPlusMinusTime, Timer_Callback_DisableDisplayPlusMinus, client);
+}
+
+Timer_PlayerReachedZone(client, track, zone, style)
+{
+    ZoneTime(client, zone);
+    g_PlayerCurrentPath[client]++;
+    
+    Timer_DisplayPlusMinus(client);
     
     Call_StartForward(g_fwdPlayerReachedZone);
     Call_PushCell(client);
@@ -681,12 +837,14 @@ StyleNameToIndex(const String:stylename[])
 
 SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
 {
+    time = FloatAbs(time);
+    
     hours = RoundToFloor(time) / SECONDS_IN_HOUR;
     minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
     seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
 }
 
-SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plusminus=false)
+SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
 {
     decl String:sz_hours[8];
     decl hours, minutes, Float:seconds;
@@ -696,5 +854,5 @@ SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plusminus=false
     if (hours != 0)
         Format(STR(sz_hours), "%02d:", hours);
     
-    Format(buffer, maxlength, "%s%s%02d:%07.4f", plusminus ? ((time >= 0) ? "+" : "-") : "", sz_hours, minutes, seconds);
+    Format(buffer, maxlength, "%s%s%02d:%07.4f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
 }

@@ -143,12 +143,9 @@ public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
     if (client < 0 || client > MaxClients)
         return;
     
-    // How the FUCK did they just jump? Aliens...
-    if (!g_IsTiming[client])
-        return;
-    
     // Don't record jumps if the timer hasn't started
-    if (!TIMER_STARTED(client))
+    if ((!g_IsTiming[client] || !TIMER_STARTED(client)) &&
+        (!IsRacing(client) || !IsRaceStarted(client)))
         return;
     
     g_Jumps[client]++;
@@ -156,7 +153,7 @@ public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
 
 public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon)
 {
-    if (!IS_PAUSED(client) && TIMER_STARTED(client) && !IS_FINISHED(client))
+    if ((!IS_PAUSED(client) && TIMER_STARTED(client) && !IS_FINISHED(client)) || (IsRacing(client) && IsRaceStarted(client)))
     {
         if (g_PlayerCurrentStyle[client] >= STYLE_SIDEWAYS && (buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT))
             g_PlayerCurrentStyle[client] = STYLE_NORMAL;

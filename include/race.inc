@@ -9,27 +9,37 @@
 #endif
 #define _wintox_race_included
 
-#include "./include/menus"
-#include "./include/game"
-#include "./include/commands"
-#include "./include/stocks"
-
 
 // Whether a player has an outstanding challenge or race
-#define HAS_OUTSTANDING_CHALLENGE(%1) (g_RaceOpponents[(%1)] != 0)
-// Whether a player is currently in a race
-#define IS_IN_RACE(%1) (HAS_OUTSTANDING_CHALLENGE(%1) && g_RaceOpponents[g_RaceOpponents[(%1)]] == (%1))
+#define HAS_OUTSTANDING_CHALLENGE(%1) (g_RaceOutstandingChallenges[(%1)] > 0)
 
-// Holds state for wintox_race_challenge_multiple
-new g_RaceAllowMultipleChallenges = false;
+// Holds state for wintox_race_challenges_amount
+new g_RaceChallengesAmount = 1;
 // Holds state for wintox_race_challenge_menu_time
 new g_RaceChallengeMenuTime = 20;
 // Holds state for wintox_race_challenge_taunts
 new g_RaceChallengeTaunts = true;
 
+new g_RaceOutstandingChallenges[MAXPLAYERS];
 new g_RaceOpponents[MAXPLAYERS];
 // For each player, stores the client that initiated the challenge
 new g_RaceChallengedBy[MAXPLAYERS];
+
+// If the race is in progress
+new bool:g_Racing[MAXPLAYERS];
+// The time the race started
+new Float:g_RaceStart[MAXPLAYERS];
+// The total time the race took
+new Float:g_RaceEndElapsed[MAXPLAYERS];
+
+new Handle:g_RaceCountdownTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
+
+
+#include "./include/menus"
+#include "./include/game"
+#include "./include/commands"
+#include "./include/stocks"
+
 
 new String:g_RaceTauntsDecline[][] = {
     "You could race a rock and lose!",
@@ -43,12 +53,14 @@ new String:g_RaceTauntsAccept[][] = {
 Race_Init()
 {
     RegisterCommand("sm_race", ConCommand_Race, "sm_race | Challenge another player to a race!");
+    RegisterCommand("sm_racehide", ConCommand_RaceHide, "sm_racehide | Hide all other players but the other racer");
+    RegisterCommand("sm_raceshow", ConCommand_RaceShow, "sm_raceshow | Show all other players (or hide your race opponent if you've run !hide)");
     
-    new Handle:cvar_race_challenge_multiple = CreateConVar("wintox_race_challenge_multiple", "0", "Whether to allow players to challenge multiple other players at one time.");
-    g_RaceAllowMultipleChallenges = GetConVarBool(cvar_race_challenge_multiple);
-    HookConVarChange(cvar_race_challenge_multiple, ConVar_RaceAllowMultipleChallenges);
+    new Handle:cvar_race_challenges_amount = CreateConVar("wintox_race_challenges_amount", "1", "The number of people a player can challenge to a race at once.");
+    g_RaceChallengesAmount = GetConVarInt(cvar_race_challenges_amount);
+    HookConVarChange(cvar_race_challenges_amount, ConVar_RaceChallengesAmount);
     
-    new Handle:cvar_race_challenge_menu_time = CreateConVar("wintox_race_challenge_menu_time", "20", "The length of time to display the challenge menu.");
+    new Handle:cvar_race_challenge_menu_time = CreateConVar("wintox_race_challenge_menu_time", "20", "The length of time to display the challenge menu.", 0, true, 0.0);
     g_RaceChallengeMenuTime = GetConVarInt(cvar_race_challenge_menu_time);
     HookConVarChange(cvar_race_challenge_menu_time, ConVar_RaceChallengeMenuTime);
     
@@ -59,14 +71,23 @@ Race_Init()
 
 Race_DeinitPlayer(client)
 {
-    if (IS_IN_RACE(client))
+    if (IsInRace(client))
         StopRace(client, g_RaceOpponents[client], "Your opponent left!");
+    
     g_RaceOpponents[client] = 0;
+    g_RaceChallengedBy[client] = 0;
+    g_RaceOutstandingChallenges[client] = 0;
+    
+    g_RaceHideOtherPlayers[client] = false;
+    
+    g_RaceStart[client] = 0.0;
+    g_Racing[client] = 0;
+    g_RaceEndElapsed[client] = 0;
 }
 
-public ConVar_RaceAllowMultipleChallenges(Handle:cvar, const String:oldVal[], const String:newVal[])
+public ConVar_RaceChallengesAmount(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
-    g_RaceAllowMultipleChallenges = GetConVarBool(cvar);
+    g_RaceChallengesAmount = GetConVarInt(cvar);
 }
 
 public ConVar_RaceChallengeMenuTime(Handle:cvar, const String:oldVal[], const String:newVal[])
@@ -90,16 +111,57 @@ public Action:ConCommand_Race(client, args)
     return Plugin_Handled;
 }
 
+IsRacing(client)
+{
+    return g_RaceOpponents[g_RaceOpponents[client]] == client;
+}
+
+IsRaceStarted(client)
+{
+    return g_Racing[client];
+}
+
+RaceShowHideMessage(client)
+{
+    if (g_HideOtherPlayers[client])
+        Race_Reply(client, "No longer showing your race opponent.");
+    else
+        Race_Reply(client, "{OG}Showing{N} all other players.");
+}
+
+public Action:ConCommand_RaceHide(client, args)
+{
+    NO_ARGS()
+    
+    g_RaceHideOtherPlayers[client] = !g_RaceHideOtherPlayers[client];
+    
+    if (g_RaceHideOtherPlayers[client])
+        Race_Reply(client, "{OG}Hiding{N} all other players, except your race opponent.");
+    else
+        RaceShowHideMessage(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_RaceShow(client, args)
+{
+    NO_ARGS()
+    
+    g_RaceHideOtherPlayers[client] = false;
+    RaceShowHideMessage(client);
+    
+    return Plugin_Handled;
+}
+
 
 // Bring up a menu of all players in the server for the challenger to choose
 // their challengee.
 RaceMenu(challenger)
 {
-    if (!g_RaceAllowMultipleChallenges && HAS_OUTSTANDING_CHALLENGE(challenger))
+    if (g_RaceChallengesAmount == g_RaceOutstandingChallenges[challenger])
     {
-        // TODO: Handle this more elegantly
-        Color_ChatSetSubject(g_RaceOpponents[challenger]);
-        Race_Reply(challenger, "You already have an outstanding challenge against {T}%N{N}!", g_RaceOpponents[challenger]);
+        Race_Reply(challenger, "You have reached the maximum amount of simultaneous race challenges ({G}%d{N})!", g_RaceChallengesAmount);
+        Race_Reply(challenger, "Please wait for a challenge to {OG}expire{N} or be {G}accepted{N}/{R}declined{N}.");
         return;
     }
     
@@ -153,9 +215,15 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
         new userid = StringToInt(info);
         new challengee = GetClientOfUserId(userid);
         
-        if (challengee == 0)
+        if (challengee == 0 || IsInRace(challengee))
         {
-            Race_Reply(param1, "Unfortunately, something happened to that player and they cannot be challenged. Try someone else.");
+            if (challengee == 0)
+                Race_Reply(param1, "Unfortunately, that player disappeared and they cannot be challenged. Try someone else.");
+            else
+            {
+                Color_ChatSetSubject(challengee);
+                Race_Reply(param1, "{T}%N{N} is in a race. Choose someone else.");
+            }
             
             PrevSubmenu(param1, false);
             RaceMenu(param1);
@@ -165,10 +233,8 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
         
         g_RaceChallengedBy[challengee] = param1;
         
-        if (!g_RaceAllowMultipleChallenges)
-            g_RaceOpponents[param1] = challengee;
-        
         AskRace(param1, challengee);
+        g_RaceOutstandingChallenges[param1]++;
     }
     else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
@@ -177,6 +243,14 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
 // Show a dialog on the challengee's screen asking to accept or decline the race
 AskRace(challenger, challengee)
 {
+#if defined(WINTOX_DEBUG)
+    if (IsFakeClient(challengee))
+    {
+        ChallengeeAccepted(challenger, challengee);
+        return;
+    }
+#endif
+    
     new Handle:menu = CreateMenu(MenuHandler_AskRace);
     SetMenuTitle(menu, "%N has challenged you to a race", challenger);
     
@@ -223,24 +297,100 @@ public MenuHandler_AskRace(Handle:menu, MenuAction:action, param1, param2)
             Color_ChatSetSubject(challenger);
             Race_PrintToChat(challenger, "{T}%N{N} says: {OG}%s{N}", param1, accepted ? g_RaceTauntsAccept[taunt_idx] : g_RaceTauntsDecline[taunt_idx]);
         }
+        
+        g_RaceOutstandingChallenges[challenger]--;
     }
     else if (action == MenuAction_Cancel)
     {
-        if (!g_RaceAllowMultipleChallenges)
-            g_RaceOpponents[param1] = 0;
+        new challenger = g_RaceChallengedBy[param1];
+        g_RaceOutstandingChallenges[challenger]--;
         
         HANDLE_CANCEL();
     }
 }
 
+#define DO_PARTICIPANTS for (new client=challenger, i=-1; i<1; client=i++ ? challengee : challenger)
+
 // Setup the players at the start zone and begin the countdown timer
 InitiateRace(challenger, challengee)
 {
+    decl Handle:pack;
+    new Handle:timer = CreateDataTimer(1.0, Timer_Callback_RaceCountdown, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+    
+    WritePackCell(pack, 5);
+    WritePackCell(pack, challenger);
+    WritePackCell(pack, challengee);
+    ResetPack(pack);
+    
+    DO_PARTICIPANTS
+    {
+        ZoneTeleport(client, 0);
+        SetEntityMoveType(client, MOVETYPE_NONE);
+        
+        g_RaceCountdownTimer[client] = timer;
+        g_RaceStart[client] = GetEngineTime() + 6.0;
+    }
+}
+
+public Action:Timer_Callback_RaceCountdown(Handle:timer, Handle:pack)
+{
+    new countdown = ReadPackCell(pack);
+    new challenger = ReadPackCell(pack);
+    new challengee = ReadPackCell(pack);
+    ResetPack(pack);
+    
+    if (countdown == 0)
+    {
+        DO_PARTICIPANTS Race_PrintToChat(client, "{G}GO!");
+        StartRace(challenger, challengee);
+        
+        return Plugin_Stop;
+    }
+    else
+    {
+        DO_PARTICIPANTS
+        {
+            Color_ChatSetSubject(countdown % 2 == 0 ? challenger : challengee);
+            Race_PrintToChat(client, "{OG}<{T}%d{OG}>", countdown);
+        }
+        
+        WritePackCell(pack, --countdown);
+        ResetPack(pack);
+    }
+    
+    return Plugin_Continue;
 }
 
 // Stop a race prematurely
 StopRace(challenger, challengee, const String:reason[]="")
 {
+    DO_PARTICIPANTS
+    {
+        g_RaceChallengedBy[client] = 0;
+        g_RaceOpponents[client] = 0;
+        
+        StopTiming(client);
+    }
+    
+    // TODO: print message
+}
+
+// Begin the race!
+StartRace(challenger, challengee)
+{
+    DO_PARTICIPANTS
+    {
+        SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
+        g_RaceStart[client] = GetEngineTime();
+        g_Racing[client] = true;
+    }
+}
+
+// End the race gracefully
+EndRace(challenger, challengee)
+{
+    // TODO
+    DO_PARTICIPANTS g_RaceEndElapsed[client] = GetEngineTime() - g_RaceStart[client];
 }
 
 // The challengee declined a race challenge
@@ -249,8 +399,6 @@ ChallengeeDeclined(challenger, challengee)
     Color_ChatSetSubject(challenger);
     Race_PrintToChat(challenger, "{T}%N{N} has {R}declined{N} your race challenge {OG}:({N}", challengee);
     
-    if (!g_RaceAllowMultipleChallenges)
-        g_RaceOpponents[challenger] = 0;
     g_RaceChallengedBy[challengee] = 0;
 }
 
@@ -259,6 +407,38 @@ ChallengeeAccepted(challenger, challengee)
 {
     Color_ChatSetSubject(challenger);
     Race_PrintToChat(challenger, "{T}%N{N} has {R}accepted{N} your race challenge!", challengee);
+    Race_PrintToChatAll("{R}%N{N} challenged {R}%N{N} to a race!", challenger, challengee);
+    
+    g_RaceOpponents[challenger] = challengee;
+    g_RaceOpponents[challengee] = challenger;
+    g_RaceChallengedBy[challengee] = challenger;
     
     InitiateRace(challenger, challengee);
+}
+
+Race_PlayerReachedZone(client, track, zone)
+{
+    ZoneTime(client, zone);
+    g_PlayerCurrentPath[client]++;
+    
+    Timer_DisplayPlusMinus(client);
+}
+
+Race_PlayerReachedEnd(client, track)
+{
+    StopTiming(client);
+    
+    decl challenger, challengee;
+    if (g_RaceChallengedBy[client] == 0)
+    {
+        challenger = client;
+        challengee = g_RaceOpponents[client];
+    }
+    else
+    {
+        challenger = g_RaceChallengedBy[client];
+        challengee = client;
+    }
+    
+    EndRace(challenger, challengee);
 }

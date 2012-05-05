@@ -80,6 +80,15 @@ stock Tag_PrintToChat(client, const String:tag[], const String:format[], any:...
     Client_PrintToChat(client, false, "{R}[%s]{N} %s", tag, buffer);
 }
 
+#define Race_PrintToChatAll(%1) Tag_PrintToChatAll("Race", %1)
+stock Tag_PrintToChatAll(const String:tag[], const String:format[], any:...)
+{
+    decl String:buffer[1024];
+    VFormat(STR(buffer), format, 3);
+    
+    Client_PrintToChatAll(false, "{R}[%s]{N} %s", tag, buffer);
+}
+
 stock HideHintText(client)
 {
     new Handle:userMessage = StartMessageOne("HintText", client);

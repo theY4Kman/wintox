@@ -24,6 +24,8 @@ new g_CurrentTick = 0;
 
 // For each player, whether other players should be hidden (not transmitted)
 new bool:g_HideOtherPlayers[MAXPLAYERS] = { false, ... };
+// For each player, whether other players (except the other racer) should be hidden (not transmitted)
+new bool:g_RaceHideOtherPlayers[MAXPLAYERS] = { false, ... };
 // Holds the state of wintox_remove_dropped_weapons, whether to remove dropped weapon entities
 new bool:g_RemoveDroppedWeapons = true;
 // Holds the state of wintox_suppress_hint, whether to actiely suppress hint text
@@ -205,11 +207,21 @@ public OnGameFrame()
                     origin[2] <= (ZONE_POINT_T[track][i][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[i] + ZONE_HEIGHT_FUDGE))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
-                        Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
+                    {
+                        if (!IsInRace(client))
+                            Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
+                        else
+                            Race_PlayerReachedZone(client, track, i);
+                    }
                     
                     // Yeah, you go, player! YOU ROCK!
-                    if (IS_END_ZONE(i) && g_IsTiming[client])
-                        Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
+                    if (IS_END_ZONE(i) && (g_IsTiming[client] || IsRacing(client)))
+                    {
+                        if (!IsInRace(client))
+                            Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
+                        else
+                            Race_PlayerReachedEnd(client, track);
+                    }
                     
                     is_in_zone = true;
                     g_PlayerCurrentZone[client] = i;
@@ -217,8 +229,11 @@ public OnGameFrame()
                 }
                 else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
                 {
-                    StartTimer(client);
-                    g_IsTiming[client] = true;
+                    if (!IsInRace(client))
+                    {
+                        StartTimer(client);
+                        g_IsTiming[client] = true;
+                    }
                 }
             }
         }
@@ -227,81 +242,7 @@ public OnGameFrame()
         if (g_CurrentTick % g_TimerDisplaySkipTicks == 0)
         {
             if (g_TimerEnabled[client])
-            {
-                if (g_PlayerLowGrav[client])
-                    PrintHintText(client, "[Disable low gravity to begin timing]");
-                
-                else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
-                    PrintHintText(client, "[Enter the start zone]");
-                
-                else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
-                    PrintHintText(client, "[Leave the start zone]");
-                
-                else if (TIMER_STARTED(client))
-                {
-                    new Float:relative_from = GetEngineTime();
-                    if (IS_FINISHED(client))
-                        relative_from = g_StartTimes[client][g_EndZone[track]];
-                    else if (IS_PAUSED(client))
-                        relative_from = g_PauseStart[client];
-                    
-                    new Float:time = relative_from - g_StartTimes[client][0];
-                    decl String:sz_time[24];
-                    
-                    decl String:plus_minus[64];
-                    plus_minus[0] = '\0';
-                    if (g_DisplayPlusMinus[client])
-                    {
-                        new Float:zone_time = g_StartTimes[client][g_PlayerCurrentZone[client]] - g_StartTimes[client][g_PlayerCurrentZone[client]-1];
-                        
-                        // TODO: select closest style
-                        if (g_BestZoneRecords[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]] != 0.0)
-                        {
-                            new Float:zone_pm = zone_time - g_BestZoneRecords[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]];
-                            
-                            SecondsToTimeString(zone_pm, STR(sz_time), true);
-                            Format(STR(plus_minus), " (%s)", sz_time);
-                        }
-                        
-                        new Float:wr_pm = zone_time - g_TrackWorldRecord[track][g_PlayerCurrentZone[client]][g_PlayerCurrentStyle[client]];
-                        
-                        SecondsToTimeString(wr_pm, STR(sz_time), true);
-                        Format(STR(plus_minus), "\nTotal (%s)", sz_time);
-                    }
-                    
-                    SecondsToTimeString(time, STR(sz_time));
-                    
-#if defined(WINTOX_BHOP)
-
-                    if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-                        PrintHintText(client, "\
-%s\
-Time: %s\n\
-Style: %s\n\
-Stage %d (%s)%s\n\
-Jumps: %d",
-                        IS_PAUSED(client) ? "[PAUSED]\n" : "", 
-                        sz_time,
-                        STYLE_NAMES_C[g_PlayerCurrentStyle[client]],
-                        g_PlayerCurrentZone[client], g_ZoneNames[g_PlayerCurrentTrack[client]][g_PlayerCurrentZone[client]], plus_minus,
-                        g_Jumps[client]);
-                    else
-                        PrintHintText(client, "\
-Final time: %s\n\
-Style: %s\n\
-Final stage: %s\n\
-Jumps: %d",
-                        sz_time,
-                        STYLE_NAMES_C[g_PlayerCurrentStyle[client]],
-                        g_ZoneNames[track][g_PlayerCurrentZone[client]],
-                        g_Jumps[client]);
-
-#elseif defined(WINTOX_SURF)
-#endif
-
-                }
-            }
-            
+                DisplayTimer(client, is_in_zone);
             // Actively hide the hint text
             else if (g_SuppressHintText)
                 HideHintText(client);
@@ -408,8 +349,19 @@ public Action:ConCommand_Show(client, args)
 
 public Action:Hook_SetTransmit(entity, client) 
 { 
-    if (client != entity && (0 < entity <= MaxClients) && g_HideOtherPlayers[client]) 
-        return Plugin_Handled; 
+    if (client != entity && (0 < entity <= MaxClients))
+    {
+        if (g_RaceHideOtherPlayers[client])
+        {
+            if (entity != g_RaceOpponents[client])
+                return Plugin_Handled;
+            else
+                return Plugin_Continue;
+        }
+        
+        if (g_HideOtherPlayers[client])
+            return Plugin_Handled;
+    }
      
     return Plugin_Continue; 
 }
