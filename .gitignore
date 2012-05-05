@@ -1,2 +1,7 @@
 *.smx
 ~$*.docx
+*.lnk
+build/
+*.nppsession
+*.asm
+*.lst
