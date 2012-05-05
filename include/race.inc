@@ -57,6 +57,8 @@ Race_Init()
     RegisterCommand("sm_race", ConCommand_Race, "sm_race | Challenge another player to a race!");
     RegisterCommand("sm_racehide", ConCommand_RaceHide, "sm_racehide | Hide all other players but the other racer");
     RegisterCommand("sm_raceshow", ConCommand_RaceShow, "sm_raceshow | Show all other players (or hide your race opponent if you've run !hide)");
+    RegisterCommand("sm_rstats", ConCommand_Rstats, "sm_rstats [<partial player name>] | Show the race wins, losses, and ratio for the specified player (or yours if omitted)");
+    RegisterCommand("sm_rtop", ConCommand_Rtop, "sm_rtop [<start #>] | Displays a menu listing the top racers and their stats, optionally starting at <start #>");
     
 #if defined(WINTOX_DEBUG)
     RegisterCommand("sm_forcechallenge", ConCommand_ForceChallenge, "sm_forcechallenge <player 1> <player 2> | Emulates <player 1> running !race and selecting <player 2>", 0, ADMFLAG_GENERIC);
@@ -113,6 +115,129 @@ public Action:ConCommand_Race(client, args)
     NO_FAKECLIENTS()
     
     RaceMenu(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Rstats(client, args)
+{
+    new target = -1;
+    decl String:partial[64];
+    decl String:query[128];
+    
+    if (args == 0)
+        target = client;
+    else
+    {
+        GetCmdArgString(STR(partial));
+        
+        decl String:target_name[MAX_TARGET_LENGTH];
+        decl target_list[1], bool:tn_is_ml;
+
+        if (ProcessTargetString(partial, client, target_list, 1,
+            COMMAND_FILTER_NO_IMMUNITY|COMMAND_FILTER_NO_MULTI,
+            target_name, sizeof(target_name), tn_is_ml) > 0)
+        {
+            target = target_list[0];
+        }
+    }
+    
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, target);
+    WritePackString(pack, partial);
+    ResetPack(pack);
+    
+    if (target == -1 || g_PlayerIDs[target] == -1)
+    {
+        Format(STR(query), SQL_QUERY[GetPartialPlayerRaceRecords], partial, WINTOX_GAMETYPE);
+        SQLT(query, T_Rstats, pack);
+    }
+    else
+    {
+        Format(STR(query), SQL_QUERY[GetPlayerRaceRecords], g_PlayerIDs[target]);
+        SQLT(query, T_Rstats, pack);
+    }
+    
+    return Plugin_Handled;
+}
+
+public T_Rstats(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl String:partial[64];
+    new Handle:pack = Handle:data;
+    
+    new client = ReadPackCell(pack);
+    new target = ReadPackCell(pack);
+    ReadPackString(pack, STR(partial));
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:req_name[64];
+        if (target == -1)
+            strcopy(STR(req_name), partial);
+        else
+        {
+            Color_ChatSetSubject(target);
+            GetClientName(target, STR(req_name));
+        }
+        
+        LogError("Error retrieving race stats for \"%s\", requested by %L: %s", req_name, client, error);
+        Race_Reply(client, "There was a {R}database error{N} requesting race stats for \"%s%s{N}\". Please try again.", (target == -1) ? "{G}" : "{T}", req_name);
+        return;
+    }
+    
+    new rows = SQL_GetRowCount(hndl);
+    if (rows == 0)
+        Race_Reply(client, "No players matched \"%s\"", partial);
+    else if (rows == 1)
+    {
+        decl String:latest_name[64];
+        decl racewins;
+        decl racelosses;
+        
+        SQL_FetchRow(hndl);
+        SQL_FetchString(hndl, 0, STR(latest_name));
+        racewins = SQL_FetchInt(hndl, 1);
+        racelosses = SQL_FetchInt(hndl, 2);
+        
+        Race_Reply(client, "{G}%s{N} - Wins: {G}%d{N}, Losses: {G}%d{N}, Ratio: {G}%.3f{N}", latest_name, racewins, racelosses, float(racewins) / racelosses);
+    }
+    else
+    {
+        new Handle:menu = CreateMenu(MenuHandler_Rstats);
+        SetMenuTitle(menu, "Race stats for players matching \"%s\"", partial);
+        
+        while (SQL_FetchRow(hndl))
+        {
+            decl String:menu_item[96];
+            decl String:latest_name[64];
+            decl racewins;
+            decl racelosses;
+            
+            SQL_FetchString(hndl, 0, STR(latest_name));
+            racewins = SQL_FetchInt(hndl, 1);
+            racelosses = SQL_FetchInt(hndl, 2);
+            
+            Format(STR(menu_item), "%s - W: %d L: %d %.3f", latest_name, racewins, racelosses, float(racewins) / racelosses);
+            AddMenuItem(menu, latest_name, menu_item);
+        }
+        
+        DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+    }
+}
+
+public MenuHandler_Rstats(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
+public Action:ConCommand_Rtop(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    // TODO
     
     return Plugin_Handled;
 }
@@ -451,6 +576,9 @@ EndRace(winner, loser, challenger, challengee)
     Color_ChatSetSubject(winner);
     Race_PrintToChatAll("{T}%N{N} won the race in {G}%s{N} with {G}%d{N} jumps!", winner, sz_win_time, GetJumps(winner));
     
+    win_SQL_IncrementPlayerRaceWins(winner);
+    win_SQL_IncrementPlayerRaceLosses(loser);
+    
     DO_PARTICIPANTS
     {
         g_RaceEndElapsed[client] = win_time;
@@ -462,6 +590,41 @@ EndRace(winner, loser, challenger, challengee)
         ResetTimer(client);
     }
 }
+
+win_SQL_IncrementPlayerRaceWins(client)
+{
+    decl String:query[128];
+    
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("Tried to increment player race wins on invalid client.");
+#endif
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[IncrementPlayerRaceWins], g_PlayerIDs[client]);
+    SQLT(query, T_IncrementPlayerRaceWins, client);
+}
+SQLT_HANDLER(IncrementPlayerRaceWins, "Error incrementing player %L race wins: %s", data)
+
+
+win_SQL_IncrementPlayerRaceLosses(client)
+{
+    decl String:query[128];
+    
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("Tried to increment player race losses on invalid client.");
+#endif
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[IncrementPlayerRaceLosses], g_PlayerIDs[client]);
+    SQLT(query, T_IncrementPlayerRaceLosses, client);
+}
+SQLT_HANDLER(IncrementPlayerRaceLosses, "Error incrementing player %L race losses: %s", data)
 
 // The challengee declined a race challenge
 ChallengeeDeclined(challenger, challengee)

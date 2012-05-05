@@ -22,6 +22,9 @@
  *   steamid            VARCHAR(64)
  *   country            VARCHAR(3)              NOTE: only recorded on first join
  *   gametype           VARCHAR(4)              NOTE: surf or bhop
+ *   grosspoints        INTEGER DEFAULT 0
+ *   racewins           INTEGER DEFAULT 0
+ *   racelosses         INTEGER DEFAULT 0
  *   UNIQUE(steamid, gametype)
  * 
  * TABLE wintox_maps
@@ -116,6 +119,9 @@ NEW_SQL_QUERY(CreatePlayers) = {
        steamid          TEXT NOT NULL, \
        country          TEXT NOT NULL, \
        gametype         TEXT NOT NULL, \
+       grosspoints      INTEGER NOT NULL DEFAULT 0, \
+       racewins         INTEGER NOT NULL DEFAULT 0, \
+       racelosses       INTEGER NOT NULL DEFAULT 0, \
        UNIQUE(steamid, gametype) \
      );",
     
@@ -126,6 +132,9 @@ NEW_SQL_QUERY(CreatePlayers) = {
        steamid          VARCHAR(64) NOT NULL, \
        country          VARCHAR(3) NOT NULL, \
        gametype         VARCHAR(4) NOT NULL, \
+       grosspoints      INTEGER NOT NULL DEFAULT 0, \
+       racewins         INTEGER NOT NULL DEFAULT 0, \
+       racelosses       INTEGER NOT NULL DEFAULT 0, \
        UNIQUE(steamid, gametype) \
     );"
 };
@@ -263,7 +272,7 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayer,5) = {
     SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s' AND gametype = '%s';")
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
-    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")
+    SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,grosspoints,racewins,racelosses FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")
 };
 
 // ===========================================================================
@@ -340,7 +349,23 @@ NEW_SQL_QUERY_PARAMS(GetBestZoneRecords,1) = {
 //   Player points
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpdatePlayerPoints,2) = {
-    SQLITE_MYSQL("")
+    SQLITE_MYSQL("UPDATE wintox_players SET grosspoints = %d WHERE id = %d;")
+};
+
+// ===========================================================================
+//   Player races
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(IncrementPlayerRaceWins,1) = {
+    SQLITE_MYSQL("UPDATE wintox_players SET racewins = racewins + 1 WHERE id = %d;")
+};
+NEW_SQL_QUERY_PARAMS(IncrementPlayerRaceLosses,1) = {
+    SQLITE_MYSQL("UPDATE wintox_players SET racelosses = racelosses + 1 WHERE id = %d;")
+};
+NEW_SQL_QUERY_PARAMS(GetPlayerRaceRecords,1) = {
+    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE id = %d")
+};
+NEW_SQL_QUERY_PARAMS(GetPartialPlayerRaceRecords,2) = {
+    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE latest_name LIKE '%%%s%%' AND gametype = '%s'")
 };
 
 // ===========================================================================
