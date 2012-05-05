@@ -170,6 +170,11 @@ public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_
     CacheBestZoneRecords();
 }
 
+GetJumps(client)
+{
+    return g_Jumps[client];
+}
+
 ZoneTime(client, zone)
 {
     g_StartTimes[client][zone] = GetEngineTime();

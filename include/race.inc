@@ -444,12 +444,22 @@ StartRace(challenger, challengee)
 // End the race gracefully
 EndRace(winner, loser, challenger, challengee)
 {
-    // TODO
+    decl String:sz_win_time[16];
+    new Float:win_time = GetEngineTime() - g_RaceStart[winner];
+    SecondsToTimeString(win_time, STR(sz_win_time));
+    
+    Color_ChatSetSubject(winner);
+    Race_PrintToChatAll("{T}%N{N} won the race in {G}%s{N} with {G}%d{N} jumps!", winner, sz_win_time, GetJumps(winner));
+    
     DO_PARTICIPANTS
     {
-        g_RaceEndElapsed[client] = GetEngineTime() - g_RaceStart[client];
+        g_RaceEndElapsed[client] = win_time;
         g_Racing[client] = false;
         g_RaceWinner[client] = winner;
+        g_RaceOpponents[client] = 0;
+        g_RaceStart[client] = 0.0;
+        
+        ResetTimer(client);
     }
 }
 
