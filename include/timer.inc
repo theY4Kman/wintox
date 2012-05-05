@@ -186,7 +186,7 @@ DisplayTimer(client, is_in_zone)
     new zone = g_PlayerCurrentZone[client];
     new style = g_PlayerCurrentStyle[client];
     
-    if (!IsInRace(client))
+    if (!IsRacing(client))
     {
         if (g_PlayerLowGrav[client])
             PrintHintText(client, "[Disable low gravity to begin timing]");
@@ -293,7 +293,24 @@ Jumps: %d",
         
         SecondsToTimeString(time, STR(sz_time));
         
-        if (g_RaceEndElapsed[client] == 0.0)
+        decl String:winner[64];
+        if (IsRaceEnded(client))
+        {
+            if (g_RaceWinner[client] == client)
+                strcopy(STR(winner), "You");
+            else if (IsClientConnected(client))
+                GetClientName(g_RaceWinner[client], STR(winner));
+            else
+                strcopy(STR(winner), "Your opponent");
+        }
+        
+        if (time < 0.0)
+            PrintHintText(client, "\
+[RACE COUNTDOWN]\n\
+%s%s",
+            sz_time,
+            (time > -1.0) ? "\nSet..." : ((time > -2.0) ? "\nReady..." : ""));
+        else if (g_RaceEndElapsed[client] == 0.0)
             PrintHintText(client, "\
 [RACE]\n\
 Time: %s\n\
@@ -306,14 +323,13 @@ Jumps: %d (opp %d)",
             g_Jumps[client], g_Jumps[opponent]);
         else
             PrintHintText(client, "\
-[RACE ENDED]\n\
-Time: %s\n\
+%s won!\n\
+Final time: %s\n\
 Style: %s (opp %s)\n\
-Stage %d (%s)%s\n\
 Jumps: %d (opp %d)",
+            winner,
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            zone, g_ZoneNames[track][zone], plus_minus,
             g_Jumps[client], g_Jumps[opponent]);
     }
 }

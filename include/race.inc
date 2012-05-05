@@ -31,6 +31,8 @@ new bool:g_Racing[MAXPLAYERS];
 new Float:g_RaceStart[MAXPLAYERS];
 // The total time the race took
 new Float:g_RaceEndElapsed[MAXPLAYERS];
+// The client who won
+new g_RaceWinner[MAXPLAYERS];
 
 new Handle:g_RaceCountdownTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
@@ -56,6 +58,10 @@ Race_Init()
     RegisterCommand("sm_racehide", ConCommand_RaceHide, "sm_racehide | Hide all other players but the other racer");
     RegisterCommand("sm_raceshow", ConCommand_RaceShow, "sm_raceshow | Show all other players (or hide your race opponent if you've run !hide)");
     
+#if defined(WINTOX_DEBUG)
+    RegisterCommand("sm_forcechallenge", ConCommand_ForceChallenge, "sm_forcechallenge <player 1> <player 2> | Emulates <player 1> running !race and selecting <player 2>", 0, ADMFLAG_GENERIC);
+#endif
+    
     new Handle:cvar_race_challenges_amount = CreateConVar("wintox_race_challenges_amount", "1", "The number of people a player can challenge to a race at once.");
     g_RaceChallengesAmount = GetConVarInt(cvar_race_challenges_amount);
     HookConVarChange(cvar_race_challenges_amount, ConVar_RaceChallengesAmount);
@@ -71,7 +77,7 @@ Race_Init()
 
 Race_DeinitPlayer(client)
 {
-    if (IsInRace(client))
+    if (IsRacing(client))
         StopRace(client, g_RaceOpponents[client], "Your opponent left!");
     
     g_RaceOpponents[client] = 0;
@@ -81,8 +87,8 @@ Race_DeinitPlayer(client)
     g_RaceHideOtherPlayers[client] = false;
     
     g_RaceStart[client] = 0.0;
-    g_Racing[client] = 0;
-    g_RaceEndElapsed[client] = 0;
+    g_Racing[client] = false;
+    g_RaceEndElapsed[client] = 0.0;
 }
 
 public ConVar_RaceChallengesAmount(Handle:cvar, const String:oldVal[], const String:newVal[])
@@ -121,6 +127,11 @@ IsRaceStarted(client)
     return g_Racing[client];
 }
 
+IsRaceEnded(client)
+{
+    return g_RaceEndElapsed[client] > 0.0;
+}
+
 RaceShowHideMessage(client)
 {
     if (g_HideOtherPlayers[client])
@@ -152,6 +163,37 @@ public Action:ConCommand_RaceShow(client, args)
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_DEBUG)
+public Action:ConCommand_ForceChallenge(client, args)
+{
+    EXACT_ARGS(2)
+    
+    decl String:player[64];
+    decl player1, player2;
+    
+    GetCmdArg(1, STR(player));
+    player1 = FindTarget(client, player, false, false);
+    if (player1 == -1)
+        return Plugin_Handled;
+    
+    GetCmdArg(2, STR(player));
+    player2 = FindTarget(client, player, false, false);
+    if (player2 == -1)
+        return Plugin_Handled;
+    
+    new Handle:menu = CreateMenu(MenuHandler_RaceMenu);
+    
+    new String:sz_userid[8];
+    IntToString(GetClientUserId(player2), STR(sz_userid));
+    AddMenuItem(menu, sz_userid, "");
+    
+    MenuHandler_RaceMenu(menu, MenuAction_Select, player1, 0);
+    CloseHandle(menu);
+    
+    return Plugin_Handled;
+}
+#endif
 
 
 // Bring up a menu of all players in the server for the challenger to choose
@@ -215,7 +257,7 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
         new userid = StringToInt(info);
         new challengee = GetClientOfUserId(userid);
         
-        if (challengee == 0 || IsInRace(challengee))
+        if (challengee == 0 || IsRacing(challengee))
         {
             if (challengee == 0)
                 Race_Reply(param1, "Unfortunately, that player disappeared and they cannot be challenged. Try someone else.");
@@ -254,6 +296,11 @@ AskRace(challenger, challengee)
     new Handle:menu = CreateMenu(MenuHandler_AskRace);
     SetMenuTitle(menu, "%N has challenged you to a race", challenger);
     
+    // Add a hidden item containing the challenger's userid
+    decl String:sz_userid[8];
+    IntToString(GetClientUserId(challenger), STR(sz_userid));
+    AddMenuItem(menu, sz_userid, "", ITEMDRAW_NOTEXT|ITEMDRAW_DISABLED|ITEMDRAW_IGNORE);
+    
     AddMenuItem(menu, "no", "Decline");
     AddMenuItem(menu, "yes", "Accept");
     
@@ -268,12 +315,21 @@ AskRace(challenger, challengee)
 
 public MenuHandler_AskRace(Handle:menu, MenuAction:action, param1, param2)
 {
+    decl String:sz_challenger_userid[8];
+    GetMenuItem(menu, 0, STR(sz_challenger_userid));
+    new challenger_userid = StringToInt(sz_challenger_userid);
+    new challenger = GetClientOfUserId(challenger_userid);
+    
     if (action == MenuAction_Select)
     {
         decl String:info[16];
         GetMenuItem(menu, param2, STR(info));
         
-        new challenger = g_RaceChallengedBy[param1];
+        if (challenger == 0)
+        {
+            Race_PrintToChat(param1, "Unfortunately, your challenger has left {OG}:(");
+            return;
+        }
         
         new bool:accepted = false;
         if (strncmp("no", info, 2) == 0)
@@ -302,7 +358,6 @@ public MenuHandler_AskRace(Handle:menu, MenuAction:action, param1, param2)
     }
     else if (action == MenuAction_Cancel)
     {
-        new challenger = g_RaceChallengedBy[param1];
         g_RaceOutstandingChallenges[challenger]--;
         
         HANDLE_CANCEL();
@@ -387,10 +442,15 @@ StartRace(challenger, challengee)
 }
 
 // End the race gracefully
-EndRace(challenger, challengee)
+EndRace(winner, loser, challenger, challengee)
 {
     // TODO
-    DO_PARTICIPANTS g_RaceEndElapsed[client] = GetEngineTime() - g_RaceStart[client];
+    DO_PARTICIPANTS
+    {
+        g_RaceEndElapsed[client] = GetEngineTime() - g_RaceStart[client];
+        g_Racing[client] = false;
+        g_RaceWinner[client] = winner;
+    }
 }
 
 // The challengee declined a race challenge
@@ -428,17 +488,17 @@ Race_PlayerReachedEnd(client, track)
 {
     StopTiming(client);
     
-    decl challenger, challengee;
+    decl challenger, challengee, loser;
     if (g_RaceChallengedBy[client] == 0)
     {
         challenger = client;
-        challengee = g_RaceOpponents[client];
+        loser = challengee = g_RaceOpponents[client];
     }
     else
     {
-        challenger = g_RaceChallengedBy[client];
+        loser = challenger = g_RaceChallengedBy[client];
         challengee = client;
     }
     
-    EndRace(challenger, challengee);
+    EndRace(client, loser, challenger, challengee);
 }

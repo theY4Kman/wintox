@@ -208,7 +208,7 @@ public OnGameFrame()
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
-                        if (!IsInRace(client))
+                        if (!IsRacing(client))
                             Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
                         else
                             Race_PlayerReachedZone(client, track, i);
@@ -217,7 +217,7 @@ public OnGameFrame()
                     // Yeah, you go, player! YOU ROCK!
                     if (IS_END_ZONE(i) && (g_IsTiming[client] || IsRacing(client)))
                     {
-                        if (!IsInRace(client))
+                        if (!IsRacing(client))
                             Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
                         else
                             Race_PlayerReachedEnd(client, track);
@@ -229,7 +229,7 @@ public OnGameFrame()
                 }
                 else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
                 {
-                    if (!IsInRace(client))
+                    if (!IsRacing(client))
                     {
                         StartTimer(client);
                         g_IsTiming[client] = true;
