@@ -577,6 +577,9 @@ StopRace(challenger, challengee, const String:reason[]="")
         g_RaceOpponents[client] = 0;
         
         StopTiming(client);
+        
+        if (IsClientConnected(client))
+            Race_PrintToChat(client, "The race has {R}stopped{N}! Reason: {OG}%s", reason);
     }
     
     // TODO: print message
@@ -678,6 +681,9 @@ ChallengeeAccepted(challenger, challengee)
 
 Race_PlayerReachedZone(client, track, zone)
 {
+// I hate warnings
+#pragma unused track
+
     ZoneTime(client, zone);
     g_PlayerCurrentPath[client]++;
     
@@ -686,6 +692,9 @@ Race_PlayerReachedZone(client, track, zone)
 
 Race_PlayerReachedEnd(client, track)
 {
+// I hate warnings
+#pragma unused track
+
     StopTiming(client);
     
     decl challenger, challengee, loser;

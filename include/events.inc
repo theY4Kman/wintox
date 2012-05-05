@@ -125,6 +125,9 @@ public OnClientDisconnect(client)
 
 public OnClientDisconnected(client)
 {
+    if (IsRacing(client))
+        StopRace(g_RaceOpponents[client], client, "Your opponent has left the server!");
+    
     ResetPlayerVariables(client);
 }
 
