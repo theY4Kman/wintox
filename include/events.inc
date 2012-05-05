@@ -183,14 +183,30 @@ public Action:Event_PlayerSpawn(Handle:event, String:name[], bool:dontBroadcast)
 public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
 {
     new userid = GetEventInt(event, "userid");
+    new attacker = GetEventInt(event, "attacker");
     new client = GetClientOfUserId(userid);
     g_IsTiming[client] = false;
     
     // Reset the player's timer to prevent map exploits, as per request of cLutch
     ResetTimer(client);
     
+    if (attacker == userid || attacker == 0)
+    {
+        decl Handle:pack;
+        CreateDataTimer(0.1, Timer_Callback_DeathFragRollback, pack);
+        WritePackCell(pack, client);
+        WritePackCell(pack, GetClientTeam(client));
+        ResetPack(pack);
+    }
+}
+
+public Action:Timer_Callback_DeathFragRollback(Handle:timer, Handle:pack)
+{
+    new client = ReadPackCell(pack);
+    new old_team = ReadPackCell(pack);
+    
     // This is to counteract losing a point when you kill yourself
-    if (GetEventInt(event, "attacker") == userid)
+    if (old_team == GetClientTeam(client))
         Client_SetScore(client, Client_GetScore(client) + 1);
 }
 
