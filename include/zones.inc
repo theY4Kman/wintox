@@ -931,6 +931,14 @@ WipeTrackPath(track)
         g_TrackPaths[track][zone] = 0;
 }
 
+CountTracks()
+{
+    g_TracksCount = 0;
+    for (new track=0; track<MAX_TRACKS; track++)
+        if (g_ZonesCount[track] > 0)
+            g_TracksCount++;
+}
+
 CountZones(track)
 {
     new zones_count = 0;
@@ -943,7 +951,7 @@ CountZones(track)
     return zones_count;
 }
 
-CountZonePoints(zone_id, track=MAIN_TRACK)
+CountZonePoints(zone_id, track)
 {
     ZONE_POINTS_T[track][zone_id] = 0;
     
@@ -1159,6 +1167,7 @@ Zone_FinishZone(client)
     CountZonePoints(zone_id, track);
     FindEndZone(track);
     FindTrackPath(track);
+    CountTracks();
     
     SetZoneMenuTitle();
     BuildTrackMenu();
@@ -1179,6 +1188,7 @@ Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
     
     FindEndZone(track);
     FindTrackPath(track);
+    CountTracks();
     BuildTrackMenu();
     
     win_SQL_DeleteZone(zone_id, track);
@@ -1196,6 +1206,7 @@ Zone_ClearTrack(client, track)
     
     FindEndZone(track);
     WipeTrackPath(track);
+    CountTracks();
     BuildTrackMenu();
     
     win_SQL_ClearTrackZonePoints(track);
@@ -1627,6 +1638,7 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
     }
     
     // Don't trust the database. It's not _one of us_
+    g_TracksCount = 0;
     for (new track=0; track<MAX_TRACKS; track++)
     {
         for (new i=0; i<MAX_ZONES; i++)
@@ -1636,7 +1648,10 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         FindEndZone(track);
         
         if (g_ZonesCount[track])
+        {
             FindTrackPath(track);
+            g_TracksCount++;
+        }
     }
     
     g_ZoneCacheInProgress = false;
