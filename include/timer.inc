@@ -406,6 +406,12 @@ public Action:Timer_Callback_DisableDisplayPlusMinus(Handle:timer, any:data)
 
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
 {
+    if (track == MAIN_TRACK && g_ZoneRecords[client][track][zone_id][style] == INVALID_ZONE_RECORD)
+    {
+        g_PlayerPoints[client] += g_CurMapTier;
+        win_SQL_UpdatePlayerPoints(client);
+    }
+    
     if (g_ZoneRecords[client][track][zone_id][style] == INVALID_ZONE_RECORD ||
         elapsed < g_ZoneRecords[client][track][zone_id][style])
     {
@@ -419,6 +425,16 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     Client_SetScore(client, Client_GetScore(client) + 1);
     
     new Float:record = g_TrackRecords[client][track][style];
+    
+    // Gross points awww yeah
+    if (track == MAIN_TRACK && record == INVALID_TRACK_RECORD)
+    {
+        if (g_ZonesCount[track] < 10)
+            g_PlayerPoints[client] += (10 - g_ZonesCount[track]) * g_CurMapTier;
+        else
+            g_PlayerPoints[client] += 5;
+    }
+    
     if (total_time < record || record == INVALID_TRACK_RECORD)
     {
         win_SQL_UpsertTrackRecord(client, track, style, total_time);
