@@ -77,6 +77,7 @@ new g_CurMapTier = 1;
 #define FLAG_COLOR_START { 0, 255, 50, 240 }
 #define FLAG_COLOR_END { 255, 100, 0, 240 }
 #define FLAG_COLOR_ZONE { 255, 255, 255, 200 }
+#define FLAG_COLOR_BONUS_START { 245, 0, 150, 180 }
 #define FLAG_COLOR(%1) ((%1) == 0 ? FLAG_COLOR_START : (IS_END_ZONE(%1) ? FLAG_COLOR_END : FLAG_COLOR_ZONE))
 
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
@@ -1441,6 +1442,10 @@ public Action:Timer_DrawZones(Handle:timer)
             // Draw end flag
             if (g_EndZone[cur_track] != 0)
                 DrawFlag(g_EndZone[cur_track], client, FLAG_COLOR_END, cur_track);
+            
+            for (new track=1; track<MAX_TRACKS; track++)
+                if (g_ZonesCount[track] > 0 && cur_track != track)
+                    DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
         }
         
         if (g_DrawZones || g_DrawFlags)
