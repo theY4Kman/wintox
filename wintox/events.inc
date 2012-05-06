@@ -21,10 +21,10 @@ new Handle:g_fwdPlayerReachedEnd = INVALID_HANDLE;
 new Handle:g_fwdPlayerReachedZone = INVALID_HANDLE;
 new Handle:g_fwdTextEntryComplete = INVALID_HANDLE;
 
-#include "./include/sql"
-#include "./include/stocks"
-#include "./include/zones"
-#include "./include/timer"
+#include "./wintox/sql"
+#include "./wintox/stocks"
+#include "./wintox/zones"
+#include "./wintox/timer"
 
 Events_Init()
 {

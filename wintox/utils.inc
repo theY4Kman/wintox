@@ -13,8 +13,8 @@ new bool:g_ClientTextEntry[MAXPLAYERS] = { false, ... };
 new any:g_ClientTextEntryData[MAXPLAYERS] = { INVALID_HANDLE, ... };
 new bool:g_ClientTextEntryRegurgitate[MAXPLAYERS] = { true, ... };
 
-#include "./include/stocks"
-#include "./include/events"
+#include "./wintox/stocks"
+#include "./wintox/events"
 
 
 Utils_Init()

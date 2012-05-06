@@ -20,7 +20,7 @@ IF /i "%2"=="-debug" SET /A debug=1
 IF %debug%==1 SET "debug_define=WINTOX_DEBUG=1"
 
 REM Grab the current build number
-SET build_file=include\version_build.inc
+SET build_file=wintox\version_build.inc
 FOR /f "skip=2 tokens=3,4 delims= " %%d IN (%build_file%) DO (
     SET /A b=%%e
     SET v=%%d
@@ -41,7 +41,9 @@ echo ######## Successfully built %gametype%
 
 copy /Y wintox_%gametype%.smx ..\..\plugins > NUL
 copy /Y wintox_%gametype%.smx build\addons\sourcemod\plugins > NUL
-copy /Y wintox_%gametype%.sp +include build\addons\sourcemod\scripting > NUL
+copy /Y wintox_%gametype%.sp build\addons\sourcemod\scripting\wintox > NUL
+copy /Y wintox build\addons\sourcemod\scripting\wintox\wintox > NUL
+copy /Y include build\addons\sourcemod\scripting\ > NUL
 
 REM Open version_build.inc, increment the build number, rewrite version_build.inc
 echo ######## Incrementing next build number...

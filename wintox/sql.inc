@@ -9,7 +9,7 @@
 #endif
 #define _wintox_sql_included
 
-#include "./include/stocks"
+#include "./wintox/stocks"
 
 /**
  *  Database structure

@@ -9,8 +9,8 @@
 #endif
 #define _wintox_teleport_included
 
-#include "./include/stocks"
-#include "./include/commands"
+#include "./wintox/stocks"
+#include "./wintox/commands"
 
 #define INVALID_TELEPORT -1
 #define MAX_TELEPORT_SAVES 3

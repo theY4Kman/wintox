@@ -49,17 +49,17 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #include <sdkhooks>
 
 #if defined(WINTOX_BHOP)
-#include "./include/teleport"
+#include "./wintox/teleport"
 #endif
 
-#include "./include/game"
-#include "./include/commands"
-#include "./include/sql"
-#include "./include/utils"
-#include "./include/events"
-#include "./include/menus"
-#include "./include/zones"
-#include "./include/race"
+#include "./wintox/game"
+#include "./wintox/commands"
+#include "./wintox/sql"
+#include "./wintox/utils"
+#include "./wintox/events"
+#include "./wintox/menus"
+#include "./wintox/zones"
+#include "./wintox/race"
 
 Wintox_Init()
 {

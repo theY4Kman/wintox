@@ -9,10 +9,10 @@
 #endif
 #define _wintox_timer_included
 
-#include "./include/zones"
-#include "./include/menus"
-#include "./include/sql"
-#include "./include/race"
+#include "./wintox/zones"
+#include "./wintox/menus"
+#include "./wintox/sql"
+#include "./wintox/race"
 
 #define INVALID_ZONE_RECORD -1.0
 #define INVALID_TRACK_RECORD -1.0

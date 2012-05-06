@@ -11,11 +11,11 @@
 
 #include <sdktools>
 
-#include "./include/commands"
-#include "./include/sql"
-#include "./include/stocks"
-#include "./include/events"
-#include "./include/utils"
+#include "./wintox/commands"
+#include "./wintox/sql"
+#include "./wintox/stocks"
+#include "./wintox/events"
+#include "./wintox/utils"
 
 #define ZONE_NEXT_NEW_ZONE -2
 #define INVALID_ZONE -1

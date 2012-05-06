@@ -37,10 +37,10 @@ new g_RaceWinner[MAXPLAYERS];
 new Handle:g_RaceCountdownTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 
-#include "./include/menus"
-#include "./include/game"
-#include "./include/commands"
-#include "./include/stocks"
+#include "./wintox/menus"
+#include "./wintox/game"
+#include "./wintox/commands"
+#include "./wintox/stocks"
 
 
 new String:g_RaceTauntsDecline[][] = {

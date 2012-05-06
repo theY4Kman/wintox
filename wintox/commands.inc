@@ -10,9 +10,9 @@
 #define _wintox_commands_included
 
 #include <sourcemod>
-#include "./include/stocks"
-#include "./include/version_build"
-#include "./include/menus"
+#include "./wintox/stocks"
+#include "./wintox/version_build"
+#include "./wintox/menus"
 
 #define RESET_REPLY() //SetCmdReplySource(SM_REPLY_TO_CONSOLE);
 
