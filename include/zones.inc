@@ -153,10 +153,12 @@ new g_TrackMenuSelected[MAXPLAYERS] = { INVALID_TRACK, ... };
 // when the zone title changes)
 new Handle:g_ClientEditZoneMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
-// Stores the state of the cvar wintox_drawzones
+// Stores the state of the cvar wintox_draw_zones, whether to draw zones
 new bool:g_DrawZones = false;
-// Stores the state of the cvar wintox_drawflags
+// Stores the state of the cvar wintox_draw_flags, whether to draw flags
 new bool:g_DrawFlags = true;
+// Stores the state of wintox_draw_bonus_flags, whether to draw bonus flags
+new bool:g_DrawBonusFlags = true;
 
 // Stores the amount of rotation for each flag
 new Float:g_FlagRotation[MAX_TRACKS][MAX_ZONES];
@@ -213,6 +215,10 @@ Zones_Init()
     new Handle:draw_flags = CreateConVar("wintox_draw_flags", "0", "Whether or not to draw all flags (they will be drawn while editing zones, regardless)");
     g_DrawFlags = GetConVarBool(draw_flags);
     HookConVarChange(draw_flags, ConVar_DrawFlags);
+    
+    new Handle:draw_bonus_flags = CreateConVar("wintox_draw_bonus_flags", "1", "Whether or not to draw the start zone flags of bonus tracks");
+    g_DrawBonusFlags = GetConVarBool(draw_bonus_flags);
+    HookConVarChange(draw_bonus_flags, ConVar_DrawBonusFlags);
     
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
@@ -282,11 +288,17 @@ public ConVar_DrawFlags(Handle:cvar, const String:oldVal[], const String:newVal[
     g_DrawFlags = GetConVarBool(cvar);
 }
 
+public ConVar_DrawBonusFlags(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DrawBonusFlags = GetConVarBool(cvar);
+}
+
 public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
 {
     CacheZones(0);
 }
 
+// TODO: refactor TextEntry to accept a Function argument
 public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
 {
     if (data == TEXT_ENTRY_ZONE_NAME)
@@ -1443,9 +1455,10 @@ public Action:Timer_DrawZones(Handle:timer)
             if (g_EndZone[cur_track] != 0)
                 DrawFlag(g_EndZone[cur_track], client, FLAG_COLOR_END, cur_track);
             
-            for (new track=1; track<MAX_TRACKS; track++)
-                if (g_ZonesCount[track] > 0 && cur_track != track)
-                    DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
+            if (g_DrawBonusFlags)
+                for (new track=1; track<MAX_TRACKS; track++)
+                    if (g_ZonesCount[track] > 0 && cur_track != track)
+                        DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
         }
         
         if (g_DrawZones || g_DrawFlags)
