@@ -37,6 +37,15 @@
  *   gametype           VARCHAR(4)              NOTE: surf or bhop
  *   UNIQUE(bsp_name, gametype)
  * 
+ * TABLE wintox_tracks
+ *   id                 pk
+ *   fk_map             INT,FK(wintox_maps)
+ *   track              INTEGER
+ *   tier               TINYINT,DEFAULT 1       NOTE: ranges from 1-6
+ *   name               VARCHAR(64),DEFAULT ''
+ *   zones              INTEGER DEFAULT 0       NOTE: number of zones in track
+ *   UNIQUE(fk_map, track)
+ * 
  * TABLE wintox_zones
  *   id                 pk
  *   fk_map             INT,FK(wintox_maps)
@@ -180,6 +189,29 @@ NEW_SQL_QUERY(CreateMaps) = {
        UNIQUE(bsp_name, gametype) \
      );"
 };
+NEW_SQL_QUERY(CreateTracks) = {
+    "CREATE TABLE IF NOT EXISTS wintox_tracks ( \
+       id               INTEGER PRIMARY KEY ASC NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       track            INTEGER NOT NULL, \
+       tier             INTEGER NOT NULL DEFAULT 1, \
+       name             TEXT NOT NULL DEFAULT '', \
+       zones            INTEGER NOT NULL DEFAULT 0, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
+       UNIQUE(fk_map, track) \
+    );",
+   
+    "CREATE TABLE IF NOT EXISTS wintox_tracks ( \
+       id               INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+       fk_map           INTEGER NOT NULL, \
+       track            INTEGER NOT NULL, \
+       tier             INTEGER NOT NULL DEFAULT 1, \
+       name             VARCHAR(64) NOT NULL DEFAULT '', \
+       zones            INTEGER NOT NULL DEFAULT 0, \
+       FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+       UNIQUE(fk_map, track) \
+    );"
+};
 NEW_SQL_QUERY(CreateZones) = {
     "CREATE TABLE IF NOT EXISTS wintox_zones ( \
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
@@ -302,6 +334,15 @@ NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
 NEW_SQL_QUERY_PARAMS(UpdatePlayerTimestamp,1) = {
     "UPDATE wintox_players SET last_join=strftime('%%s', 'now') WHERE id = %d;",
     "UPDATE wintox_players SET last_join=UNIX_TIMESTAMP(NOW()) WHERE id = %d;"
+};
+
+// ===========================================================================
+//   Tracks
+// ===========================================================================
+NEW_SQL_QUERY_PARAMS(UpsertTrack,5) = {
+    "INSERT OR REPLACE INTO wintox_tracks (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d);",
+    "INSERT INTO wintox_zones (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d) \
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), tier = VALUES(tier), name = VALUES(name), zones = VALUE(zones);"
 };
 
 // ===========================================================================
@@ -458,6 +499,7 @@ win_SQL_CreateTables()
     
     CREATE_TABLE(CreatePlayers, "wintox_players")
     CREATE_TABLE(CreateMaps, "wintox_maps")
+    CREATE_TABLE(CreateTracks, "wintox_tracks")
     CREATE_TABLE(CreateZones, "wintox_zones")
     CREATE_TABLE(CreateZonePoints, "wintox_zone_points")
     CREATE_TABLE(CreateZoneRecords, "wintox_zone_records")
