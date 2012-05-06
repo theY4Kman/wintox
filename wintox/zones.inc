@@ -58,7 +58,7 @@ new g_CurMapTier = 1;
 #define ZONE_EMPTY(%1) (ZONE_POINTS[%1] == 0 || ZONE_POINT_EMPTY(%1,ZONE_FIRST_POINT))
 
 // Ugh. I should've planned ahead of time for tracks
-#define ZONE_POINT_T[%1][%2][%3] (g_ZonesCache[(%1)][(%2)][(%3)])
+#define ZONE_POINT_T[%1][%2][%3] g_ZonesCache[(%1)][(%2)][(%3)]
 #define ZONE_POINTS_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][0])
 #define ZONE_HEIGHT_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][1])
 #define ZONE_EDITING_T[%1][%2] (bool:g_ZonesCache[(%1)][(%2)][0][2])
@@ -244,9 +244,10 @@ Zone_DeinitPlayer(client)
     g_TrackMenuSelected[client] = INVALID_TRACK;
     
     new editing = g_ClientEditZone[client];
+    new editing_track = g_ClientEditTrack[client];
     if (editing != INVALID_ZONE)
     {
-        ZONE_EDITING[editing] = false;
+        ZONE_EDITING_T[editing_track][editing] = false;
         g_ClientEditZone[client] = INVALID_ZONE;
         g_ClientEditTrack[client] = INVALID_TRACK;
     }
@@ -262,7 +263,7 @@ bool:PointInZone(const Float:point[3], track, zone)
     {
         if ((ZONE_POINT_T[track][zone][h][1] < point[1] && ZONE_POINT_T[track][zone][j][1] >= point[1]) ||
             (ZONE_POINT_T[track][zone][j][1] < point[1] && ZONE_POINT_T[track][zone][h][1] >= point[1]))
-            if (ZONE_POINT_T[track][zone][h][0] + (point[1] - ZONE_POINT_T[track][zone][h][1]) / (ZONE_POINT[zone][j][1] -
+            if (ZONE_POINT_T[track][zone][h][0] + (point[1] - ZONE_POINT_T[track][zone][h][1]) / (ZONE_POINT_T[track][zone][j][1] -
                 ZONE_POINT_T[track][zone][h][1]) * (ZONE_POINT_T[track][zone][j][0] - ZONE_POINT_T[track][zone][h][0]) < point[0])
                 odd_nodes = !odd_nodes;
         
@@ -272,7 +273,7 @@ bool:PointInZone(const Float:point[3], track, zone)
     // In zone AND in zone height
     if (odd_nodes &&
         point[2] >= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
-        point[2] <= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] + ZONE_HEIGHT[zone] + ZONE_HEIGHT_FUDGE))
+        point[2] <= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] + ZONE_HEIGHT_T[track][zone] + ZONE_HEIGHT_FUDGE))
         return true;
     
     return false;
@@ -640,7 +641,7 @@ SetZoneMenuTitle()
 public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
 {
     // Force output to chat
-    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    ENTER_REPLY(SM_REPLY_TO_CHAT);
     
     if (action == MenuAction_Select)
     {
@@ -682,6 +683,8 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
     }
     else if (action == MenuAction_Cancel)
         PrevSubmenu(param1);
+    
+    EXIT_REPLY();
 }
 
 public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
@@ -721,9 +724,10 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
         }
         else if (g_TrackMenuNext[param1] == TRACK_MENU_NEXT_REMOVE)
         {
-            if (g_ZonesCount[g_TrackMenuSelected[param1]] == 0)
+            new track = g_ZonesCount[g_TrackMenuSelected[param1]];
+            if (track == 0)
             {
-                PrintToChat(param1, "There are no zones to delete!");
+                PrintToChat(param1, "There are no zones in track %d to delete!", track);
                 DisplayMenu(menu, param1, MENU_TIME_FOREVER);
                 return;
             }
@@ -738,10 +742,10 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
             {
                 decl String:buffer[32];
                 
-                if (ZONE_POINTS[i] == 0)
+                if (ZONE_POINTS_T[g_ZonesCount[track]][i] == 0)
                     continue;
                 
-                Format(STR(buffer), "%d (%s)", i, g_ZoneNames[g_TrackMenuSelected[param1]][i]);
+                Format(STR(buffer), "%d (%s)", i, g_ZoneNames[track][i]);
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
@@ -756,7 +760,7 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
 public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
 {
     // Force output to chat
-    SetCmdReplySource(SM_REPLY_TO_CHAT);
+    ENTER_REPLY(SM_REPLY_TO_CHAT);
     
     if (action == MenuAction_Select)
     {
@@ -782,6 +786,8 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         
         HANDLE_CANCEL();
     }
+    
+    EXIT_REPLY();
 }
 
 public MenuHandler_RemoveZoneIndex(Handle:menu, MenuAction:action, param1, param2)
@@ -899,7 +905,7 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
 // For debugging zones
 stock PrintZone(zone_id, track=MAIN_TRACK)
 {
-    LogMessage("ZONE %d, %sEMPTY", zone_id, ZONE_EMPTY(zone_id) ? "" : "NOT ");
+    LogMessage("ZONE %d, %sEMPTY", zone_id, ZONE_EMPTY_T(track,zone_id) ? "" : "NOT ");
     
     for (new i=0; i<POINTS_LENGTH; i++)
     {
