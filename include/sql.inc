@@ -19,6 +19,7 @@
  *   id                 pk
  *   latest_name        VARCHAR(64)
  *   latest_ip          VARCHAR(48)
+ *   last_join          INTEGER                 NOTE: timestamp
  *   steamid            VARCHAR(64)
  *   country            VARCHAR(3)              NOTE: only recorded on first join
  *   gametype           VARCHAR(4)              NOTE: surf or bhop
@@ -134,6 +135,7 @@ NEW_SQL_QUERY(CreatePlayers) = {
        id               INTEGER PRIMARY KEY ASC NOT NULL, \
        latest_name      TEXT NOT NULL, \
        latest_ip        TEXT NOT NULL, \
+       last_join        INTEGER NOT NULL, \
        steamid          TEXT NOT NULL, \
        country          TEXT NOT NULL, \
        gametype         TEXT NOT NULL, \
@@ -148,6 +150,7 @@ NEW_SQL_QUERY(CreatePlayers) = {
        latest_name      VARCHAR(64) NOT NULL, \
        latest_ip        VARCHAR(48) NOT NULL, \
        steamid          VARCHAR(64) NOT NULL, \
+       last_join        INTEGER NOT NULL, \
        country          VARCHAR(3) NOT NULL, \
        gametype         VARCHAR(4) NOT NULL, \
        grosspoints      INTEGER NOT NULL DEFAULT 0, \
@@ -257,7 +260,8 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         fk_map          INTEGER NOT NULL, \
         track           INTEGER NOT NULL, \
         type            TEXT NOT NULL DEFAULT '', \
-        time            FLOAT NOT NULL \
+        time            FLOAT NOT NULL, \
+        UNIQUE(fk_player, fk_map, track, type) \
     );",
     
     "CREATE TABLE IF NOT EXISTS wintox_track_records ( \
@@ -266,7 +270,8 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         fk_map          INTEGER NOT NULL, \
         track           INTEGER NOT NULL, \
         type            VARCHAR(16) NOT NULL DEFAULT '', \
-        time            FLOAT \
+        time            FLOAT, \
+        UNIQUE(fk_player, fk_map, track, type) \
     );"
 };
 
@@ -284,10 +289,12 @@ NEW_SQL_QUERY_PARAMS(GetMap,2) = {
 //   Player records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertPlayer,5) = {
-    SQLITE_MYSQL("INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype) VALUES('%s','%s','%s','%s','%s');")
+    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) VALUES('%s','%s','%s','%s','%s',strftime('%%s', 'now'));",
+    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) VALUES('%s','%s','%s','%s','%s',UNIX_TIMESTAMP(NOW()));"
 };
 NEW_SQL_QUERY_PARAMS(UpdatePlayer,5) = {
-    SQLITE_MYSQL("UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s' WHERE steamid = '%s' AND gametype = '%s';")
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=strftime('%%s', 'now') WHERE steamid = '%s' AND gametype = '%s';",
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=UNIX_TIMESTAMP(NOW()) WHERE steamid = '%s' AND gametype = '%s';"
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
     SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,grosspoints,racewins,racelosses FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")

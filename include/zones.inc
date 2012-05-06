@@ -177,7 +177,6 @@ new g_TotalZonesSynced = 0;
 // These may be needed later (heh), and I hate warnings //
 //////////////////////////////////////////////////////////
 #pragma unused g_CurMapStaged
-#pragma unused g_CurMapTier
 
 Zones_Init()
 {
