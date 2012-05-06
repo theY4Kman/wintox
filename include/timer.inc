@@ -236,33 +236,40 @@ DisplayTimer(client, is_in_zone)
             
             SecondsToTimeString(time, STR(sz_time));
             
-    #if defined(WINTOX_BHOP)
+#if defined(WINTOX_BHOP)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
+            {
+                decl String:stagename[72];
+                stagename[0] = '\0';
+                if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
+                    Format(STR(stagename), " (%s)", g_ZoneNames[track][zone]);
+                
                 PrintHintText(client, "\
 %s\
 Time: %s\n\
 Style: %s\n\
-Stage %d (%s)%s\n\
+Stage %d%s%s\n\
 Jumps: %d",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
-                zone, g_ZoneNames[track][zone], plus_minus,
+                zone, stagename, plus_minus,
                 g_Jumps[client]);
+            }
             else
                 PrintHintText(client, "\
 Final time: %s\n\
-Style: %s\n\
-Final stage: %s\n\
+Style: %s\
+%s%s\n\
 Jumps: %d",
                 sz_time,
                 STYLE_NAMES_C[style],
-                g_ZoneNames[track][zone],
+                IS_STR_EMPTY(g_ZoneNames[track][zone]) ? "" : "\nFinal stage: ", g_ZoneNames[track][zone],
                 g_Jumps[client]);
 
-    #elseif defined(WINTOX_SURF)
-    #endif
+#elseif defined(WINTOX_SURF)
+#endif
 
         }
     }
@@ -316,16 +323,23 @@ Jumps: %d",
             sz_time,
             (time > -1.0) ? "\nSet..." : ((time > -2.0) ? "\nReady..." : ""));
         else if (g_RaceEndElapsed[client] == 0.0)
+        {
+            decl String:stagename[72];
+            stagename[0] = '\0';
+            if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
+                Format(STR(stagename), " (%s)", g_ZoneNames[track][zone]);
+            
             PrintHintText(client, "\
 [RACE]\n\
 Time: %s\n\
 Style: %s (opp %s)\n\
-Stage %d (%s)%s\n\
+Stage %d%s%s\n\
 Jumps: %d (opp %d)",
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            zone, g_ZoneNames[track][zone], plus_minus,
+            zone, stagename, plus_minus,
             g_Jumps[client], g_Jumps[opponent]);
+        }
         else
             PrintHintText(client, "\
 %s won!\n\

@@ -170,6 +170,7 @@ public T_Rstats(Handle:owner, Handle:hndl, const String:error[], any:data)
     new client = ReadPackCell(pack);
     new target = ReadPackCell(pack);
     ReadPackString(pack, STR(partial));
+    CloseHandle(pack);
     
     if (hndl == INVALID_HANDLE)
     {
@@ -248,9 +249,12 @@ public Action:ConCommand_Rtop(client, args)
             ReplyWithDescription(client);
             return Plugin_Handled;
         }
+        
+        // Correct index to 0-based
+        start -= 1;
     }
     
-    ShowRtop(client, start);
+    ShowRtop(client, MAX(start, 0));
     
     return Plugin_Handled;
 }
@@ -267,6 +271,68 @@ ShowRtop(client, start=0)
 
 public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
+    new Handle:pack = Handle:data;
+    new client = ReadPackCell(pack);
+    new start = ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving race top records (for %L, starting at %d): %s", client, start);
+        Race_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
+        return;
+    }
+    
+    if (client == 0 || !IsClientInGame(client))
+        return;
+    
+    new rows = SQL_GetRowCount(hndl);
+    if (rows == 0)
+    {
+        Race_Reply(client, "There are no race records! {G}Go make some{N}!");
+        return;
+    }
+    
+    new Handle:menu = CreateMenuEx(GetMenuStyleHandle(MenuStyle_Radio), MenuHandler_Rtop);
+    SetMenuTitle(menu, "");
+    
+    decl String:records[512];
+    Format(STR(records), "Top racers %d to %d\n", start+1, start+rows);
+    
+    new i = 0;
+    while (SQL_FetchRow(hndl))
+    {
+        decl String:latest_name[64];
+        decl racewins;
+        decl racelosses;
+        
+        SQL_FetchString(hndl, 0, STR(latest_name));
+        racewins = SQL_FetchInt(hndl, 1);
+        racelosses = SQL_FetchInt(hndl, 2);
+        
+        Format(STR(records), "%s%s%d. %s - W: %d L: %d %.3f", records, i == 0 ? "" : "\n", start + i + 1, latest_name, racewins, racelosses, float(racewins) / MAX(racelosses, 0));
+        
+        i++;
+    }
+    
+    AddMenuItem(menu, records, records, ITEMDRAW_CONTROL);
+    DisplayMenuAtItem(menu, client, start, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Rtop(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl start;
+        decl String:info[16];
+        GetMenuItem(menu, param2, STR(info));
+        
+        if (StringToIntEx(info, start) > 0)
+        {
+        }
+    }
+    else if (action == MenuAction_End)
+        CloseHandle(menu);
 }
 
 IsRacing(client)
