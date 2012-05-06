@@ -121,13 +121,11 @@ public OnClientDisconnect(client)
 {
     g_IsTiming[client] = false;
     g_HideOtherPlayers[client] = false;
-}
-
-public OnClientDisconnected(client)
-{
+    
     if (IsRacing(client))
         StopRace(g_RaceOpponents[client], client, "Your opponent has left the server!");
     
+    win_SQL_UpdatePlayerTimestamp(client);
     ResetPlayerVariables(client);
 }
 
@@ -212,6 +210,20 @@ public Action:Timer_Callback_DeathFragRollback(Handle:timer, Handle:pack)
     if (old_team == GetClientTeam(client))
         Client_SetScore(client, Client_GetScore(client) + 1);
 }
+
+win_SQL_UpdatePlayerTimestamp(client)
+{
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("Tried to update `last_join` for invalid player %L", client);
+#endif
+        return;
+    }
+    
+    SQLTH(UpdatePlayerTimestamp, g_PlayerIDs[client], g_PlayerIDs[client]);
+}
+SQLT_HANDLER(UpdatePlayerTimestamp, "Error updating `last_join` for player ID %d: %s", data)
 
 // Tries to retrieve the current map info 
 GetOrInsertMap(const String:mapname[], bool:curmap=true)
@@ -364,6 +376,8 @@ public T_GetPlayer(Handle:owner, Handle:hndl, const String:error[], any:data)
             
             SQLTH_D(UpdatePlayer, client, db_latest_name, latest_ip, country, steamid, WINTOX_GAMETYPE);
         }
+        else
+            win_SQL_UpdatePlayerTimestamp(client);
         
         CacheZoneRecords(client);
     }

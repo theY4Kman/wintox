@@ -299,6 +299,10 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayer,5) = {
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
     SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,grosspoints,racewins,racelosses FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")
 };
+NEW_SQL_QUERY_PARAMS(UpdatePlayerTimestamp,1) = {
+    "UPDATE wintox_players SET last_join=strftime('%%s', 'now') WHERE id = %d;",
+    "UPDATE wintox_players SET last_join=UNIX_TIMESTAMP(NOW()) WHERE id = %d;"
+};
 
 // ===========================================================================
 //   Zones and zone points
