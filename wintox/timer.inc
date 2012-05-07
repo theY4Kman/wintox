@@ -448,21 +448,33 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         
 #if defined(WINTOX_BHOP)
         Color_ChatSetSubject(client);
-        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES[style], client, sz_time, g_Jumps[client]);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client]);
 #endif
     }
-    else if (record == INVALID_TRACK_RECORD)
+    else
     {
-        new earned = 5 * g_TrackTier[track];
-        g_PlayerPoints[client] += earned;
-        
         decl String:bonus_name[96];
         bonus_name[0] = '\0';
         if (!IS_STR_EMPTY(g_TrackNames[track]))
             Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
-        Timer_PrintToChat(client, "You have earned {G}%d{N} points for completing bonus {G}%d{N}%s!", track, bonus_name);
         
-        win_SQL_UpdatePlayerPoints(client);
+        if (record == INVALID_TRACK_RECORD)
+        {
+            new earned = 5 * g_TrackTier[track];
+            g_PlayerPoints[client] += earned;
+            
+            Timer_PrintToChat(client, "You have earned {G}%d{N} points for completing bonus {G}%d{N}%s!", earned, track, bonus_name);
+            
+            win_SQL_UpdatePlayerPoints(client);
+        }
+        
+        decl String:sz_time[32];
+        SecondsToTimeString(total_time, STR(sz_time));
+        
+#if defined(WINTOX_BHOP)
+        Color_ChatSetSubject(client);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished bonus %d%s in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, track, bonus_name, sz_time, g_Jumps[client]);
+#endif
     }
     
     if (total_time < record || record == INVALID_TRACK_RECORD)
@@ -935,5 +947,5 @@ SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
     if (hours != 0)
         Format(STR(sz_hours), "%02d:", hours);
     
-    Format(buffer, maxlength, "%s%s%02d:%07.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
+    Format(buffer, maxlength, "%s%s%02d:%06.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
 }

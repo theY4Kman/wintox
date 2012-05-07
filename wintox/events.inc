@@ -380,6 +380,7 @@ public T_GetPlayer(Handle:owner, Handle:hndl, const String:error[], any:data)
             win_SQL_UpdatePlayerTimestamp(client);
         
         CacheZoneRecords(client);
+        CacheTrackRecords(client);
     }
     
     // Insert all the player's info
