@@ -88,6 +88,9 @@ new Float:g_DisplayPlusMinusTime = 3.0;
 // player reaches another zone before g_DisplayPlusMinusTime
 new Handle:g_DisablePlusMinusTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
+// Stores the start index for the !top menus
+new g_TimerTopStart[MAXPLAYERS];
+
 // Show the timer display
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
@@ -127,6 +130,7 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
+    RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Pauses or unpauses you and the timer.");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
@@ -163,6 +167,8 @@ Timer_DeinitPlayer(client)
     g_PointsToChatEnabled[client] = true;
     
     g_PlayerCurrentStyle[client] = 0;
+    
+    g_TimerTopStart[client] = 0;
 }
 
 public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
@@ -566,6 +572,155 @@ public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:d
     CloseHandle(pack);
 }
 
+ShowTop(client, const String:mapname[]="", start=0)
+{
+    decl String:_mapname[64];
+    decl String:esc_mapname[128];
+    decl bool:partial;
+    
+    if (IS_STR_EMPTY(mapname))
+    {
+        strcopy(STR(_mapname), g_CurMapName);
+        partial = false;
+    }
+    else
+    {
+        strcopy(STR(_mapname), mapname);
+        partial = true;
+    }
+    
+    SQL_EscapeString(g_Database, _mapname, STR(esc_mapname));
+    
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, start);
+    WritePackString(pack, _mapname);
+    WritePackString(pack, STYLE_NAMES[STYLE_NORMAL]);
+    ResetPack(pack);
+    
+    if (partial)
+    {
+        SQLTH_H(GetTopPartial, T_GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[STYLE_NORMAL], start);
+    }
+    else
+    {
+        SQLTH(GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[STYLE_NORMAL], start);
+    }
+}
+
+public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl start;
+    decl String:mapname[64];
+    decl String:style[16];
+    
+    new Handle:pack = Handle:data;
+    client = ReadPackCell(pack);
+    start = ReadPackCell(pack);
+    ReadPackString(pack, STR(mapname));
+    ReadPackString(pack, STR(style));
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving top times for %s, %s style (for %L, starting at %d): %s", mapname, style, client, start, error);
+        Race_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
+        return;
+    }
+    
+    if (client == 0 || !IsClientInGame(client))
+        return;
+    
+    new rows = SQL_GetRowCount(hndl);
+    if (rows == 0)
+    {
+        Race_Reply(client, "There are no top times! {G}Go make some{N}!");
+        return;
+    }
+    
+    new Handle:panel = CreatePanel(GetMenuStyleHandle(MenuStyle_Default));
+    
+    new i = 0;
+    decl String:records[512];
+    
+    while (SQL_FetchRow(hndl) && i<10)
+    {
+        decl String:latest_name[64];
+        decl String:bsp_name[64];
+        decl String:sz_time[32];
+        decl Float:time;
+        decl jumps;
+        
+        SQL_FetchString(hndl, 1, STR(latest_name));
+        time = SQL_FetchFloat(hndl, 2);
+        jumps = SQL_FetchInt(hndl, 3);
+        
+        if (i == 0)
+        {
+            SQL_FetchString(hndl, 0, STR(bsp_name));
+            Format(STR(records), "Top %s times on %s, %d to %d\n \n", style, bsp_name, start+1, start+rows);
+        }
+        
+        SecondsToTimeString(time, STR(sz_time));
+        
+        Format(STR(records), "%s%d. %s - %s - Jumps: %d\n", records, start + i + 1, latest_name, sz_time, jumps);
+        
+        i++;
+    }
+    
+    DrawPanelItem(panel, records);
+    DrawPanelText(panel, " ");
+    
+    new keys = (1<<0) | (1<<9);
+    
+    decl String:buffer[32];
+    if (start > 0)
+    {
+        Format(STR(buffer), "Previous");
+        SetPanelCurrentKey(panel, 8);
+        DrawPanelItem(panel, buffer);
+        
+        keys |= (1<<7);
+    }
+    
+    if (rows > 10)
+    {
+        Format(STR(buffer), "Next");
+        SetPanelCurrentKey(panel, 9);
+        DrawPanelItem(panel, buffer);
+        
+        keys |= (1<<8);
+    }
+    
+    SetPanelCurrentKey(panel, 10);
+    Format(STR(buffer), "Exit");
+    DrawPanelItem(panel, buffer);
+    
+    SetPanelKeys(panel, keys);
+    
+    g_TimerTopStart[client] = start;
+    SendPanelToClient(panel, client, MenuHandler_Top, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        new start = g_TimerTopStart[param1];
+        
+        if (param2 == 8)
+            ShowRtop(param1, MAX(start - 10, 0));
+        else if (param2 == 9)
+            ShowRtop(param1, start + 10);
+        
+        if (param2 == 10)
+            MenuPlayExitSound(param1);
+        else
+            MenuPlaySelectSound(param1);
+    }
+}
+
 // This function requires the client's DB ID, so this must be called after
 // that has been retrieved (after InsertOrUpdatePlayerInfo and its threaded
 // queries are complete)
@@ -827,6 +982,21 @@ public Action:ConCommand_Cp(client, args)
     return Plugin_Handled;
 }
 #endif
+
+public Action:ConCommand_Top(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:mapname[64];
+    GetCmdArg(1, STR(mapname));
+    
+    ShowTop(client, mapname, 0);
+    
+    return Plugin_Handled;
+}
+
+
+
 
 // Resets all the zone times and jumps and sets IsTiming false
 ResetTimer(client)

@@ -80,6 +80,7 @@
  *   track              INT
  *   type               VARCHAR(16),DEFAULT ''
  *   time               FLOAT
+ *   jumps              INTEGER,DEFAULT 0
  *   UNIQUE(fk_player, fk_map, track, type)
  */
 
@@ -293,6 +294,7 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         track           INTEGER NOT NULL, \
         type            TEXT NOT NULL DEFAULT '', \
         time            FLOAT NOT NULL, \
+        jumps           INTEGER NOT NULL DEFAULT 0, \
         UNIQUE(fk_player, fk_map, track, type) \
     );",
     
@@ -303,6 +305,7 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         track           INTEGER NOT NULL, \
         type            VARCHAR(16) NOT NULL DEFAULT '', \
         time            FLOAT, \
+        jumps           INTEGER NOT NULL DEFAULT 0, \
         UNIQUE(fk_player, fk_map, track, type) \
     );"
 };
@@ -451,13 +454,39 @@ NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
 //   Track records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,5) = {
-    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time) VALUES(%d, %d, %d, '%s', %f);",
+    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d);",
     
-    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time) VALUES(%d, %d, %d, '%s', %f) \
-        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time);"
+    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d) \
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time), jumps = VALUES(jumps);"
 };
 NEW_SQL_QUERY_PARAMS(GetTrackRecords,2) = {
-    SQLITE_MYSQL("SELECT track, type, time FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d")
+    SQLITE_MYSQL("SELECT track, type, time,jumps FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d")
+};
+NEW_SQL_QUERY_PARAMS(GetTop,4) = {
+    SQLITE_MYSQL("SELECT wzm2.bsp_name, wzp.latest_name, time, jumps FROM wintox_track_records \
+                         JOIN wintox_players AS wzp ON fk_player = wzp.id \
+                         JOIN wintox_maps AS wzm ON fk_map = wzm.id \
+                         JOIN ( \
+                            SELECT DISTINCT bsp_name, id FROM wintox_maps \
+                            WHERE bsp_name = '%s' \
+                            LIMIT 1 \
+                         ) AS wzm2 ON wzm2.id = wzm.id \
+                         WHERE wzm.bsp_name = wzm2.bsp_name AND track = %d AND type = '%s' \
+                         ORDER BY time ASC \
+                         LIMIT %d,11;")
+};
+NEW_SQL_QUERY_PARAMS(GetTopPartial,4) = {
+    SQLITE_MYSQL("SELECT wzm2.bsp_name, wzp.latest_name, time, jumps FROM wintox_track_records \
+                         JOIN wintox_players AS wzp ON fk_player = wzp.id \
+                         JOIN wintox_maps AS wzm ON fk_map = wzm.id \
+                         JOIN ( \
+                            SELECT DISTINCT bsp_name, id FROM wintox_maps \
+                            WHERE bsp_name LIKE '%%%s%%' \
+                            LIMIT 1 \
+                         ) AS wzm2 ON wzm2.id = wzm.id \
+                         WHERE wzm.bsp_name = wzm2.bsp_name AND track = %d AND type = '%s' \
+                         ORDER BY time ASC \
+                         LIMIT %d,11;")
 };
 
 

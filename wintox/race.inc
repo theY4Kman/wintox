@@ -283,7 +283,7 @@ public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error retrieving race top records (for %L, starting at %d): %s", client, start);
+        LogError("Error retrieving race top records (for %L, starting at %d): %s", client, start, error);
         Race_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
         return;
     }
@@ -320,9 +320,7 @@ public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
     }
     
     DrawPanelItem(panel, records);
-    
-    if (start > 0 || rows > 10)
-        DrawPanelText(panel, " ");
+    DrawPanelText(panel, " ");
     
     new keys = (1<<0) | (1<<9);
     
