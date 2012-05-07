@@ -212,6 +212,7 @@ Zones_Init()
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_trackname", ConCommand_TrackName, "sm_trackname <track #> <name> | Set the name of the specified track.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC);
     
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
@@ -561,6 +562,12 @@ public Action:ConCommand_TrackTier(client, args)
         return Plugin_Handled;
     }
     
+    if (track < 0 || track >= MAX_TRACKS)
+    {
+        Reply(client, "Invalid track (%d). Track must be from 0 to %d", track, MAX_TRACKS-1);
+        return Plugin_Handled;
+    }
+    
     GetCmdArg(2, STR(sz_tier));
     if (StringToIntEx(sz_tier, tier) == 0)
     {
@@ -575,6 +582,35 @@ public Action:ConCommand_TrackTier(client, args)
     }
     
     Track_SetTier(client, track, tier);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_TrackName(client, args)
+{
+    EXACT_ARGS(2)
+    RESET_REPLY()
+    
+    decl String:sz_track[8];
+    decl String:name[64];
+    decl track;
+    
+    GetCmdArg(1, STR(sz_track));
+    if (StringToIntEx(sz_track, track) == 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    if (track < 0 || track >= MAX_TRACKS)
+    {
+        Reply(client, "Invalid track (%d). Track must be from 0 to %d", track, MAX_TRACKS-1);
+        return Plugin_Handled;
+    }
+    
+    GetCmdArg(2, STR(name));
+    
+    Track_SetName(client, track, name);
     
     return Plugin_Handled;
 }
@@ -985,6 +1021,13 @@ Track_SetTier(client, track, tier)
     g_TrackTier[track] = tier;
     
     win_SQL_UpdateTrackTier(client, track, tier);
+}
+
+Track_SetName(client, track, const String:name[])
+{
+    strcopy(g_TrackNames[track], sizeof(g_TrackNames[]), name);
+    
+    win_SQL_UpdateTrack(client, track);
 }
 
 
@@ -1814,7 +1857,7 @@ public T_GetTracks(Handle:owner, Handle:hndl, const String:error[], any:data)
     }
     
     if (client != -1)
-        Reply(client, "Successfully retrieved {G}%d{N} tracks!", tracks);
+        Reply(client, "Successfully retrieved {G}%d{N} track%s!", tracks, tracks == 1 ? "" : "s");
 }
 
 win_SQL_UpsertZone(zone_id, track)
@@ -2034,6 +2077,54 @@ public T_UpdateTrackTier(Handle:owner, Handle:hndl, const String:error[], any:da
     {
         ENTER_REPLY(reply_to);
         Reply(client, "Successfully set track {G}%d{N} tier to {G}%d{N}!", track, tier);
+        EXIT_REPLY();
+    }
+}
+
+win_SQL_UpdateTrack(client, track)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    decl String:query[512];
+    decl String:esc_name[128];
+    SQL_EscapeString(g_Database, g_TrackNames[track], STR(esc_name));
+    
+    Format(STR(query), SQL_QUERY[UpsertTrack], g_CurMapID, track, g_TrackTier[track], esc_name, g_ZonesCount[track]);
+    SQLT(query, T_UpdateTrack, pack);
+}
+
+public T_UpdateTrack(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    new client = ReadPackCell(pack);
+    new track = ReadPackCell(pack);
+    new ReplySource:reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:error_msg[256];
+        Format(STR(error_msg), "Error updating track %d: %s", track, error);
+        
+        LogError("%s", error_msg);
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Reply(client, "%s", error_msg);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (client != -1)
+    {
+        ENTER_REPLY(reply_to);
+        Reply(client, "Successfully updated track {G}%d{N}!", track);
         EXIT_REPLY();
     }
 }

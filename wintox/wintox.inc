@@ -192,11 +192,19 @@ public OnGameFrame()
                 {
                     ResetTimer(client);
                     g_PlayerCurrentTrack[client] = check_track;
+                    track = check_track;
                     
                     if (check_track == 0)
                         Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
                     else
-                        Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}. Your timer has been reset.", check_track);
+                    {
+                        decl String:bonus_name[96];
+                        bonus_name[0] = '\0';
+                        if (!IS_STR_EMPTY(g_TrackNames[track]))
+                            Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
+                        
+                        Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", check_track, bonus_name);
+                    }
                     
                     break;
                 }
