@@ -13,10 +13,20 @@ IF /i "%~1" == "bhop" (
         EXIT /b 2
     )
 )
+SHIFT
 
-REM Debug
 SET /A debug=0
-IF /i "%2"=="-debug" SET /A debug=1
+SET list=
+
+:loop_args
+IF NOT "%~1" == "" (
+    IF "%~1" == "-debug" SET /A debug=1
+    IF "%~1" == "-l" SET list="-l"
+    
+    SHIFT
+    GOTO :loop_args
+)
+
 IF %debug%==1 SET "debug_define=WINTOX_DEBUG=1"
 
 REM Grab the current build number
@@ -32,9 +42,10 @@ IF %debug%==1 (
 ) ELSE (
     echo ######## Commencing build #%build%...
 )
-..\spcomp wintox_%gametype%.sp %debug_define%
+..\spcomp wintox_%gametype%.sp %list% %debug_define%
 
-if NOT %ERRORLEVEL% == 0 EXIT /b %ERRORLEVEL% ELSE GOTO success_build 
+IF NOT "%list%" == "" EXIT /b %ERRORLEVEL%
+IF NOT %ERRORLEVEL% == 0 EXIT /b %ERRORLEVEL% ELSE GOTO success_build 
 
 :success_build
 echo ######## Successfully built %gametype%
