@@ -90,6 +90,10 @@ new Handle:g_DisablePlusMinusTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 // Stores the start index for the !top menus
 new g_TimerTopStart[MAXPLAYERS];
+// Stores the passed mapname for the !top menus
+new String:g_TimerTopMapName[MAXPLAYERS][64];
+// Stores the passed style for the !top menus
+new g_TimerTopStyle[MAXPLAYERS];
 
 // Show the timer display
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
@@ -130,7 +134,9 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
-    RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Pauses or unpauses you and the timer.");
+    RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
@@ -572,39 +578,40 @@ public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:d
     CloseHandle(pack);
 }
 
-ShowTop(client, const String:mapname[]="", start=0)
+ShowTopStyle(client, style, const String:mapname[]="", start=0)
 {
-    decl String:_mapname[64];
     decl String:esc_mapname[128];
     decl bool:partial;
     
     if (IS_STR_EMPTY(mapname))
     {
-        strcopy(STR(_mapname), g_CurMapName);
+        strcopy(g_TimerTopMapName[client], sizeof(g_TimerTopMapName[]), g_CurMapName);
         partial = false;
     }
     else
     {
-        strcopy(STR(_mapname), mapname);
+        strcopy(g_TimerTopMapName[client], sizeof(g_TimerTopMapName[]), mapname);
         partial = true;
     }
     
-    SQL_EscapeString(g_Database, _mapname, STR(esc_mapname));
+    SQL_EscapeString(g_Database, g_TimerTopMapName[client], STR(esc_mapname));
     
     new Handle:pack = CreateDataPack();
     WritePackCell(pack, client);
     WritePackCell(pack, start);
-    WritePackString(pack, _mapname);
-    WritePackString(pack, STYLE_NAMES[STYLE_NORMAL]);
+    WritePackString(pack, g_TimerTopMapName[client]);
+    WritePackCell(pack, style);
     ResetPack(pack);
+    
+    g_TimerTopStyle[client] = style;
     
     if (partial)
     {
-        SQLTH_H(GetTopPartial, T_GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[STYLE_NORMAL], start);
+        SQLTH_H(GetTopPartial, T_GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[style], start);
     }
     else
     {
-        SQLTH(GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[STYLE_NORMAL], start);
+        SQLTH(GetTop, pack, esc_mapname, MAIN_TRACK, STYLE_NAMES[style], start);
     }
 }
 
@@ -613,19 +620,19 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
     decl client;
     decl start;
     decl String:mapname[64];
-    decl String:style[16];
+    decl style;
     
     new Handle:pack = Handle:data;
     client = ReadPackCell(pack);
     start = ReadPackCell(pack);
     ReadPackString(pack, STR(mapname));
-    ReadPackString(pack, STR(style));
+    style = ReadPackCell(pack);
     CloseHandle(pack);
     
     if (hndl == INVALID_HANDLE)
     {
         LogError("Error retrieving top times for %s, %s style (for %L, starting at %d): %s", mapname, style, client, start, error);
-        Race_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
+        Timer_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
         return;
     }
     
@@ -635,7 +642,7 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
     new rows = SQL_GetRowCount(hndl);
     if (rows == 0)
     {
-        Race_Reply(client, "There are no top times! {G}Go make some{N}!");
+        Timer_Reply(client, "There are no top times! {G}Go make some{N}!");
         return;
     }
     
@@ -710,9 +717,9 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
         new start = g_TimerTopStart[param1];
         
         if (param2 == 8)
-            ShowRtop(param1, MAX(start - 10, 0));
+            ShowTopStyle(param1, g_TimerTopStyle[param1], g_TimerTopMapName[param1], MAX(start - 10, 0));
         else if (param2 == 9)
-            ShowRtop(param1, start + 10);
+            ShowTopStyle(param1, g_TimerTopStyle[param1], g_TimerTopMapName[param1], start + 10);
         
         if (param2 == 10)
             MenuPlayExitSound(param1);
@@ -990,10 +997,36 @@ public Action:ConCommand_Top(client, args)
     decl String:mapname[64];
     GetCmdArg(1, STR(mapname));
     
-    ShowTop(client, mapname, 0);
+    ShowTopStyle(client, STYLE_NORMAL, mapname, 0);
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_BHOP)
+public Action:ConCommand_TopSW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:mapname[64];
+    GetCmdArg(1, STR(mapname));
+    
+    ShowTopStyle(client, STYLE_SIDEWAYS, mapname, 0);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_TopW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:mapname[64];
+    GetCmdArg(1, STR(mapname));
+    
+    ShowTopStyle(client, STYLE_WONLY, mapname, 0);
+    
+    return Plugin_Handled;
+}
+#endif
 
 
 
