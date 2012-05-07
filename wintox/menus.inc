@@ -19,6 +19,10 @@
  */
 new Handle:g_ClientSubmenus[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
+// Stores the paths to the menu sounds
+new String:g_MenuItemSound[64];
+new String:g_MenuExitSound[64];
+
 enum Submenu
 {
     Submenu_Handle = 0,
@@ -33,6 +37,35 @@ enum Submenu
 
 Menus_Init()
 {
+    new Handle:menu_item_sound = CreateConVar("wintox_menu_item_sound", "buttons/button14.wav", "The sound to play when a player selects an item in a panel (such as !rtop or !top, but not !zonemenu or !race)");
+    GetConVarString(menu_item_sound, STR(g_MenuItemSound));
+    HookConVarChange(menu_item_sound, ConVar_MenuItemSound);
+    
+    new Handle:menu_exit_sound = CreateConVar("wintox_menu_exit_sound", "buttons/combine_button7.wav", "The sound to play when a player exits a panel (such as !rtop or !top, but not !zonemenu or !race)");
+    GetConVarString(menu_exit_sound, STR(g_MenuExitSound));
+    HookConVarChange(menu_exit_sound, ConVar_MenuExitSound);
+}
+
+public ConVar_MenuItemSound(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    GetConVarString(cvar, STR(g_MenuItemSound));
+    PrecacheSound(g_MenuItemSound);
+}
+
+public ConVar_MenuExitSound(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    GetConVarString(cvar, STR(g_MenuExitSound));
+    PrecacheSound(g_MenuExitSound);
+}
+
+MenuPlaySelectSound(client)
+{
+    EmitSoundToClient(client, g_MenuItemSound);
+}
+
+MenuPlayExitSound(client)
+{
+    EmitSoundToClient(client, g_MenuExitSound);
 }
 
 stock __InitSubmenuStack(client)

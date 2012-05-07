@@ -304,7 +304,7 @@ public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
     decl String:records[512];
     Format(STR(records), "Top racers %d to %d\n \n", start+1, start+rows);
     
-    while (SQL_FetchRow(hndl) && i<9)
+    while (SQL_FetchRow(hndl) && i<10)
     {
         decl String:latest_name[64];
         decl racewins;
@@ -321,8 +321,10 @@ public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
     
     DrawPanelItem(panel, records);
     
-    if (start > 0 || rows > 9)
+    if (start > 0 || rows > 10)
         DrawPanelText(panel, " ");
+    
+    new keys = (1<<0) | (1<<9);
     
     decl String:buffer[32];
     if (start > 0)
@@ -330,14 +332,24 @@ public T_GetRtop(Handle:owner, Handle:hndl, const String:error[], any:data)
         Format(STR(buffer), "Previous");
         SetPanelCurrentKey(panel, 8);
         DrawPanelItem(panel, buffer);
+        
+        keys |= (1<<7);
     }
     
-    if (rows > 9)
+    if (rows > 10)
     {
         Format(STR(buffer), "Next");
         SetPanelCurrentKey(panel, 9);
         DrawPanelItem(panel, buffer);
+        
+        keys |= (1<<8);
     }
+    
+    SetPanelCurrentKey(panel, 10);
+    Format(STR(buffer), "Exit");
+    DrawPanelItem(panel, buffer);
+    
+    SetPanelKeys(panel, keys);
     
     g_RaceRtopStart[client] = start;
     SendPanelToClient(panel, client, MenuHandler_Rtop, MENU_TIME_FOREVER);
@@ -350,9 +362,14 @@ public MenuHandler_Rtop(Handle:menu, MenuAction:action, param1, param2)
         new start = g_RaceRtopStart[param1];
         
         if (param2 == 8)
-            ShowRtop(param1, MAX(start-9, 0));
+            ShowRtop(param1, MAX(start - 10, 0));
         else if (param2 == 9)
-            ShowRtop(param1, start+9);
+            ShowRtop(param1, start + 10);
+        
+        if (param2 == 10)
+            MenuPlayExitSound(param1);
+        else
+            MenuPlaySelectSound(param1);
     }
 }
 

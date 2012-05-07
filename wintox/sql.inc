@@ -444,7 +444,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRaceRecords,2) = {
     SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE latest_name LIKE '%%%s%%' AND gametype = '%s'")
 };
 NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
-    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE gametype = '%s' ORDER BY racewins DESC LIMIT %d,10;")
+    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE gametype = '%s' ORDER BY racewins DESC LIMIT %d,11;")
 };
 
 // ===========================================================================
