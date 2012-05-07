@@ -129,6 +129,10 @@ new g_EndZone[MAX_TRACKS];
 // Stores the zone indexes in proper order for each track, beginning at the first zone
 // (not the start zone), so 0 is an invalid/empty zone
 new g_TrackPaths[MAX_TRACKS][MAX_ZONES];
+// The tier of each track (used for giving points on bonus track completion)
+new g_TrackTier[MAX_TRACKS] = { 1, ... };
+// The name of each track
+new String:g_TrackNames[MAX_TRACKS][64];
 
 // The zone ID the player was last inside of
 new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
@@ -207,6 +211,7 @@ Zones_Init()
     RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.",  0, ADMFLAG_GENERIC);
     
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
@@ -296,6 +301,7 @@ public ConVar_DrawBonusFlags(Handle:cvar, const String:oldVal[], const String:ne
 
 public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
 {
+    CacheTracks(0);
     CacheZones(0);
 }
 
@@ -534,6 +540,40 @@ public Action:ConCommand_SyncZones(client, args)
     RESET_REPLY()
     
     Zone_SyncToDB(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_TrackTier(client, args)
+{
+    EXACT_ARGS(2)
+    RESET_REPLY()
+    
+    decl String:sz_track[8];
+    decl String:sz_tier[8];
+    decl track, tier;
+    
+    GetCmdArg(1, STR(sz_track));
+    if (StringToIntEx(sz_track, track) == 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    GetCmdArg(2, STR(sz_tier));
+    if (StringToIntEx(sz_tier, tier) == 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    if (tier < 1 || tier > 6)
+    {
+        Reply(client, "Invalid tier (%d). Tier values must be 1-6.", tier);
+        return Plugin_Handled;
+    }
+    
+    Track_SetTier(client, track, tier);
     
     return Plugin_Handled;
 }
@@ -895,6 +935,18 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         else
             HANDLE_CANCEL();
     }
+}
+
+
+/* ========================================================================
+                       TRACK MANIPULATION FUNCTIONS
+   ======================================================================== */
+
+Track_SetTier(client, track, tier)
+{
+    g_TrackTier[track] = tier;
+    
+    win_SQL_UpdateTrackTier(client, track, tier);
 }
 
 
@@ -1682,6 +1734,51 @@ public T_CacheZonePoints(Handle:owner, Handle:hndl, const String:error[], any:da
         Reply(client, "Successfully retrieved {T}%d{N} rows of zone points from DB!", rows);
 }
 
+CacheTracks(const client=-1)
+{
+    SQLTH(GetTracks, client, g_CurMapID);
+}
+
+public T_GetTracks(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:error_msg[256];
+        Format(STR(error_msg), "Error retrieving tracks: %s", error);
+        
+        LogError("%s", error_msg);
+        if (client != -1)
+            Reply(client, "%s", error_msg);
+        
+        return;
+    }
+    
+    new tracks = 0;
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl tier;
+        decl String:name[64];
+        decl zones;
+        
+        track = SQL_FetchInt(hndl, 0);
+        tier = SQL_FetchInt(hndl, 1);
+        SQL_FetchString(hndl, 2, STR(name));
+        zones = SQL_FetchInt(hndl, 3);
+        
+        g_TrackTier[track] = tier;
+        strcopy(g_TrackNames[track], sizeof(g_TrackNames[]), name);
+        g_ZonesCount[track] = zones;
+        
+        tracks++;
+    }
+    
+    if (client != -1)
+        Reply(client, "Successfully retrieved {G}%d{N} tracks!", tracks);
+}
+
 win_SQL_UpsertZone(zone_id, track)
 {
     decl String:buffer[256];
@@ -1837,27 +1934,67 @@ SQLT_HANDLER(ClearTrackZones, "Error clearing track %d zones from database: %s",
 
 win_SQL_ClearZonePoints(zone_id, track)
 {
-    decl String:query[256];
-    Format(STR(query), SQL_QUERY[ClearZonePoints], g_CurMapID, track, zone_id);
-    
-    SQLT(query, T_ClearZonePoints, zone_id);
+    SQLTH(ClearZonePoints, zone_id, g_CurMapID, track, zone_id);
 }
 SQLT_HANDLER(ClearZonePoints, "Error clearing zone %d points from database: %s", data, error)
 
 win_SQL_ClearAllZonePoints()
 {
-    decl String:query[256];
-    Format(STR(query), SQL_QUERY[ClearAllZonePoints], g_CurMapID);
-    
-    SQLT(query, T_ClearAllZonePoints, INVALID_HANDLE);
+    SQLTH(ClearAllZonePoints, INVALID_HANDLE, g_CurMapID);
 }
 SQLT_HANDLER(ClearAllZonePoints, "Error clearing all zone points from database: %s", error)
 
 win_SQL_ClearAllZones()
 {
-    decl String:query[256];
-    Format(STR(query), SQL_QUERY[ClearAllZones], g_CurMapID);
-    
-    SQLT(query, T_ClearAllZones, INVALID_HANDLE);
+    SQLTH(ClearAllZones, INVALID_HANDLE, g_CurMapID);
 }
 SQLT_HANDLER(ClearAllZones, "Error clearing all zones from database: %s")
+
+win_SQL_UpdateTrackTier(client, track, tier)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, tier);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    decl String:query[512];
+    decl String:esc_name[128];
+    SQL_EscapeString(g_Database, g_TrackNames[track], STR(esc_name));
+    
+    Format(STR(query), SQL_QUERY[UpsertTrack], g_CurMapID, track, tier, esc_name, g_ZonesCount[track]);
+    SQLT(query, T_UpdateTrackTier, pack);
+}
+
+public T_UpdateTrackTier(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    new client = ReadPackCell(pack);
+    new track = ReadPackCell(pack);
+    new tier = ReadPackCell(pack);
+    new ReplySource:reply_to = ReplySource:ReadPackCell(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:error_msg[256];
+        Format(STR(error_msg), "Error updating track %d tier to %d: %s", track, tier, error);
+        
+        LogError("%s", error_msg);
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Reply(client, "%s", error_msg);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (client != -1)
+    {
+        ENTER_REPLY(reply_to);
+        Reply(client, "Successfully set track {G}%d{N} tier to {G}%d{N}!", track, tier);
+        EXIT_REPLY();
+    }
+}

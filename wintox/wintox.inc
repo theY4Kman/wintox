@@ -217,7 +217,7 @@ public OnGameFrame()
                     }
                     
                     // Yeah, you go, player! YOU ROCK!
-                    if (IS_END_ZONE(i) && (g_IsTiming[client] || IsRacing(client)))
+                    if (IS_END_ZONE_T(track,i) && (g_IsTiming[client] || IsRacing(client)))
                     {
                         if (!IsRacing(client))
                             Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);

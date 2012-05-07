@@ -81,6 +81,7 @@ stock Tag_PrintToChat(client, const String:tag[], const String:format[], any:...
 }
 
 #define Race_PrintToChatAll(%1) Tag_PrintToChatAll("Race", %1)
+#define Timer_PrintToChatAll(%1) Tag_PrintToChatAll("Timer", %1)
 stock Tag_PrintToChatAll(const String:tag[], const String:format[], any:...)
 {
     decl String:buffer[1024];

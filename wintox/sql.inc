@@ -341,8 +341,11 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayerTimestamp,1) = {
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertTrack,5) = {
     "INSERT OR REPLACE INTO wintox_tracks (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d);",
-    "INSERT INTO wintox_zones (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d) \
-        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), tier = VALUES(tier), name = VALUES(name), zones = VALUE(zones);"
+    "INSERT INTO wintox_tracks (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d) \
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), tier = VALUES(tier), name = VALUES(name), zones = VALUES(zones);"
+};
+NEW_SQL_QUERY_PARAMS(GetTracks,1) = {
+    SQLITE_MYSQL("SELECT track, tier, name, zones FROM wintox_tracks WHERE fk_map = %d;")
 };
 
 // ===========================================================================
