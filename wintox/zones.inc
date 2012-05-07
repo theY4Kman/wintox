@@ -212,6 +212,7 @@ Zones_Init()
     RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC);
     
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
@@ -578,6 +579,32 @@ public Action:ConCommand_TrackTier(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_MapTier(client, args)
+{
+    EXACT_ARGS(1)
+    RESET_REPLY()
+    
+    decl String:sz_tier[8];
+    decl tier;
+    
+    GetCmdArg(1, STR(sz_tier));
+    if (StringToIntEx(sz_tier, tier) == 0)
+    {
+        ReplyWithDescription(client);
+        return Plugin_Handled;
+    }
+    
+    if (tier < 1 || tier > 6)
+    {
+        Reply(client, "Invalid tier (%d). Tier values must be 1-6.", tier);
+        return Plugin_Handled;
+    }
+    
+    Map_SetTier(client, tier);
+    
+    return Plugin_Handled;
+}
+
 
 
 /* ========================================================================
@@ -935,6 +962,17 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         else
             HANDLE_CANCEL();
     }
+}
+
+
+/* ========================================================================
+                        MAP MANIPULATION FUNCTIONS
+   ======================================================================== */
+
+Map_SetTier(client, tier)
+{
+    g_CurMapTier = tier;
+    win_SQL_UpdateMapTier(client, tier);
 }
 
 
@@ -1974,6 +2012,7 @@ public T_UpdateTrackTier(Handle:owner, Handle:hndl, const String:error[], any:da
     new track = ReadPackCell(pack);
     new tier = ReadPackCell(pack);
     new ReplySource:reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
     
     if (hndl == INVALID_HANDLE)
     {
@@ -1995,6 +2034,49 @@ public T_UpdateTrackTier(Handle:owner, Handle:hndl, const String:error[], any:da
     {
         ENTER_REPLY(reply_to);
         Reply(client, "Successfully set track {G}%d{N} tier to {G}%d{N}!", track, tier);
+        EXIT_REPLY();
+    }
+}
+
+win_SQL_UpdateMapTier(client, tier)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, tier);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    SQLTH(UpdateMapTier, pack, tier, g_CurMapID);
+}
+
+public T_UpdateMapTier(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    new client = ReadPackCell(pack);
+    new tier = ReadPackCell(pack);
+    new ReplySource:reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:error_msg[256];
+        Format(STR(error_msg), "Error updating map tier to %d: %s", tier, error);
+        
+        LogError("%s", error_msg);
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Reply(client, "%s", error_msg);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (client != -1)
+    {
+        ENTER_REPLY(reply_to);
+        Reply(client, "Successfully set map tier to {G}%d{N}!", tier);
         EXIT_REPLY();
     }
 }

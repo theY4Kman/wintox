@@ -311,10 +311,13 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
 //   Map records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertMap,5) = {
-    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged,gametype) VALUES('%s','%s','%d','%d','%s');")
+    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged,gametype) VALUES('%s','%s',%d,%d,'%s');")
 };
 NEW_SQL_QUERY_PARAMS(GetMap,2) = {
     SQLITE_MYSQL("SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s' AND `gametype` = '%s';")
+};
+NEW_SQL_QUERY_PARAMS(UpdateMapTier,2) = {
+    SQLITE_MYSQL("UPDATE wintox_maps SET tier = %d WHERE id = %d;")
 };
 
 // ===========================================================================
