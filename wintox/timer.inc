@@ -134,13 +134,16 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
-    RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wr", ConCommand_Wr, "sm_wr [<partial map name>] | Shows the current normal world record holder for the specified map (or the current map if none specified).");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
     RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
     RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
     RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
+    RegisterCommand("sm_wrw", ConCommand_WrW, "sm_wrw [<partial map name>] | Shows the current W-only world record holder for the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrsw", ConCommand_WrSW, "sm_wrsw [<partial map name>] | Shows the current sideways world record holder for the specified map (or the current map if none specified).");
 #endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
@@ -805,6 +808,82 @@ public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:
     }
 }
 
+win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL, const String:mapname[]="")
+{   
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, style);
+    WritePackString(pack, mapname);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    if (IS_STR_EMPTY(mapname))
+    {
+        SQLTH(GetWorldRecord, pack, g_CurMapID, track, STYLE_NAMES[style]);
+    }
+    else
+    {
+        decl String:esc_mapname[128];
+        SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
+        
+        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, esc_mapname, track, STYLE_NAMES[style]);
+    }
+}
+
+public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl track;
+    decl style;
+    decl String:mapname[64];
+    decl ReplySource:reply_to;
+    
+    new Handle:pack = Handle:data;
+    client = ReadPackCell(pack);
+    track = ReadPackCell(pack);
+    style = ReadPackCell(pack);
+    ReadPackString(pack, STR(mapname));
+    reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving %s world record for \"%s\", track %d: %s", STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname, track, error);
+        
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Timer_Reply(client, "Database error retrieving world record for \"{OG}%s{N}\". Please try again.", IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (!SQL_FetchRow(hndl))
+    {
+        ENTER_REPLY(reply_to);
+        Timer_Reply(client, "There are no {OG}%s{N} world records for \"{OG}%s{N}\"", STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        EXIT_REPLY();
+        
+        return;
+    }
+    
+    decl String:latest_name[64];
+    decl Float:time;
+    decl jumps;
+    
+    SQL_FetchString(hndl, 0, STR(latest_name));
+    time = SQL_FetchFloat(hndl, 1);
+    jumps = SQL_FetchInt(hndl, 2);
+    
+    decl String:sz_time[32];
+    SecondsToTimeString(time, STR(sz_time));
+    
+    Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N} and {G}%d{N} jumps!", STYLE_NAMES_C[style], latest_name, sz_time, jumps);
+}
+
 #define TSET_MENU_MIDDLE "middle"
 #define TSET_MENU_SIDE "side"
 #define TSET_MENU_POINTS "points"
@@ -1003,6 +1082,18 @@ public Action:ConCommand_Top(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_Wr(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetWorldRecord(client, MAIN_TRACK, STYLE_NORMAL, partial);
+    
+    return Plugin_Handled;
+}
+
 #if defined(WINTOX_BHOP)
 public Action:ConCommand_TopSW(client, args)
 {
@@ -1030,10 +1121,36 @@ public Action:ConCommand_TopW(client, args)
 
 public Action:ConCommand_Pc(client, args)
 {
+    CHECK_ARGS_UPPER(1)
+    
     decl String:partial[64];
     GetCmdArgString(STR(partial));
     
     win_SQL_GetPercentCompletion(client, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_WrW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetWorldRecord(client, MAIN_TRACK, STYLE_WONLY, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_WrSW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetWorldRecord(client, MAIN_TRACK, STYLE_SIDEWAYS, partial);
     
     return Plugin_Handled;
 }
