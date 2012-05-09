@@ -135,11 +135,12 @@ Timer_Init()
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
     RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for specified map (or the current map if none specified).");
-    RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
-    RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
+    RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
 #endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
@@ -631,7 +632,7 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error retrieving top times for %s, %s style (for %L, starting at %d): %s", mapname, style, client, start, error);
+        LogError("Error retrieving top times for %s, %s style (for %L, starting at %d): %s", mapname, STYLE_NAMES[style], client, start, error);
         Timer_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
         return;
     }
@@ -666,7 +667,7 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
         if (i == 0)
         {
             SQL_FetchString(hndl, 0, STR(bsp_name));
-            Format(STR(records), "Top %s times on %s, %d to %d\n \n", style, bsp_name, start+1, start+rows);
+            Format(STR(records), "Top %s times on %s, %d to %d\n \n", STYLE_NAMES[style], bsp_name, start+1, start+rows);
         }
         
         SecondsToTimeString(time, STR(sz_time));
@@ -1026,6 +1027,16 @@ public Action:ConCommand_TopW(client, args)
     
     return Plugin_Handled;
 }
+
+public Action:ConCommand_Pc(client, args)
+{
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPercentCompletion(client, partial);
+    
+    return Plugin_Handled;
+}
 #endif
 
 
@@ -1120,6 +1131,88 @@ public T_GetBestZoneRecords(Handle:owner, Handle:hndl, const String:error[], any
         
         g_BestZoneRecords[track][zone][style] = time;
     }
+}
+
+win_SQL_GetPercentCompletion(client, const String:partial[64]="")
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackString(pack, partial);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    decl String:query[1152];
+    if (IS_STR_EMPTY(partial))
+    {
+        if (g_PlayerIDs[client] == -1)
+        {
+#if defined(WINTOX_BHOP)
+            LogError("Invalid player ID for client %L trying to retrieve %% completion", client);
+#endif
+            return;
+        }
+        
+        SQLTH_D(GetPercentCompletion, pack, MAX_STYLES, WINTOX_GAMETYPE, g_PlayerIDs[client]);
+    }
+    else
+    {
+        decl String:esc_partial[128];
+        SQL_EscapeString(g_Database, partial, STR(esc_partial));
+        
+        SQLTH_H_D(GetPercentCompletionPartial, T_GetPercentCompletion, pack, MAX_STYLES, WINTOX_GAMETYPE, esc_partial);
+    }
+}
+
+public T_GetPercentCompletion(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl String:partial[64];
+    decl ReplySource:reply_to;
+    
+    new Handle:pack = Handle:data;
+    client = ReadPackCell(pack);
+    ReadPackString(pack, STR(partial));
+    reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving percent completion (for display to client %L)%s%s: %s", client, IS_STR_EMPTY(partial) ? " matching the caller." : " matching partial: ", IS_STR_EMPTY(partial) ? "" : partial, error);
+        
+        ENTER_REPLY(reply_to);
+        Timer_Reply(client, "Database error retrieving percent completion. Please try again.");
+        EXIT_REPLY();
+        
+        return;
+    }
+    
+    if (SQL_GetRowCount(hndl) == 0)
+    {
+        decl String:buffer[128];
+        if (IS_STR_EMPTY(partial))
+            Format(STR(buffer), "for {T}you{N}. {OG}Go set some{N}!");
+        else
+            Format(STR(buffer), "matching \"{G}%s{N}\".", partial);
+        
+        Color_ChatSetSubject(client);
+        ENTER_REPLY(reply_to);
+        Timer_Reply(client, "There are {G}no records{N} stored %s", buffer);
+        EXIT_REPLY();
+        
+        return;
+    }
+    
+    decl Float:pc;
+    decl String:latest_name[64];
+    SQL_FetchRow(hndl);
+    
+    SQL_FetchString(hndl, 0, STR(latest_name));
+    pc = SQL_FetchFloat(hndl, 1);
+    
+    Color_ChatSetSubject(client);
+    ENTER_REPLY(reply_to);
+    Timer_Reply(client, "%s%s{N} has completed {G}%.1f%%{N} of all maps and bonuses.", IS_STR_EMPTY(partial) ? "{T}" : "{G}", latest_name, pc);
+    EXIT_REPLY();
 }
 
 StyleNameToIndex(const String:stylename[])

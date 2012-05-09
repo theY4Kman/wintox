@@ -1887,6 +1887,8 @@ public T_UpsertZone(Handle:owner, Handle:hndl, const String:error[], any:data)
     }
     
     g_ZoneIDs[track][zone_id] = SQL_GetInsertId(hndl);
+    
+    win_SQL_UpdateTrack(-1, track);
 }
 
 win_SQL_DeleteZone(zone_id, track)

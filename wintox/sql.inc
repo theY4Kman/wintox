@@ -488,12 +488,51 @@ NEW_SQL_QUERY_PARAMS(GetTopPartial,4) = {
                          ORDER BY time ASC \
                          LIMIT %d,11;")
 };
+new String:sql_GetPercentCompletion[DatabaseType][1152];
+new String:sql_GetPercentCompletionPartial[DatabaseType][1152];
 
 
 // SQL helper functions
 win_SQL_Init()
 {
     g_cv_DBConfig = CreateConVar("wintox_dbconfig", "default", "The database.cfg configuration to use with Wintox");
+    
+    // The query was so big, spcomp froze. Aww yeah.
+    for (new i=0; i<_:DatabaseType; i++)
+    {
+        new written = strcopy(sql_GetPercentCompletion[i], sizeof(sql_GetPercentCompletion[]), "\
+            SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
+                FROM `wintox_track_records` \
+                JOIN ( \
+                    SELECT COUNT(wt.id) AS num_tracks, gametype \
+                        FROM wintox_tracks AS wt \
+                        JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                        WHERE wzm.gametype = '%s' \
+                ) AS trackscnt ");
+        strcopy(sql_GetPercentCompletionPartial[i], sizeof(sql_GetPercentCompletionPartial[]), sql_GetPercentCompletion[i]);
+        
+        strcopy(sql_GetPercentCompletion[i][written], sizeof(sql_GetPercentCompletion[])-written, "\
+            JOIN ( \
+                SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                    FROM wintox_track_records AS wtr \
+                    JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                    JOIN wintox_players AS wp ON wp.id = fk_player \
+                    WHERE fk_player = %d \
+            ) AS records \
+            WHERE records.gametype = trackscnt.gametype \
+            LIMIT 1;");
+        
+        strcopy(sql_GetPercentCompletionPartial[i][written], sizeof(sql_GetPercentCompletionPartial[]), "\
+            JOIN ( \
+                SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                    FROM wintox_track_records AS wtr \
+                    JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                    JOIN wintox_players AS wp ON wp.id = fk_player \
+                    WHERE wp.latest_name LIKE '%%%s%%' \
+            ) AS records \
+            WHERE records.gametype = trackscnt.gametype \
+            LIMIT 1;");
+    }
 }
 
 // Because this uses the `wintox_dbconfig` cvar, it must be called from OnConfigsExecuted (or later)

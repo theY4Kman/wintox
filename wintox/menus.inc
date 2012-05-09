@@ -9,6 +9,8 @@
 #endif
 #define _wintox_menus_included
 
+#include <sdktools_sound>
+
 /**
  * Submenu handling is done using stacks. Thus, we keep an array of handles to
  * stacks, one handle for each potential client index. For each menu displayed
