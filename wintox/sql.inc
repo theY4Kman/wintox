@@ -1,5 +1,5 @@
 /**
- * Database related calls and SQL queries.
+ * SQL queries, DB helper macros, DB connection/create tables
  * 
  * Copyright 2012 Zach "theY4Kman" Kanzler
  */

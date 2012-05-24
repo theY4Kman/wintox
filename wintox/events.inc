@@ -1,5 +1,5 @@
 /**
- * Game events handling
+ * Game events and plug-in-created forwards.
  * 
  * Copyright 2012 Zach "theY4Kman" Kanzler
  */
@@ -283,8 +283,13 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
             if (curmap)
                 SetFailState("Error inserting map into database: %s", buffer);
             else
+            {
                 LogError("Error inserting map into database: %s", buffer);
+                return;
+            }
         }
+        
+        map_id = SQL_GetInsertId(owner);
     }
     
     if (curmap)
