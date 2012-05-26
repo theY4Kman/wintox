@@ -20,6 +20,8 @@ new g_TimerDisplaySkipTicks = 8;
 new bool:g_wintoxExiting = false;
 // True when the plug-in is late-loaded
 new bool:g_wintoxLateLoad = false;
+// True when the game mode supports TempEnts (available some time after Wintox_Init)
+new bool:g_wintoxTempEnts = false;
 new g_CurrentTick = 0;
 
 // For each player, whether other players should be hidden (not transmitted)
@@ -121,6 +123,12 @@ Wintox_Init()
                 g_PlayerLowGrav[client] = true;
         }
     }
+    
+    /* Test tempents. This is done in a separate call stack (timer thread), so
+     * as not to derail the current call stack if a TempEnt native raises an
+     * error (which should occur when tempents are unsupported)
+     */
+    CreateTimer(0.1, Timer_TestTempEnts);
 }
 
 Wintox_Exit()
@@ -135,6 +143,21 @@ Wintox_DeinitPlayer(client)
 #if defined(WINTOX_BHOP)
     g_PlayerLowGrav[client] = false;
 #endif
+}
+
+public Action:Timer_TestTempEnts(Handle:timer)
+{
+    new clients[1];
+    
+    PrintToServer("[WTX] Testing TempEnts system. If they're unsupported, an error will be printed by SourceMod. This is expected.");
+    
+    // The simplest test
+    TE_Start("BeamPoints");
+    TE_Send(clients, 0);
+    
+    g_wintoxTempEnts = true;
+    
+    return Plugin_Continue;
 }
 
 public ConVar_TimerDisplaySkipTicks(Handle:cvar, const String:oldVal[], const String:newVal[])

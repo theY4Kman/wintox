@@ -1572,6 +1572,11 @@ DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
 
 public Action:Timer_DrawZones(Handle:timer)
 {
+    // In order to stop a flurry of error messages, we won't draw anything
+    // if TempEnts are not supported.
+    if (!g_wintoxTempEnts)
+        return;
+    
     for (new client=1; client<MaxClients; client++)
     {
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
