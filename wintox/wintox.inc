@@ -207,33 +207,39 @@ public OnGameFrame()
         {
             for (new check_track=0; check_track<MAX_TRACKS; check_track++)
             {
-                if (track == check_track)
-                    continue;
-                
                 // They've switched tracks
                 if (PointInZone(origin, check_track, 0))
                 {
-                    ResetTimer(client);
-                    g_PlayerCurrentTrack[client] = check_track;
-                    track = check_track;
                     
-                    if (check_track == 0)
-                        Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
-                    else
+                    if (check_track != track)
                     {
-                        decl String:bonus_name[96];
-                        bonus_name[0] = '\0';
-                        if (!IS_STR_EMPTY(g_TrackNames[track]))
-                            Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
+                        ResetTimer(client);
+                        g_PlayerCurrentTrack[client] = check_track;
+                        track = check_track;
                         
-                        Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", check_track, bonus_name);
+                        if (check_track == 0)
+                            Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
+                        else
+                        {
+                            decl String:bonus_name[96];
+                            bonus_name[0] = '\0';
+                            if (!IS_STR_EMPTY(g_TrackNames[track]))
+                                Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
+                            
+                            Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", check_track, bonus_name);
+                        }
+                    }
+                    else if (((g_PlayerCurrentZone[client] >= 0 && g_IsTiming[client]) || IS_END_ZONE_T(track,g_PlayerCurrentZone[client])) && !IsRacing(client))
+                    {
+                        ResetTimer(client);
+                        Timer_PrintToChat(client, "Your timer has been reset by passing through the start zone.");
                     }
                     
                     break;
                 }
             }
             
-            new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 :g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
+            new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 : g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
             new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
             for (new i=start_zone, _t=-1; _t<1 && ((i=_t ? start_zone : end_zone) || 1); _t++)
             {
