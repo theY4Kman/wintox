@@ -543,6 +543,7 @@ AskRace(challenger, challengee)
     if (IsFakeClient(challengee))
     {
         ChallengeeAccepted(challenger, challengee);
+        g_RaceOutstandingChallenges[challenger]--;
         return;
     }
 #endif
@@ -713,6 +714,7 @@ EndRace(winner, loser, challenger, challengee)
     
     DO_PARTICIPANTS
     {
+        g_RaceChallengedBy[client] = 0;
         g_RaceEndElapsed[client] = win_time;
         g_Racing[client] = false;
         g_RaceWinner[client] = winner;
