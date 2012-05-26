@@ -126,10 +126,16 @@ stock PrevSubmenu(client, bool:redisplay=true)
     if (!redisplay)
         return;
     
+    // The LastIndex value of the popped menu is the one used to display the
+    // now displaying submenu.
+    new last_index = submenu[Submenu_LastIndex];
+    if (last_index == -1)
+        last_index = 0;
+    
     // Pop the info of the previous menu to redisplay it at the right index
     PopStackArray(MENU_STACK[client], submenu[0]);
     
-    DisplayMenuAtItem(Handle:submenu[Submenu_Handle], client, submenu[Submenu_LastIndex], submenu[Submenu_Time]);
+    DisplayMenuAtItem(Handle:submenu[Submenu_Handle], client, last_index, submenu[Submenu_Time]);
     
     // Reinsert the now current menu to the stack, keeping the last index of
     // the previous menu
