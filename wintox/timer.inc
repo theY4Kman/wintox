@@ -512,7 +512,7 @@ win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
         return;
     }
     
-    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time);
+    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
     SQLT(query, T_UpsertTrackRecord, client);
 }
 SQLT_HANDLER(UpsertTrackRecord, "Error updating player %L track record points: %s", data)

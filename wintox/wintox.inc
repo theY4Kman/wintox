@@ -282,6 +282,7 @@ public OnGameFrame()
         {
             if (g_TimerEnabled[client])
                 DisplayTimer(client, is_in_zone);
+            
             // Actively hide the hint text
             else if (g_SuppressHintText)
                 HideHintText(client);

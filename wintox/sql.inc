@@ -453,7 +453,7 @@ NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
 // ===========================================================================
 //   Track records
 // ===========================================================================
-NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,5) = {
+NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,6) = {
     "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d);",
     
     "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d) \
