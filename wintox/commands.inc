@@ -140,7 +140,7 @@ DisplayCommands(client, bool:pub=true)
     // Output a text list of the commands
     if (client == 0)
     {
-        PrintToServer("[Wintox] %s", title);
+        PrintToServer("[WTX] %s", title);
         
         new length = GetArraySize(commands);
         for (new i=0; i<length; i++)

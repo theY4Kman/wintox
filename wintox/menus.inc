@@ -127,7 +127,7 @@ stock PrevSubmenu(client, bool:redisplay=true)
         return;
     
     // The LastIndex value of the popped menu is the one used to display the
-    // now displaying submenu.
+    // previous submenu.
     new last_index = submenu[Submenu_LastIndex];
     if (last_index == -1)
         last_index = 0;
@@ -180,7 +180,7 @@ stock HandleCancel(Handle:menu, client, reason)
     
     if (reason == MenuCancel_Exit)
         CancelSubmenus(client);
-    else
+    else if (reason != MenuCancel_Interrupted)
         PrevSubmenu(client);
 }
 
