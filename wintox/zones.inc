@@ -65,6 +65,8 @@ new g_CurMapTier = 1;
 #define ZONE_POINT_EMPTY_T(%1,%2,%3) (g_ZonesCache[(%1)][(%2)][(%3)][0] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][1] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][2] == 0.0)
 #define ZONE_EMPTY_T(%1,%2) (ZONE_POINTS_T[%1][%2] == 0 || ZONE_POINT_EMPTY_T(%1,%2,ZONE_FIRST_POINT))
 
+#define IS_EDITING_BOX(%1) (g_ClientEditBox[(%1)][0] != 0.0 || g_ClientEditBox[(%1)][1] != 0.0 || g_ClientEditBox[(%1)][2] != 0.0)
+
 #define ZONE_FLAG[%1][%2] (g_ZonesCache[MAIN_TRACK][(%1)][ZONE_FLAG_POINT][(%2)])
 #define ZONE_FLAG_EMPTY(%1) (ZONE_FLAG[%1][0] == 0.0 && ZONE_FLAG[%1][1] == 0.0 && ZONE_FLAG[%1][2] == 0.0)
 
@@ -145,6 +147,8 @@ new g_PlayerCurrentPath[MAXPLAYERS] = { INVALID_PATH, ... };
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 // The track the zone is on which the player is currently editing
 new g_ClientEditTrack[MAXPLAYERS] = { INVALID_TRACK, ... };
+// The start point for zone point box creation
+new Float:g_ClientEditBox[MAXPLAYERS][3];
 
 new Handle:g_ZoneMenu = INVALID_HANDLE;
 new Handle:g_TrackMenu = INVALID_HANDLE;
@@ -199,6 +203,8 @@ Zones_Init()
     
     RegisterCommand("sm_zonemenu", ConCommand_ZoneMenu, "sm_zonemenu | Bring up the zone menu.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] [<track=0>] | Create a new zone.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_beginbox", ConCommand_BeginBox, "sm_beginbox | Start creating the current zone using a box (rectangular prism).",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_endbox", ConCommand_EndBox, "sm_endbox | End box creation, saving the points and height to the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC);
     RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC);
@@ -253,11 +259,14 @@ Zone_DeinitPlayer(client)
     new editing = g_ClientEditZone[client];
     new editing_track = g_ClientEditTrack[client];
     if (editing != INVALID_ZONE)
-    {
         ZONE_EDITING_T[editing_track][editing] = false;
-        g_ClientEditZone[client] = INVALID_ZONE;
-        g_ClientEditTrack[client] = INVALID_TRACK;
-    }
+    
+    g_ClientEditZone[client] = INVALID_ZONE;
+    g_ClientEditTrack[client] = INVALID_TRACK;
+    
+    g_ClientEditBox[client][0] = 0.0;
+    g_ClientEditBox[client][1] = 0.0;
+    g_ClientEditBox[client][2] = 0.0;
 }
 
 bool:PointInZone(const Float:point[3], track, zone)
@@ -313,16 +322,7 @@ public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
     if (data == TEXT_ENTRY_ZONE_NAME)
     {
         Zone_SetName(client, text);
-        
-        // Set to something other than INVALID_HANDLE (see MenuAction_Cancel of zone edit menu)
-        g_ClientEditZoneMenu[client] = NOT_INVALID_HANDLE;
-        PrevSubmenu(client, false);
-        
-        g_ClientEditZoneMenu[client] = BuildEditZoneMenu(g_ClientEditZone[client], g_ClientEditTrack[client]);
-        DisplaySubmenu(g_ClientEditZoneMenu[client], client, MENU_TIME_FOREVER);
-        
-        // Finally revert to INVALID_HANDLE, so zone edit menu cancel calls PrevSubmenu
-        g_ClientEditZoneMenu[client] = INVALID_HANDLE;
+        ResetClientZoneEditMenu(client);
     }
 }
 
@@ -385,6 +385,26 @@ public Action:ConCommand_NewZonePoint(client, args)
     RESET_REPLY()
     
     Zone_NewZonePoint(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_BeginBox(client, args)
+{
+    NO_ARGS()
+    RESET_REPLY()
+    
+    Zone_BeginBox(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_EndBox(client, args)
+{
+    NO_ARGS()
+    RESET_REPLY()
+    
+    Zone_EndBox(client);
     
     return Plugin_Handled;
 }
@@ -691,20 +711,27 @@ BuildTrackMenu()
 }
 
 #define ZMENU_EDIT_NEW_POINT "new"
+#define ZMENU_EDIT_BOX "box"
 #define ZMENU_EDIT_REMOVE_LAST "removelast"
 #define ZMENU_EDIT_CLEAR_ALL "clear"
 #define ZMENU_EDIT_FINISH "finish"
 #define ZMENU_EDIT_SET_FLAG "flag"
 #define ZMENU_EDIT_SET_NAME "name"
 
-Handle:BuildEditZoneMenu(zone_id, track)
+Handle:BuildEditZoneMenu(client, zone_id, track)
 {
+    decl String:buffer[64];
+    
     new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
     SetMenuExitButton(zone_menu, true);
     SetMenuExitBackButton(zone_menu, true);
     
     SetMenuTitle(zone_menu, EDIT_ZONE_MENU_TITLE, zone_id, track, g_ZoneNames[track][zone_id]);
     AddMenuItem(zone_menu, ZMENU_EDIT_NEW_POINT, "New point");
+    
+    Format(STR(buffer), "%s box", IS_EDITING_BOX(client) ? "Finish" : "Begin");
+    AddMenuItem(zone_menu, ZMENU_EDIT_BOX, buffer);
+    
     AddMenuItem(zone_menu, ZMENU_EDIT_REMOVE_LAST, "Remove last point");
     AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
     AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
@@ -712,6 +739,19 @@ Handle:BuildEditZoneMenu(zone_id, track)
     AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
     
     return zone_menu;
+}
+
+ResetClientZoneEditMenu(client)
+{
+    // Set to something other than INVALID_HANDLE (see MenuAction_Cancel of zone edit menu)
+    g_ClientEditZoneMenu[client] = NOT_INVALID_HANDLE;
+    PrevSubmenu(client, false);
+    
+    g_ClientEditZoneMenu[client] = BuildEditZoneMenu(client, g_ClientEditZone[client], g_ClientEditTrack[client]);
+    DisplaySubmenu(g_ClientEditZoneMenu[client], client, MENU_TIME_FOREVER);
+    
+    // Finally revert to INVALID_HANDLE, so zone edit menu cancel calls PrevSubmenu
+    g_ClientEditZoneMenu[client] = INVALID_HANDLE;
 }
 
 DisplayZoneMenu(client)
@@ -876,7 +916,7 @@ public MenuHandler_ZoneIndex(Handle:menu, MenuAction:action, param1, param2)
         
         Zone_BeginNewZone(param1, zone_id, g_TrackMenuSelected[param1]);
         
-        new Handle:zone_menu = BuildEditZoneMenu(zone_id, g_TrackMenuSelected[param1]);
+        new Handle:zone_menu = BuildEditZoneMenu(param1, zone_id, g_TrackMenuSelected[param1]);
         
         // Pop the zone index submenu, but don't redisplay the root zone menu
         PrevSubmenu(param1, false);
@@ -958,6 +998,16 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         
         if (StrEqual(info, ZMENU_EDIT_NEW_POINT))
             Zone_NewZonePoint(param1);
+        else if (StrEqual(info, ZMENU_EDIT_BOX))
+        {
+            if (IS_EDITING_BOX(param1))
+                Zone_EndBox(param1);
+            else
+                Zone_BeginBox(param1);
+            
+            ResetClientZoneEditMenu(param1);
+            return;
+        }
         else if (StrEqual(info, ZMENU_EDIT_REMOVE_LAST))
             Zone_RemoveLastPoint(param1);
         else if (StrEqual(info, ZMENU_EDIT_CLEAR_ALL))
@@ -970,14 +1020,13 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             
             new zone_id = g_ClientEditZone[param1];
             if (zone_id == INVALID_ZONE)
-            {
                 Reply(param1, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
-                return;
+            else
+            {
+                g_ClientEditZoneMenu[param1] = menu;
+                Format(STR(reason), "set zone %d name", zone_id);
+                BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME, false);
             }
-            
-            g_ClientEditZoneMenu[param1] = menu;
-            Format(STR(reason), "set zone %d name", zone_id);
-            BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME, false);
         }
         else if (StrEqual(info, ZMENU_EDIT_FINISH))
         {
@@ -1223,6 +1272,107 @@ Zone_NewZonePoint(client)
         ZONE_POINT_T[track][zone_id][point][0],
         ZONE_POINT_T[track][zone_id][point][1],
         ZONE_POINT_T[track][zone_id][point][2]);
+}
+
+Zone_BeginBox(client)
+{
+    new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
+    if (zone_id == INVALID_ZONE)
+        NOT_EDITING_RETURN()
+    
+    if (IS_EDITING_BOX(client))
+    {
+        Reply(client, "You already have a box started. Use {G}sm_endbox{N} to complete it.");
+        return;
+    }
+    
+    GetClientAbsOrigin(client, g_ClientEditBox[client]);
+    
+    Reply(client, "Began zone {T}%d{N} (track {T}%d{N}) box at ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})",
+        zone_id, track,
+        g_ClientEditBox[0],
+        g_ClientEditBox[1],
+        g_ClientEditBox[2]);
+}
+
+Zone_EndBox(client)
+{
+    new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
+    if (zone_id == INVALID_ZONE)
+        NOT_EDITING_RETURN()
+    
+    if (!IS_EDITING_BOX(client))
+    {
+        Reply(client, "You're not currently creating a box. Use {G}sm_beginbox{N} to start.");
+        return;
+    }
+    
+    // Clear the zone's points
+    for (new i=ZONE_FIRST_POINT; i<POINTS_LENGTH; i++)
+    {
+        g_ZonesCache[track][zone_id][i][0] = 0.0;
+        g_ZonesCache[track][zone_id][i][1] = 0.0;
+        g_ZonesCache[track][zone_id][i][2] = 0.0;
+    }
+    ZONE_POINTS_T[track][zone_id] = 0;
+    
+    // Grab the end point vector
+    decl Float:end[3];
+    GetClientAbsOrigin(client, end);
+    
+    new Float:length = end[0] - g_ClientEditBox[client][0];
+    new Float:width = end[1] - g_ClientEditBox[client][1];
+    new Float:height = end[2] - g_ClientEditBox[client][2];
+    
+    new point = ZONE_META_POINTS;
+    
+    /* Overhead view:
+     * Begin
+     *   A ----- B
+     *   |       |
+     *   |       |
+     *   D ----- C
+     *          End
+     */
+    
+    // Point A
+    ZONE_POINT_T[track][zone_id][point][0] = g_ClientEditBox[client][0];
+    ZONE_POINT_T[track][zone_id][point][1] = g_ClientEditBox[client][1];
+    ZONE_POINT_T[track][zone_id][point][2] = g_ClientEditBox[client][2];
+    ZONE_POINTS_T[track][zone_id]++;
+    point++;
+    
+    // Point B
+    ZONE_POINT_T[track][zone_id][point][0] = g_ClientEditBox[client][0] + length;
+    ZONE_POINT_T[track][zone_id][point][1] = g_ClientEditBox[client][1];
+    ZONE_POINT_T[track][zone_id][point][2] = g_ClientEditBox[client][2];
+    ZONE_POINTS_T[track][zone_id]++;
+    point++;
+    
+    // Point C
+    ZONE_POINT_T[track][zone_id][point][0] = end[0];
+    ZONE_POINT_T[track][zone_id][point][1] = end[1];
+    ZONE_POINT_T[track][zone_id][point][2] = g_ClientEditBox[client][2];
+    ZONE_POINTS_T[track][zone_id]++;
+    point++;
+    
+    // Point D
+    ZONE_POINT_T[track][zone_id][point][0] = g_ClientEditBox[client][0];
+    ZONE_POINT_T[track][zone_id][point][1] = g_ClientEditBox[client][1] + width;
+    ZONE_POINT_T[track][zone_id][point][2] = g_ClientEditBox[client][2];
+    ZONE_POINTS_T[track][zone_id]++;
+    
+    // Set the height
+    ZONE_HEIGHT_T[track][zone_id] = RoundToFloor(height);
+    
+    // Clear the start point for the box, resetting IS_EDITING_BOX
+    g_ClientEditBox[client][0] = 0.0;
+    g_ClientEditBox[client][1] = 0.0;
+    g_ClientEditBox[client][2] = 0.0;
+    
+    Reply(client, "Completed zone {T}%d{N} (track {T}%d{N}) box.", zone_id, track);
 }
 
 Zone_ZoneHeight(client, height)
@@ -1547,6 +1697,57 @@ DrawFlag(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
     g_FlagRotation[track][zone_id] = FloatMod(g_FlagRotation[track][zone_id] + FLAG_ROTATE_STEP, 2 * FLOAT_PI);
 }
 
+DrawBox(client, const color[4]=FLAG_COLOR_ZONE)
+{
+    decl Float:end[3];
+    decl Float:vec[6][3];
+    GetClientAbsOrigin(client, end);
+    
+    new Float:length = end[0] - g_ClientEditBox[client][0];
+    new Float:width = end[1] - g_ClientEditBox[client][1];
+    new Float:height = end[2] - g_ClientEditBox[client][2];
+    
+    // Vertex A
+    vec[0][0] = g_ClientEditBox[client][0];
+    vec[0][1] = g_ClientEditBox[client][1];
+    vec[0][2] = g_ClientEditBox[client][2];
+    
+    // Vertex B
+    vec[1][0] = g_ClientEditBox[client][0] + length;
+    vec[1][1] = g_ClientEditBox[client][1];
+    vec[1][2] = g_ClientEditBox[client][2];
+    
+    // Vertex C
+    vec[2][0] = end[0];
+    vec[2][1] = end[1];
+    vec[2][2] = g_ClientEditBox[client][2];
+    
+    // Vertex D
+    vec[3][0] = g_ClientEditBox[client][0];
+    vec[3][1] = g_ClientEditBox[client][1] + width;
+    vec[3][2] = g_ClientEditBox[client][2];
+    
+    for (new j=0, nj=1; j<4; j++, nj=(j+1)%4)
+    {
+        // Draw the ground rectangle
+        BEAM(vec[j], vec[nj])
+        
+        vec[4][0] = vec[j][0];
+        vec[4][1] = vec[j][1];
+        vec[4][2] = vec[j][2] + height;
+        
+        // Draw the vertical edges
+        BEAM(vec[j], vec[4])
+        
+        vec[5][0] = vec[nj][0];
+        vec[5][1] = vec[nj][1];
+        vec[5][2] = vec[nj][2] + height;
+        
+        // Draw the top rectangle
+        BEAM(vec[4], vec[5])
+    }
+}
+
 DrawZone(zone_id, client, const color[4]=FLAG_COLOR_ZONE, track=MAIN_TRACK)
 {
     #if defined(BEAM)
@@ -1631,7 +1832,9 @@ public Action:Timer_DrawZones(Handle:timer)
             new zone_id = g_ClientEditZone[client];
             new track = g_ClientEditTrack[client];
             
-            if (!g_DrawZones)
+            if (IS_EDITING_BOX(client))
+                DrawBox(client, FLAG_COLOR(zone_id));
+            else if (!g_DrawZones)
                 DrawZone(zone_id, client, FLAG_COLOR(zone_id), track);
             
             // Don't draw a flag twice
