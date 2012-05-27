@@ -47,6 +47,10 @@ new Float:g_LowGravMultiplier = 0.5;
 new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #endif
 
+#if !defined(FEATURECAP_TEMPENTS)
+    #define FEATURECAP_TEMPENTS "tempents"
+#endif
+
 #include <sourcemod>
 #include <sdkhooks>
 
@@ -124,11 +128,24 @@ Wintox_Init()
         }
     }
     
-    /* Test tempents. This is done in a separate call stack (timer thread), so
+    new bool:manual_test = true;
+    if (CanTestFeatures())
+    {
+        new FeatureStatus:status = GetFeatureStatus(FeatureType_Capability, FEATURECAP_TEMPENTS);
+        
+        if (status != FeatureStatus_Unknown)
+        {
+            g_wintoxTempEnts = (status == FeatureStatus_Available);
+            manual_test = false;
+        }
+    }
+    
+    /* Manual test. This is done in a separate call stack (timer thread), so
      * as not to derail the current call stack if a TempEnt native raises an
      * error (which should occur when tempents are unsupported)
      */
-    CreateTimer(0.1, Timer_TestTempEnts);
+    if (manual_test)
+        CreateTimer(0.1, Timer_TestTempEnts);
 }
 
 Wintox_Exit()
