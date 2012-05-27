@@ -219,15 +219,13 @@ public OnGameFrame()
         
         new track = g_PlayerCurrentTrack[client];
         
-        // Check if the player is in their current or next zone only
         if (!IS_PAUSED(client) && PlayerCanTime(client))
         {
             for (new check_track=0; check_track<MAX_TRACKS; check_track++)
             {
-                // They've switched tracks
                 if (PointInZone(origin, check_track, 0))
                 {
-                    
+                    // They've switched tracks
                     if (check_track != track)
                     {
                         ResetTimer(client);
@@ -249,6 +247,7 @@ public OnGameFrame()
                     else if (((g_PlayerCurrentZone[client] >= 0 && g_IsTiming[client]) || IS_END_ZONE_T(track,g_PlayerCurrentZone[client])) && !IsRacing(client))
                     {
                         ResetTimer(client);
+                        g_PlayerCurrentTrack[client] = track;
                         Timer_PrintToChat(client, "Your timer has been reset by passing through the start zone.");
                     }
                     
