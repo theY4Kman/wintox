@@ -508,6 +508,84 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,3) = {
                          LIMIT 1;")
 };
 
+// ===========================================================================
+//   Rank
+// ===========================================================================
+
+NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
+    "",
+    "SELECT id, latest_name, rank FROM ( \
+        SELECT id, latest_name, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, (SELECT @curRank := 0) AS r \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        WHERE id = %d \
+        LIMIT 0,1;"
+};
+NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,1) = {
+    "",
+    "SELECT latest_name, rank FROM ( \
+        SELECT latest_name, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, (SELECT @curRank := 0) AS r \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        WHERE latest_name LIKE '%%%s%%' \
+        LIMIT 0,1;"
+};
+NEW_SQL_QUERY_PARAMS(GetPlayerCountryRank,2) = {
+    "",
+    "SELECT `latest_name`, `rank`, `country` FROM ( \
+        SELECT `latest_name`, `country`.`country`, @curRank := @curRank + 1 AS rank \
+            FROM `wintox_players` AS wp, (SELECT @curRank := 0) AS r \
+            JOIN ( \
+                SELECT `id`, `country` \
+                    FROM `wintox_players` \
+                    WHERE `id` = %d \
+                    LIMIT 0,1 \
+            ) AS country ON `country`.`id` = id \
+            WHERE wp.`country` = `country`.`country` \
+            ORDER BY `grosspoints` DESC, `last_join` DESC \
+        ) AS ranks \
+        WHERE `id` = %d \
+        LIMIT 0,1;"
+};
+NEW_SQL_QUERY_PARAMS(GetPartialPlayerCountryRank,2) = {
+    "",
+    "SELECT `latest_name`, `rank`, `country` FROM ( \
+        SELECT `latest_name`, `country`.`country`, @curRank := @curRank + 1 AS rank \
+            FROM `wintox_players` AS wp, (SELECT @curRank := 0) AS r \
+            JOIN ( \
+                SELECT `id`, `country` \
+                    FROM `wintox_players` \
+                    WHERE `latest_name` LIKE '%%%s%%' \
+                    LIMIT 0,1 \
+            ) AS country ON `country`.`id` = id \
+            WHERE wp.`country` = `country`.`country` \
+            ORDER BY `grosspoints` DESC, `last_join` DESC \
+        ) AS ranks \
+        WHERE `latest_name` LIKE '%%%s%%' \
+        LIMIT 0,1;"
+};
+NEW_SQL_QUERY_PARAMS(GetAllRanks,1) = {
+    "",
+    "SELECT `latest_name`, `rank` FROM ( \
+        SELECT `latest_name`, @curRank := @curRank + 1 AS rank \
+            FROM `wintox_players` AS wp, (SELECT @curRank := 0) AS r \
+            ORDER BY `grosspoints` DESC, `last_join` DESC \
+        ) AS ranks \
+        LIMIT %d,11;"
+};
+NEW_SQL_QUERY_PARAMS(GetAllCountryRanks,2) = {
+    "",
+    "SELECT `latest_name`, `rank` FROM ( \
+        SELECT `latest_name`, @curRank := @curRank + 1 AS rank \
+            FROM `wintox_players` AS wp, (SELECT @curRank := 0) AS r \
+            WHERE wp.`country` = '%s' \
+            ORDER BY `grosspoints` DESC, `last_join` DESC \
+        ) AS ranks \
+        LIMIT %d,11;"
+};
+
 
 // SQL helper functions
 win_SQL_Init()

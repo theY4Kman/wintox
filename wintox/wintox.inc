@@ -261,6 +261,9 @@ public OnGameFrame()
             {
                 if (PointInZone(origin, track, i))
                 {
+                    /////////////////////////////////////////////
+                    PrintToConsole(client, "In zone %d of track %d", i, track);
+                    
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
                         if (!IsRacing(client))

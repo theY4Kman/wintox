@@ -136,6 +136,8 @@ Timer_Init()
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
     RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wr", ConCommand_Wr, "sm_wr [<partial map name>] | Shows the current normal world record holder for the specified map (or the current map if none specified).");
+    RegisterCommand("sm_rank", ConCommand_Rank, "sm_rank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map.");
+    RegisterCommand("sm_crank", ConCommand_CRank, "sm_crank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map, restricted to players of the same country.");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
@@ -500,86 +502,61 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     }
 }
 
-win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
-{
-    decl String:query[256];
-    
-    if (g_PlayerIDs[client] == -1)
-    {
-#if defined(WINTOX_DEBUG)
-        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f)", client, track, style, total_time);
-#endif
-        return;
-    }
-    
-    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
-    SQLT(query, T_UpsertTrackRecord, client);
-}
-SQLT_HANDLER(UpsertTrackRecord, "Error updating player %L track record points: %s", data)
 
-win_SQL_UpdatePlayerPoints(client)
-{
-    decl String:query[256];
-    
-    // The player isn't in the database, so an update would be pointless
-    if (g_PlayerIDs[client] == -1)
-    {
-#if defined(WINTOX_DEBUG)
-        LogError("UpdatePlayerPoints called on invalid client. Params (%d)", client);
-#endif
-        return;
-    }
-    
-    Format(STR(query), SQL_QUERY[UpdatePlayerPoints], g_PlayerPoints[client], g_PlayerIDs[client]);
-    SQLT(query, T_UpdatePlayerPoints, client);
-}
-SQLT_HANDLER(UpdatePlayerPoints, "Error updating player %L points: %s", data)
 
-win_SQL_UpsertZoneRecord(client, track, zone_id, Float:time, const String:type[]="")
+/* ========================================================================
+                                    MENUS
+   ======================================================================== */
+
+#define TSET_MENU_MIDDLE "middle"
+#define TSET_MENU_SIDE "side"
+#define TSET_MENU_POINTS "points"
+
+Handle:BuildTimerSettingsMenu(client)
 {
-    decl String:query[512];
-    decl String:esc_type[32];
+    decl String:buffer[64];
+    new Handle:menu = CreateMenu(MenuHandler_TimerSettings);
     
-    // The player has no database ID; we can't record their progress!
-    if (g_PlayerIDs[client] == -1)
-    {
-#if defined(WINTOX_DEBUG)
-        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f, \"%s\")", client, track, zone_id, time, type);
-#endif
-        return;
-    }
+    SetMenuTitle(menu, "Timer settings");
+    SetMenuExitButton(menu, true);
     
-    SQL_EscapeString(g_Database, type, STR(esc_type));
+    Format(STR(buffer), "%s middle timer", g_TimerEnabled[client] ? "Disable" : "Enable");
+    AddMenuItem(menu, TSET_MENU_MIDDLE, buffer);
     
-    Format(STR(query), SQL_QUERY[UpsertZoneRecord], g_CurMapID, g_PlayerIDs[client], g_ZoneIDs[track][zone_id], esc_type, time, GetTime());
+    Format(STR(buffer), "%s side stage info", g_SideStageInfoEnabled[client] ? "Disable" : "Enable");
+    AddMenuItem(menu, TSET_MENU_SIDE, buffer);
     
-    new Handle:pack = CreateDataPack();
-    WritePackCell(pack, client);
-    WritePackCell(pack, track);
-    WritePackCell(pack, zone_id);
-    ResetPack(pack);
+    Format(STR(buffer), "%s points and +/- printed to chat", g_PointsToChatEnabled[client] ? "Disable" : "Enable");
+    AddMenuItem(menu, TSET_MENU_POINTS, buffer);
     
-    SQLT(query, T_UpsertZoneRecord, pack);
+    return menu;
 }
 
-public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
+public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
 {
-    decl client;
-    decl track;
-    decl zone_id;
-    
-    new Handle:pack = Handle:data;
-    
-    if (hndl == INVALID_HANDLE)
+    if (action == MenuAction_Select)
     {
-        client = ReadPackCell(pack);
-        track = ReadPackCell(pack);
-        zone_id = ReadPackCell(pack);
+        decl String:info[16];
+        GetMenuItem(menu, param2, STR(info));
         
-        LogError("Error upserting zone record (client %d %L, track %d, zone %d): %s", client, client, track, zone_id, error);
+        if (StrEqual(info, TSET_MENU_MIDDLE))
+        {
+            g_TimerEnabled[param1] = !g_TimerEnabled[param1];
+            if (!g_TimerEnabled[param1])
+                HideHintText(param1);
+        }
+        else if (StrEqual(info, TSET_MENU_SIDE))
+            g_SideStageInfoEnabled[param1] = !g_SideStageInfoEnabled[param1];
+        else if (StrEqual(info, TSET_MENU_POINTS))
+            g_PointsToChatEnabled[param1] = !g_PointsToChatEnabled[param1];
+        
+        // Cancel this menu without redisplaying previous submenu
+        PrevSubmenu(param1, false);
+        // Rebuild the menu based on the client's new settings and display it
+        DisplaySubmenu(BuildTimerSettingsMenu(param1), param1, MENU_TIME_FOREVER);
     }
-    
-    CloseHandle(pack);
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
 }
 
 ShowTopStyle(client, style, const String:mapname[]="", start=0)
@@ -732,208 +709,11 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
-// This function requires the client's DB ID, so this must be called after
-// that has been retrieved (after InsertOrUpdatePlayerInfo and its threaded
-// queries are complete)
-CacheZoneRecords(client)
-{
-    decl String:query[256];
-    
-    if (g_PlayerIDs[client] == -1)
-    {
-        LogError("Attempted to retrieve the zone records of player %L with bad DB ID %d.", client, g_PlayerIDs[client]);
-        return;
-    }
-    
-    Format(STR(query), SQL_QUERY[GetZoneRecords], g_CurMapID, g_PlayerIDs[client]);
-    SQLT(query, T_CacheZoneRecords, client);
-}
 
-public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    new client = data;
-    
-    if (hndl == INVALID_HANDLE)
-    {
-        LogError("Error retrieving zone records for client %d (%L): %s", client, client, error);
-        return;
-    }
-    
-    while (SQL_FetchRow(hndl))
-    {
-        decl zone_id;
-        decl track;
-        decl String:stylename[16];
-        decl Float:time;
-        
-        zone_id = SQL_FetchInt(hndl, 1);
-        track = SQL_FetchInt(hndl, 2);
-        SQL_FetchString(hndl, 3, STR(stylename));
-        time = SQL_FetchFloat(hndl, 4);
-        
-        g_ZoneRecords[client][track][zone_id][StyleNameToIndex(stylename)] = time;
-    }
-}
 
-CacheTrackRecords(client)
-{
-    decl String:query[128];
-    
-    Format(STR(query), SQL_QUERY[GetTrackRecords], g_CurMapID, client);
-    SQLT(query, T_CacheTrackRecords, client);
-}
-
-public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    new client = data;
-    
-    if (hndl == INVALID_HANDLE)
-    {
-        LogError("Error retrieving track records for client %d (%L): %s", client, client, error);
-        return;
-    }
-    
-    while (SQL_FetchRow(hndl))
-    {
-        decl track;
-        decl String:sz_type[16];
-        decl Float:time;
-        
-        track = SQL_FetchInt(hndl, 0);
-        SQL_FetchString(hndl, 1, STR(sz_type));
-        time = SQL_FetchFloat(hndl, 2);
-        
-        new style = StyleNameToIndex(sz_type);
-        g_TrackRecords[client][track][style] = time;
-    }
-}
-
-win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL, const String:mapname[]="")
-{   
-    new Handle:pack = CreateDataPack();
-    WritePackCell(pack, client);
-    WritePackCell(pack, track);
-    WritePackCell(pack, style);
-    WritePackString(pack, mapname);
-    WritePackCell(pack, _:GetCmdReplySource());
-    ResetPack(pack);
-    
-    if (IS_STR_EMPTY(mapname))
-    {
-        SQLTH(GetWorldRecord, pack, g_CurMapID, track, STYLE_NAMES[style]);
-    }
-    else
-    {
-        decl String:esc_mapname[128];
-        SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
-        
-        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, esc_mapname, track, STYLE_NAMES[style]);
-    }
-}
-
-public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
-{
-    decl client;
-    decl track;
-    decl style;
-    decl String:mapname[64];
-    decl ReplySource:reply_to;
-    
-    new Handle:pack = Handle:data;
-    client = ReadPackCell(pack);
-    track = ReadPackCell(pack);
-    style = ReadPackCell(pack);
-    ReadPackString(pack, STR(mapname));
-    reply_to = ReplySource:ReadPackCell(pack);
-    CloseHandle(pack);
-    
-    if (hndl == INVALID_HANDLE)
-    {
-        LogError("Error retrieving %s world record for \"%s\", track %d: %s", STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname, track, error);
-        
-        if (client != -1)
-        {
-            ENTER_REPLY(reply_to);
-            Timer_Reply(client, "Database error retrieving world record for \"{OG}%s{N}\". Please try again.", IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
-            EXIT_REPLY();
-        }
-        
-        return;
-    }
-    
-    if (!SQL_FetchRow(hndl))
-    {
-        ENTER_REPLY(reply_to);
-        Timer_Reply(client, "There are no {OG}%s{N} world records for \"{OG}%s{N}\"", STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
-        EXIT_REPLY();
-        
-        return;
-    }
-    
-    decl String:latest_name[64];
-    decl Float:time;
-    decl jumps;
-    
-    SQL_FetchString(hndl, 0, STR(latest_name));
-    time = SQL_FetchFloat(hndl, 1);
-    jumps = SQL_FetchInt(hndl, 2);
-    
-    decl String:sz_time[32];
-    SecondsToTimeString(time, STR(sz_time));
-    
-    Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N} and {G}%d{N} jumps!", STYLE_NAMES_C[style], latest_name, sz_time, jumps);
-}
-
-#define TSET_MENU_MIDDLE "middle"
-#define TSET_MENU_SIDE "side"
-#define TSET_MENU_POINTS "points"
-
-Handle:BuildTimerSettingsMenu(client)
-{
-    decl String:buffer[64];
-    new Handle:menu = CreateMenu(MenuHandler_TimerSettings);
-    
-    SetMenuTitle(menu, "Timer settings");
-    SetMenuExitButton(menu, true);
-    
-    Format(STR(buffer), "%s middle timer", g_TimerEnabled[client] ? "Disable" : "Enable");
-    AddMenuItem(menu, TSET_MENU_MIDDLE, buffer);
-    
-    Format(STR(buffer), "%s side stage info", g_SideStageInfoEnabled[client] ? "Disable" : "Enable");
-    AddMenuItem(menu, TSET_MENU_SIDE, buffer);
-    
-    Format(STR(buffer), "%s points and +/- printed to chat", g_PointsToChatEnabled[client] ? "Disable" : "Enable");
-    AddMenuItem(menu, TSET_MENU_POINTS, buffer);
-    
-    return menu;
-}
-
-public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
-{
-    if (action == MenuAction_Select)
-    {
-        decl String:info[16];
-        GetMenuItem(menu, param2, STR(info));
-        
-        if (StrEqual(info, TSET_MENU_MIDDLE))
-        {
-            g_TimerEnabled[param1] = !g_TimerEnabled[param1];
-            if (!g_TimerEnabled[param1])
-                HideHintText(param1);
-        }
-        else if (StrEqual(info, TSET_MENU_SIDE))
-            g_SideStageInfoEnabled[param1] = !g_SideStageInfoEnabled[param1];
-        else if (StrEqual(info, TSET_MENU_POINTS))
-            g_PointsToChatEnabled[param1] = !g_PointsToChatEnabled[param1];
-        
-        // Cancel this menu without redisplaying previous submenu
-        PrevSubmenu(param1, false);
-        // Rebuild the menu based on the client's new settings and display it
-        DisplaySubmenu(BuildTimerSettingsMenu(param1), param1, MENU_TIME_FOREVER);
-    }
-    else if (action == MenuAction_Cancel)
-        HANDLE_CANCEL();
-}
+/* ========================================================================
+                                 CONCOMMANDS
+   ======================================================================== */
 
 public Action:ConCommand_Timer(client, args)
 {
@@ -1156,8 +936,35 @@ public Action:ConCommand_WrSW(client, args)
 }
 #endif
 
+public Action:ConCommand_Rank(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPlayerRank(client, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_CRank(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    // TODO
+    
+    return Plugin_Handled;
+}
 
 
+
+/* ========================================================================
+                              UTILITY FUNCTIONS
+   ======================================================================== */
 
 // Resets all the zone times and jumps and sets IsTiming false
 ResetTimer(client)
@@ -1210,6 +1017,43 @@ WipeBestZoneRecords()
             for (new style=0; style<MAX_STYLES; style++)
                 g_BestZoneRecords[track][zone][style] = INVALID_ZONE_RECORD;
 }
+
+StyleNameToIndex(const String:stylename[])
+{
+    for (new style=0; style<MAX_STYLES; style++)
+        if (StrEqual(stylename, STYLE_NAMES[style]))
+            return style;
+    
+    return 0;
+}
+
+SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
+{
+    time = FloatAbs(time);
+    
+    hours = RoundToFloor(time) / SECONDS_IN_HOUR;
+    minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
+    seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+}
+
+SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
+{
+    decl String:sz_hours[8];
+    decl hours, minutes, Float:seconds;
+    SecondsToTime(time, hours, minutes, seconds);
+    
+    sz_hours[0] = '\0';
+    if (hours != 0)
+        Format(STR(sz_hours), "%02d:", hours);
+    
+    Format(buffer, maxlength, "%s%s%02d:%06.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
+}
+
+
+
+/* ========================================================================
+                                  SQL SHIT
+   ======================================================================== */
 
 // Retrieve and store the fastest times for each zone in each track in each style
 CacheBestZoneRecords(bool:wipe=false)
@@ -1332,33 +1176,253 @@ public T_GetPercentCompletion(Handle:owner, Handle:hndl, const String:error[], a
     EXIT_REPLY();
 }
 
-StyleNameToIndex(const String:stylename[])
+win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
 {
-    for (new style=0; style<MAX_STYLES; style++)
-        if (StrEqual(stylename, STYLE_NAMES[style]))
-            return style;
+    decl String:query[256];
     
-    return 0;
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f)", client, track, style, total_time);
+#endif
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
+    SQLT(query, T_UpsertTrackRecord, client);
+}
+SQLT_HANDLER(UpsertTrackRecord, "Error updating player %L track record points: %s", data)
+
+win_SQL_UpdatePlayerPoints(client)
+{
+    decl String:query[256];
+    
+    // The player isn't in the database, so an update would be pointless
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpdatePlayerPoints called on invalid client. Params (%d)", client);
+#endif
+        return;
+    }
+    
+    Format(STR(query), SQL_QUERY[UpdatePlayerPoints],
+        g_PlayerPoints[client], g_PlayerIDs[client]);
+    SQLT(query, T_UpdatePlayerPoints, client);
+}
+SQLT_HANDLER(UpdatePlayerPoints, "Error updating player %L points: %s", data)
+
+win_SQL_UpsertZoneRecord(client, track, zone_id, Float:time, const String:type[]="")
+{
+    decl String:query[512];
+    decl String:esc_type[32];
+    
+    // The player has no database ID; we can't record their progress!
+    if (g_PlayerIDs[client] == -1)
+    {
+#if defined(WINTOX_DEBUG)
+        LogError("UpsertTrackRecord called on invalid client. Params (%d, %d, %d, %f, \"%s\")", client, track, zone_id, time, type);
+#endif
+        return;
+    }
+    
+    SQL_EscapeString(g_Database, type, STR(esc_type));
+    
+    Format(STR(query), SQL_QUERY[UpsertZoneRecord],
+        g_CurMapID, g_PlayerIDs[client], g_ZoneIDs[track][zone_id], esc_type,
+        time, GetTime());
+    
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, zone_id);
+    ResetPack(pack);
+    
+    SQLT(query, T_UpsertZoneRecord, pack);
 }
 
-SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
+public T_UpsertZoneRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
 {
-    time = FloatAbs(time);
+    decl client;
+    decl track;
+    decl zone_id;
     
-    hours = RoundToFloor(time) / SECONDS_IN_HOUR;
-    minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
-    seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+    new Handle:pack = Handle:data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        client = ReadPackCell(pack);
+        track = ReadPackCell(pack);
+        zone_id = ReadPackCell(pack);
+        
+        LogError("Error upserting zone record (client %d %L, track %d, zone %d): %s",
+            client, client, track, zone_id, error);
+    }
+    
+    CloseHandle(pack);
 }
 
-SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
+// This function requires the client's DB ID, so this must be called after
+// that has been retrieved (after InsertOrUpdatePlayerInfo and its threaded
+// queries are complete)
+CacheZoneRecords(client)
 {
-    decl String:sz_hours[8];
-    decl hours, minutes, Float:seconds;
-    SecondsToTime(time, hours, minutes, seconds);
+    decl String:query[256];
     
-    sz_hours[0] = '\0';
-    if (hours != 0)
-        Format(STR(sz_hours), "%02d:", hours);
+    if (g_PlayerIDs[client] == -1)
+    {
+        LogError("Attempted to retrieve the zone records of player %L with bad DB ID %d.",
+            client, g_PlayerIDs[client]);
+        return;
+    }
     
-    Format(buffer, maxlength, "%s%s%02d:%06.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
+    Format(STR(query), SQL_QUERY[GetZoneRecords], g_CurMapID, g_PlayerIDs[client]);
+    SQLT(query, T_CacheZoneRecords, client);
+}
+
+public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving zone records for client %d (%L): %s",
+            client, client, error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl zone_id;
+        decl track;
+        decl String:stylename[16];
+        decl Float:time;
+        
+        zone_id = SQL_FetchInt(hndl, 1);
+        track = SQL_FetchInt(hndl, 2);
+        SQL_FetchString(hndl, 3, STR(stylename));
+        time = SQL_FetchFloat(hndl, 4);
+        
+        g_ZoneRecords[client][track][zone_id][StyleNameToIndex(stylename)] = time;
+    }
+}
+
+CacheTrackRecords(client)
+{
+    decl String:query[128];
+    
+    Format(STR(query), SQL_QUERY[GetTrackRecords], g_CurMapID, client);
+    SQLT(query, T_CacheTrackRecords, client);
+}
+
+public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new client = data;
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving track records for client %d (%L): %s", client, client, error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl String:sz_type[16];
+        decl Float:time;
+        
+        track = SQL_FetchInt(hndl, 0);
+        SQL_FetchString(hndl, 1, STR(sz_type));
+        time = SQL_FetchFloat(hndl, 2);
+        
+        new style = StyleNameToIndex(sz_type);
+        g_TrackRecords[client][track][style] = time;
+    }
+}
+
+win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
+                       const String:mapname[]="")
+{   
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, style);
+    WritePackString(pack, mapname);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    if (IS_STR_EMPTY(mapname))
+    {
+        SQLTH(GetWorldRecord, pack, g_CurMapID, track, STYLE_NAMES[style]);
+    }
+    else
+    {
+        decl String:esc_mapname[128];
+        SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
+        
+        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, esc_mapname, \
+            track, STYLE_NAMES[style]);
+    }
+}
+
+public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl track;
+    decl style;
+    decl String:mapname[64];
+    decl ReplySource:reply_to;
+    
+    new Handle:pack = Handle:data;
+    client = ReadPackCell(pack);
+    track = ReadPackCell(pack);
+    style = ReadPackCell(pack);
+    ReadPackString(pack, STR(mapname));
+    reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving %s world record for \"%s\", track %d: %s",
+            STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname,
+            track, error);
+        
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Timer_Reply(client, "Database error retrieving world record for \"{OG}%s{N}\". Please try again.", \
+                IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (!SQL_FetchRow(hndl))
+    {
+        ENTER_REPLY(reply_to);
+        Timer_Reply(client, "There are no {OG}%s{N} world records for \"{OG}%s{N}\"", \
+            STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        EXIT_REPLY();
+        
+        return;
+    }
+    
+    decl String:latest_name[64];
+    decl Float:time;
+    decl jumps;
+    
+    SQL_FetchString(hndl, 0, STR(latest_name));
+    time = SQL_FetchFloat(hndl, 1);
+    jumps = SQL_FetchInt(hndl, 2);
+    
+    decl String:sz_time[32];
+    SecondsToTimeString(time, STR(sz_time));
+    
+    Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N} and {G}%d{N} jumps!", \
+        STYLE_NAMES_C[style], latest_name, sz_time, jumps);
+}
+
+win_SQL_GetPlayerRank(client, const String:partial[]="")
+{
 }

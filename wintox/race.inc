@@ -48,10 +48,19 @@ new Handle:g_RaceCountdownTimer[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 new String:g_RaceTauntsDecline[][] = {
     "You could race a rock and lose!",
-    "Slow and steady wins the race. Slow and terrible loses."
+    "Slow and steady wins the race. Slow and terrible loses.",
+    "I'd race you, but I don't want crap on my shoes.",
+    "I didn't know this server supported the Special Olympics.",
+    "It would be like a Kenyan sprinting against a toddler.",
+    "I don't want you to be embarrassed."
 };
 new String:g_RaceTauntsAccept[][] = {
-    "You could race a rock and lose!"
+    "It's on.",
+    "Bring it.",
+    "May the best man win, and I intend to.",
+    "Do I get a plaque when I win?",
+    "When I win, I'll buy you a Ramen dinner.",
+    "Just don't embarrass yourself."
 };
 
 
@@ -682,10 +691,16 @@ StopRace(challenger, challengee, const String:reason[]="")
         StopTiming(client);
         
         if (IsClientConnected(client))
-            Race_PrintToChat(client, "The race has {R}stopped{N}! Reason: {OG}%s", reason);
+        {
+            decl String:buffer[256];
+            strcopy(STR(buffer), "The race has {R}stopped{N}!");
+            
+            if (!IS_STR_EMPTY(reason))
+                Format(STR(buffer), "%s Reason: {OG}%s", reason);
+            
+            Race_PrintToChat(client, "%s", buffer);
+        }
     }
-    
-    // TODO: print message
 }
 
 // Begin the race!

@@ -167,6 +167,8 @@ new bool:g_DrawZones = false;
 new bool:g_DrawFlags = true;
 // Stores the state of wintox_draw_bonus_flags, whether to draw bonus flags
 new bool:g_DrawBonusFlags = true;
+// Stores the state of wintox_zone_height_fudge, the amount of leeway in player-zone detection
+new Float:g_ZoneHeightFudge = ZONE_HEIGHT_FUDGE;
 
 // Stores the amount of rotation for each flag
 new Float:g_FlagRotation[MAX_TRACKS][MAX_ZONES];
@@ -233,6 +235,10 @@ Zones_Init()
     g_DrawBonusFlags = GetConVarBool(draw_bonus_flags);
     HookConVarChange(draw_bonus_flags, ConVar_DrawBonusFlags);
     
+    new Handle:zone_height_fudge = CreateConVar("wintox_zone_height_fudge", "10.0", "The amount, in map units, of leeway used when detecting if a player is at the right height for a zone.");
+    g_ZoneHeightFudge = GetConVarFloat(zone_height_fudge);
+    HookConVarChange(zone_height_fudge, ConVar_ZoneHeightFudge);
+    
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
     AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
@@ -288,8 +294,8 @@ bool:PointInZone(const Float:point[3], track, zone)
     
     // In zone AND in zone height
     if (odd_nodes &&
-        point[2] >= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] - ZONE_HEIGHT_FUDGE) &&
-        point[2] <= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] + ZONE_HEIGHT_T[track][zone] + ZONE_HEIGHT_FUDGE))
+        point[2] >= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] - g_ZoneHeightFudge) &&
+        point[2] <= (ZONE_POINT_T[track][zone][ZONE_FIRST_POINT][2] + ZONE_HEIGHT_T[track][zone] + g_ZoneHeightFudge))
         return true;
     
     return false;
@@ -308,6 +314,11 @@ public ConVar_DrawFlags(Handle:cvar, const String:oldVal[], const String:newVal[
 public ConVar_DrawBonusFlags(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_DrawBonusFlags = GetConVarBool(cvar);
+}
+
+public ConVar_ZoneHeightFudge(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_ZoneHeightFudge = GetConVarFloat(cvar);
 }
 
 public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
