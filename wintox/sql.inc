@@ -499,11 +499,11 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecord,3) = {
                          ORDER BY time ASC \
                          LIMIT 1;")
 };
-NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,3) = {
+NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,4) = {
     SQLITE_MYSQL("SELECT wp.latest_name, time, jumps FROM wintox_track_records \
                          JOIN wintox_players AS wp ON wp.id = fk_player \
                          JOIN wintox_maps AS wm ON wm.id = fk_map \
-                         WHERE wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
+                         WHERE gametype = '%s' wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
                          ORDER BY time ASC \
                          LIMIT 1;")
 };

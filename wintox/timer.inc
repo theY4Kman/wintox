@@ -1360,8 +1360,8 @@ win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
         decl String:esc_mapname[128];
         SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
         
-        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, esc_mapname, \
-            track, STYLE_NAMES[style]);
+        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+            esc_mapname, track, STYLE_NAMES[style]);
     }
 }
 
@@ -1425,4 +1425,56 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
 
 win_SQL_GetPlayerRank(client, const String:partial[]="")
 {
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackString(pack, partial);
+    ResetPack(pack);
+    
+    if (IS_STR_EMPTY(partial))
+    {
+        if (g_PlayerIDs[client] == -1)
+        {
+            Timer_Reply(client, "You are not in the database, yet. How'd that happen?");
+            return;
+        }
+        
+        SQLTH(GetPlayerRank, pack, g_PlayerIDs[client]);
+    }
+    else
+    {
+        decl String:esc_name[128];
+        SQL_EscapeString(g_Database, partial, STR(esc_name));
+        
+        SQLTH_H(GetPartialPlayerRank, T_GetPlayerRank, pack, esc_name);
+    }
+}
+
+public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl Handle:pack;
+    decl client;
+    decl String:partial[64];
+    
+    pack = Handle:data;
+    client = ReadPackCell(pack);
+    ReadPackString(pack, STR(partial));
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error getting player rank for client %d (partial: \"%s\")", client, partial);
+        Timer_Reply(client, "There was a database error retrieving the player rank for \"%s\". Please try again.", partial);
+        return;
+    }
+    
+    if (!SQL_GetRowCount(hndl))
+    {
+        if (IS_STR_EMPTY(partial))
+            Timer_Reply(client, "We couldn't find you in the database! Uh-oh.");
+        else
+            Timer_Reply(client, "There were no matches for \"%s\"", partial);
+        return;
+    }
+    
+    SQL_FetchRow(hndl);
+    
 }
