@@ -314,10 +314,17 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
 //   Map records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertMap,5) = {
-    SQLITE_MYSQL("INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged,gametype) VALUES('%s','%s',%d,%d,'%s');")
+    SQLITE_MYSQL( \
+        "INSERT INTO wintox_maps (bsp_name,human_name,tier,is_staged,gametype) \
+            VALUES('%s','%s',%d,%d,'%s');" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(GetMap,2) = {
-    SQLITE_MYSQL("SELECT id,bsp_name,human_name,tier,is_staged FROM `wintox_maps` WHERE `bsp_name` = '%s' AND `gametype` = '%s';")
+    SQLITE_MYSQL( \
+        "SELECT id,bsp_name,human_name,tier,is_staged \
+            FROM `wintox_maps` \
+            WHERE `bsp_name` = '%s' AND `gametype` = '%s';" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(UpdateMapTier,2) = {
     SQLITE_MYSQL("UPDATE wintox_maps SET tier = %d WHERE id = %d;")
@@ -327,12 +334,16 @@ NEW_SQL_QUERY_PARAMS(UpdateMapTier,2) = {
 //   Player records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertPlayer,5) = {
-    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) VALUES('%s','%s','%s','%s','%s',strftime('%%s', 'now'));",
-    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) VALUES('%s','%s','%s','%s','%s',UNIX_TIMESTAMP(NOW()));"
+    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) \ 
+        VALUES('%s','%s','%s','%s','%s',strftime('%%s', 'now'));",
+    "INSERT INTO wintox_players (latest_name,latest_ip,steamid,country,gametype,last_join) \
+        VALUES('%s','%s','%s','%s','%s',UNIX_TIMESTAMP(NOW()));"
 };
 NEW_SQL_QUERY_PARAMS(UpdatePlayer,5) = {
-    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=strftime('%%s', 'now') WHERE steamid = '%s' AND gametype = '%s';",
-    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=UNIX_TIMESTAMP(NOW()) WHERE steamid = '%s' AND gametype = '%s';"
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=strftime('%%s', 'now') \
+        WHERE steamid = '%s' AND gametype = '%s';",
+    "UPDATE wintox_players SET latest_name='%s', latest_ip='%s', country='%s', last_join=UNIX_TIMESTAMP(NOW()) \
+        WHERE steamid = '%s' AND gametype = '%s';"
 };
 NEW_SQL_QUERY_PARAMS(GetPlayer,1) = {
     SQLITE_MYSQL("SELECT id,latest_name,latest_ip,steamid,country,grosspoints,racewins,racelosses FROM wintox_players WHERE steamid = '%s' AND gametype = '%s';")
@@ -346,8 +357,10 @@ NEW_SQL_QUERY_PARAMS(UpdatePlayerTimestamp,1) = {
 //   Tracks
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertTrack,5) = {
-    "INSERT OR REPLACE INTO wintox_tracks (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d);",
-    "INSERT INTO wintox_tracks (fk_map, track, tier, name, zones) VALUES(%d, %d, %d, '%s', %d) \
+    "INSERT OR REPLACE INTO wintox_tracks (fk_map, track, tier, name, zones) \
+        VALUES(%d, %d, %d, '%s', %d);",
+    "INSERT INTO wintox_tracks (fk_map, track, tier, name, zones) \
+        VALUES(%d, %d, %d, '%s', %d) \
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), tier = VALUES(tier), name = VALUES(name), zones = VALUES(zones);"
 };
 NEW_SQL_QUERY_PARAMS(GetTracks,1) = {
@@ -358,9 +371,11 @@ NEW_SQL_QUERY_PARAMS(GetTracks,1) = {
 //   Zones and zone points
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(InsertZone,5) = {
-    "INSERT OR REPLACE INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s');",
+    "INSERT OR REPLACE INTO wintox_zones (id, fk_map, track, number, name) \
+        VALUES(%s, %d, %d, %d, '%s');",
     
-    "INSERT INTO wintox_zones (id, fk_map, track, number, name) VALUES(%s, %d, %d, %d, '%s') \
+    "INSERT INTO wintox_zones (id, fk_map, track, number, name) \
+        VALUES(%s, %d, %d, %d, '%s') \
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name);"
 };
 NEW_SQL_QUERY_PARAMS(DeleteZone,2) = {
@@ -370,16 +385,37 @@ NEW_SQL_QUERY_PARAMS(ClearAllZones,1) = {
     SQLITE_MYSQL("DELETE FROM wintox_zones WHERE fk_map = %d;")
 };
 NEW_SQL_QUERY_PARAMS(ClearAllZonePoints,1) = {
-    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d );")
+    SQLITE_MYSQL( \
+        "DELETE FROM wintox_zone_points \
+            WHERE fk_zone IN ( \
+                SELECT id \
+                FROM wintox_zones \
+                WHERE fk_map = %d \
+            );" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(ClearZonePoints,3) = {
-    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d );")
+    SQLITE_MYSQL( \
+        "DELETE FROM wintox_zone_points \
+            WHERE fk_zone IN ( \
+                SELECT id \
+                FROM wintox_zones \
+                WHERE fk_map = %d AND track = %d AND number = %d \
+            );" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(ClearTrackZones,1) = {
     SQLITE_MYSQL("DELETE FROM wintox_zones WHERE fk_map = %d AND track = %d;")
 };
 NEW_SQL_QUERY_PARAMS(ClearTrackZonePoints,3) = {
-    SQLITE_MYSQL("DELETE FROM wintox_zone_points WHERE fk_zone IN ( SELECT id FROM wintox_zones WHERE fk_map = %d AND track = %d );" )
+    SQLITE_MYSQL( \
+        "DELETE FROM wintox_zone_points \
+            WHERE fk_zone IN ( \
+                SELECT id \
+                FROM wintox_zones \
+                WHERE fk_map = %d AND track = %d \
+            );" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(GetZones,1) = {
     SQLITE_MYSQL("SELECT id,number,name,track FROM wintox_zones WHERE fk_map = %d;")
@@ -388,21 +424,28 @@ NEW_SQL_QUERY_PARAMS(GetZone,1) = {
     SQLITE_MYSQL("SELECT id,name FROM wintox_zones WHERE fk_map = %d AND track = %d AND number = %d;")
 };
 NEW_SQL_QUERY_PARAMS(GetZonePoints,1) = {
-    SQLITE_MYSQL("SELECT wzp.id,wzp.number,x,y,z,wz.number,wz.track AS zone_id \
+    SQLITE_MYSQL( \
+        "SELECT wzp.id,wzp.number,x,y,z,wz.number,wz.track AS zone_id \
             FROM wintox_zone_points AS wzp \
             JOIN wintox_zones AS wz ON wzp.fk_zone = wz.id \
-            WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);")
+            WHERE fk_zone IN (SELECT id FROM wintox_zones WHERE fk_map = %d);" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(InsertZonePoint,5) = {
-    SQLITE_MYSQL("INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) VALUES(%d, %d, %f, %f, %f);")
+    SQLITE_MYSQL( \
+        "INSERT INTO wintox_zone_points (fk_zone, number, x, y, z) \
+            VALUES(%d, %d, %f, %f, %f);" \
+    )
 };
 
 // ===========================================================================
 //   Zone records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertZoneRecord,6) = {
-    "INSERT OR REPLACE INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %f, %d);",
-    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) VALUES(%d, %d, %d, '%s', %f, %d) \
+    "INSERT OR REPLACE INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) \
+        VALUES(%d, %d, %d, '%s', %f, %d);",
+    "INSERT INTO wintox_zone_records (fk_map, fk_player, fk_zone, type, time, date_set) \
+        VALUES(%d, %d, %d, '%s', %f, %d) \
         ON DUPLICATE KEY UPDATE \
             id = LAST_INSERT_ID(id), \
             time = VALUES(time), \
@@ -413,7 +456,8 @@ NEW_SQL_QUERY_PARAMS(GetZoneRecords,2) = {
         "SELECT wzr.id,wz.number,wz.track,type,time,date_set \
             FROM wintox_zone_records AS wzr \
             JOIN wintox_zones AS wz ON wzr.fk_zone = wz.id \
-            WHERE wzr.fk_map = %d AND fk_player = %d")
+            WHERE wzr.fk_map = %d AND fk_player = %d" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(GetBestZoneRecords,1) = {
     SQLITE_MYSQL( \
@@ -421,7 +465,8 @@ NEW_SQL_QUERY_PARAMS(GetBestZoneRecords,1) = {
             FROM `wintox_zone_records` AS wzr \
             JOIN wintox_zones AS wz ON wz.id = wzr.fk_zone \
             WHERE wzr.fk_map = %d \
-            GROUP BY wz.track, wz.number, type")
+            GROUP BY wz.track, wz.number, type" \
+    )
 };
 
 // ===========================================================================
@@ -441,22 +486,38 @@ NEW_SQL_QUERY_PARAMS(IncrementPlayerRaceLosses,1) = {
     SQLITE_MYSQL("UPDATE wintox_players SET racelosses = racelosses + 1 WHERE id = %d;")
 };
 NEW_SQL_QUERY_PARAMS(GetPlayerRaceRecords,1) = {
-    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE id = %d")
+    SQLITE_MYSQL( \
+        "SELECT latest_name, racewins, racelosses \
+            FROM wintox_players \
+            WHERE id = %d" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(GetPartialPlayerRaceRecords,2) = {
-    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE latest_name LIKE '%%%s%%' AND gametype = '%s'")
+    SQLITE_MYSQL( \
+        "SELECT latest_name, racewins, racelosses \
+            FROM wintox_players \
+            WHERE latest_name LIKE '%%%s%%' AND gametype = '%s'" \
+    )
 };
 NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
-    SQLITE_MYSQL("SELECT latest_name, racewins, racelosses FROM wintox_players WHERE gametype = '%s' ORDER BY racewins DESC LIMIT %d,11;")
+    SQLITE_MYSQL( \
+        "SELECT latest_name, racewins, racelosses \
+            FROM wintox_players \
+            WHERE gametype = '%s' \
+            ORDER BY racewins DESC \
+            LIMIT %d,11;" \
+    )
 };
 
 // ===========================================================================
 //   Track records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,6) = {
-    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d);",
+    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) \
+        VALUES(%d, %d, %d, '%s', %f, %d);",
     
-    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) VALUES(%d, %d, %d, '%s', %f, %d) \
+    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) \
+        VALUES(%d, %d, %d, '%s', %f, %d) \
         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time), jumps = VALUES(jumps);"
 };
 NEW_SQL_QUERY_PARAMS(GetTrackRecords,2) = {
@@ -468,20 +529,20 @@ NEW_SQL_QUERY_PARAMS(GetTop,4) = {
                          JOIN wintox_maps AS wzm ON fk_map = wzm.id \
                          JOIN ( \
                             SELECT DISTINCT bsp_name, id FROM wintox_maps \
-                            WHERE bsp_name = '%s' \
+                            WHERE gametype = '%s' AND bsp_name = '%s' \
                             LIMIT 1 \
                          ) AS wzm2 ON wzm2.id = wzm.id \
                          WHERE wzm.bsp_name = wzm2.bsp_name AND track = %d AND type = '%s' \
                          ORDER BY time ASC \
                          LIMIT %d,11;")
 };
-NEW_SQL_QUERY_PARAMS(GetTopPartial,4) = {
+NEW_SQL_QUERY_PARAMS(GetTopPartial,5) = {
     SQLITE_MYSQL("SELECT wzm2.bsp_name, wzp.latest_name, time, jumps FROM wintox_track_records \
                          JOIN wintox_players AS wzp ON fk_player = wzp.id \
                          JOIN wintox_maps AS wzm ON fk_map = wzm.id \
                          JOIN ( \
                             SELECT DISTINCT bsp_name, id FROM wintox_maps \
-                            WHERE bsp_name LIKE '%%%s%%' \
+                            WHERE gametype = '%s' AND bsp_name LIKE '%%%s%%' \
                             LIMIT 1 \
                          ) AS wzm2 ON wzm2.id = wzm.id \
                          WHERE wzm.bsp_name = wzm2.bsp_name AND track = %d AND type = '%s' \
