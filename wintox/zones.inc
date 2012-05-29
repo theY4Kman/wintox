@@ -85,8 +85,8 @@ new g_CurMapTier = 1;
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
 #define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
-// Amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
-#define ZONE_HEIGHT_FUDGE 4.0
+// Default amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
+#define ZONE_HEIGHT_FUDGE 20.0
 
 #define PLAYER_IN_ZONE(%1,%2) (g_PlayerCurrentZone[(%1)] == (%2))
 
@@ -235,7 +235,7 @@ Zones_Init()
     g_DrawBonusFlags = GetConVarBool(draw_bonus_flags);
     HookConVarChange(draw_bonus_flags, ConVar_DrawBonusFlags);
     
-    new Handle:zone_height_fudge = CreateConVar("wintox_zone_height_fudge", "10.0", "The amount, in map units, of leeway used when detecting if a player is at the right height for a zone.");
+    new Handle:zone_height_fudge = CreateConVar("wintox_zone_height_fudge", "20.0", "The amount, in map units, of leeway used when detecting if a player is at the right height for a zone.");
     g_ZoneHeightFudge = GetConVarFloat(zone_height_fudge);
     HookConVarChange(zone_height_fudge, ConVar_ZoneHeightFudge);
     
@@ -683,6 +683,7 @@ public Action:ConCommand_MapTier(client, args)
 #define ZMENU_INFO_CLEAR_ALL_ZONES "clear"
 #define ZMENU_INFO_RELOAD_ZONES "reload"
 #define ZMENU_INFO_SYNC_ZONES "sync"
+#define ZMENU_INFO_MAP_TIER "maptier"
 
 BuildZoneMenu()
 {
@@ -697,6 +698,7 @@ BuildZoneMenu()
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_RELOAD_ZONES, "Reload zones from DB");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB (slow)");
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_MAP_TIER, "Set map tier");
 }
 
 BuildTrackMenu()
@@ -822,7 +824,7 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             AddMenuItem(confirm_menu, "no", "No");
             AddMenuItem(confirm_menu, "kinda yes", "Yes");
             
-            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER, true);
+            DisplaySubmenu(confirm_menu, param1, MENU_TIME_FOREVER);
         }
         else if (StrEqual(info, ZMENU_INFO_RELOAD_ZONES))
         {
@@ -833,6 +835,26 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
         {
             Zone_SyncToDB(param1);
             DisplayMenu(menu, param1, MENU_TIME_FOREVER);
+        }
+        else if (StrEqual(info, ZMENU_INFO_MAP_TIER))
+        {
+            new Handle:tier_menu = CreateMenu(MenuHandler_SetMapTier);
+            SetMenuExitButton(tier_menu, true);
+            SetMenuExitBackButton(tier_menu, true);
+            SetMenuTitle(tier_menu, "Set map tier");
+            
+            for (new i=1; i<=6; i++)
+            {
+                decl String:buffer[16];
+                new String:sz_tier[2];
+                
+                Format(STR(buffer), "Tier %d%s", i, (g_CurMapTier == i) ? " (cur)" : "");
+                sz_tier[0] = '0' + i;
+                
+                AddMenuItem(tier_menu, sz_tier, buffer);
+            }
+            
+            DisplaySubmenu(tier_menu, param1, MENU_TIME_FOREVER);
         }
     }
     else if (action == MenuAction_Cancel)
@@ -1058,6 +1080,20 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
         else
             HANDLE_CANCEL();
     }
+}
+
+public MenuHandler_SetMapTier(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[2];
+        GetMenuItem(menu, param2, STR(info));
+        Map_SetTier(param1, info[0] - '0');
+        
+        PrevSubmenu(param1);
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
 }
 
 
