@@ -85,7 +85,12 @@
  *   UNIQUE(fk_player, fk_map, track, type)
  * 
  * TABLE wintox_top_records
- *   fk_record          INT,FK(wintox_track_records),UNIQUE
+ *   id                 pk
+ *   fk_map             INT,FK(wintox_maps)
+ *   track              INTEGER
+ *   type               VARCHAR(16),DEFAULT ''
+ *   fk_record          INT,FK(wintox_track_records)
+ *   UNIQUE(fk_map, track, type)
  */
 
 enum DatabaseType
@@ -299,6 +304,9 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         type            TEXT NOT NULL DEFAULT '', \
         time            FLOAT NOT NULL, \
         jumps           INTEGER NOT NULL DEFAULT 0, \
+        date_set        INTEGER NOT NULL, \
+        FOREIGN KEY(fk_player) REFERENCES wintox_players(id), \
+        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
         UNIQUE(fk_player, fk_map, track, type) \
     );",
     
@@ -310,18 +318,33 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         type            VARCHAR(16) NOT NULL DEFAULT '', \
         time            FLOAT, \
         jumps           INTEGER NOT NULL DEFAULT 0, \
+        date_set        INTEGER NOT NULL, \
+        FOREIGN KEY(fk_player) REFERENCES wintox_players(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
         UNIQUE(fk_player, fk_map, track, type) \
     );"
 };
 NEW_SQL_QUERY(CreateTopRecords) = {
     "CREATE TABLE IF NOT EXISTS wintox_top_records ( \
+        id              INTEGER PRIMARY KEY ASC NOT NULL, \
+        fk_map          INTEGER NOT NULL, \
+        track           INTEGER NOT NULL, \
+        type            VARCHAR(16) NOT NULL DEFAULT '', \
         fk_record INTEGER PRIMARY KEY NOT NULL, \
-        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) \
+        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
+        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id), \
+        UNIQUE(fk_map, track, type) \
     );",
     
     "CREATE TABLE IF NOT EXISTS wintox_top_records ( \
+        id              INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL, \
+        fk_map          INTEGER NOT NULL, \
+        track           INTEGER NOT NULL, \
+        type            VARCHAR(16) NOT NULL DEFAULT '', \
         fk_record INTEGER PRIMARY KEY NOT NULL, \
-        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) ON DELETE CASCADE ON UPDATE CASCADE \
+        FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) ON DELETE CASCADE ON UPDATE CASCADE, \
+        UNIQUE(fk_map, track, type) \
     );"
 };
 
@@ -528,12 +551,16 @@ NEW_SQL_QUERY_PARAMS(GetRtop,2) = {
 //   Track records
 // ===========================================================================
 NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,6) = {
-    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) \
-        VALUES(%d, %d, %d, '%s', %f, %d);",
+    "INSERT OR REPLACE INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps, date_set) \
+        VALUES(%d, %d, %d, '%s', %f, %d, strftime('%%s', 'now'));",
     
-    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps) \
-        VALUES(%d, %d, %d, '%s', %f, %d) \
-        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), time = VALUES(time), jumps = VALUES(jumps);"
+    "INSERT INTO wintox_track_records (fk_player, fk_map, track, type, time, jumps, date_set) \
+        VALUES(%d, %d, %d, '%s', %f, %d, UNIX_TIMESTAMP(NOW())) \
+        ON DUPLICATE KEY UPDATE \
+            id = LAST_INSERT_ID(id), \
+            time = VALUES(time), \
+            jumps = VALUES(jumps), \
+            date_set = VALUES(date_set);"
 };
 NEW_SQL_QUERY_PARAMS(GetTrackRecords,2) = {
     SQLITE_MYSQL("SELECT track, type, time,jumps FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d")
@@ -660,6 +687,24 @@ NEW_SQL_QUERY_PARAMS(GetAllCountryRanks,2) = {
             ORDER BY `grosspoints` DESC, `last_join` DESC \
         ) AS ranks \
         LIMIT %d,11;"
+};
+
+// ===========================================================================
+//   Top Records
+// ===========================================================================
+
+NEW_SQL_QUERY_PARAMS(UpsertTopRecord,4) = {
+    "INSERT OR UPDATE INTO wintox_top_records (fk_map, track, type, fk_record) \
+        VALUES(%d, %d, '%s', %d);",
+    
+    "INSERT INTO wintox_top_records (fk_map, track, type, fk_record) \
+        VALUES(%d, %d, '%s', %d) \
+        ON DUPLICATE KEY UPDATE \
+            id = LAST_INSERT_ID(id), \
+            fk_map = VALUES(fk_map), \
+            track = VALUES(track), \
+            type = VALUES(type), \
+            fk_record = VALUES(fk_record);"
 };
 
 

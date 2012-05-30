@@ -430,6 +430,10 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         win_SQL_UpdatePlayerPoints(client);
     }
     
+    new Float:top_zone_record = g_BestZoneRecords[track][zone_id][style];
+    if (top_zone_record == INVALID_ZONE_RECORD || elapsed < top_zone_record)
+        g_BestZoneRecords[track][zone_id][style] = elapsed;
+    
     if (g_ZoneRecords[client][track][zone_id][style] == INVALID_ZONE_RECORD ||
         elapsed < g_ZoneRecords[client][track][zone_id][style])
     {
@@ -495,9 +499,19 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 #endif
     }
     
+    // Global top records
+    new Float:top_record = g_TrackWorldRecord[track][g_EndZone[track]][style];
+    new bool:is_top = false;
+    if (top_record == INVALID_ZONE_RECORD || total_time < top_record)
+    {
+        g_TrackWorldRecord[track][g_EndZone[track]][style] = total_time;
+        is_top = true;
+    }
+    
+    // Player's best records
     if (total_time < record || record == INVALID_TRACK_RECORD)
     {
-        win_SQL_UpsertTrackRecord(client, track, style, total_time);
+        win_SQL_UpsertTrackRecord(client, track, style, total_time, is_top);
         g_TrackRecords[client][track][style] = total_time;
     }
 }
@@ -1176,7 +1190,7 @@ public T_GetPercentCompletion(Handle:owner, Handle:hndl, const String:error[], a
     EXIT_REPLY();
 }
 
-win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
+win_SQL_UpsertTrackRecord(client, track, style, Float:total_time, bool:is_top=false)
 {
     decl String:query[256];
     
@@ -1188,10 +1202,45 @@ win_SQL_UpsertTrackRecord(client, track, style, Float:total_time)
         return;
     }
     
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, track);
+    WritePackCell(pack, style);
+    WritePackCell(pack, _:is_top);
+    ResetPack(pack);
+    
     Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
-    SQLT(query, T_UpsertTrackRecord, client);
+    SQLT(query, T_UpsertTrackRecord, pack);
 }
-SQLT_HANDLER(UpsertTrackRecord, "Error updating player %L track record points: %s", data)
+
+public T_UpsertTrackRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl Handle:pack;
+    decl client;
+    decl track;
+    decl style;
+    decl bool:is_top;
+    
+    pack = Handle:data;
+    client = ReadPackCell(pack);
+    track = ReadPackCell(pack);
+    style = ReadPackCell(pack);
+    is_top = bool:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error updating player %L track record points: %s", client, error);
+        return;
+    }
+    
+    if (is_top)
+    {
+        new fk_track_record = SQL_GetInsertId(hndl);
+        SQLTH(UpsertTopRecord, client, g_CurMapID, track, STYLE_NAMES[style], fk_track_record);
+    }
+}
+SQLT_HANDLER(UpsertTopRecord, "Error upserting top record for %L: %s", data)
 
 win_SQL_UpdatePlayerPoints(client)
 {
