@@ -81,7 +81,11 @@
  *   type               VARCHAR(16),DEFAULT ''
  *   time               FLOAT
  *   jumps              INTEGER,DEFAULT 0
+ *   date_set           INTEGER                 NOTE: timestamp
  *   UNIQUE(fk_player, fk_map, track, type)
+ * 
+ * TABLE wintox_top_records
+ *   fk_record          INT,FK(wintox_track_records),UNIQUE
  */
 
 enum DatabaseType
@@ -307,6 +311,17 @@ NEW_SQL_QUERY(CreateTrackRecords) = {
         time            FLOAT, \
         jumps           INTEGER NOT NULL DEFAULT 0, \
         UNIQUE(fk_player, fk_map, track, type) \
+    );"
+};
+NEW_SQL_QUERY(CreateTopRecords) = {
+    "CREATE TABLE IF NOT EXISTS wintox_top_records ( \
+        fk_record INTEGER PRIMARY KEY NOT NULL, \
+        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) \
+    );",
+    
+    "CREATE TABLE IF NOT EXISTS wintox_top_records ( \
+        fk_record INTEGER PRIMARY KEY NOT NULL, \
+        FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) ON DELETE CASCADE ON UPDATE CASCADE \
     );"
 };
 
@@ -734,4 +749,5 @@ win_SQL_CreateTables()
     CREATE_TABLE(CreateZonePoints, "wintox_zone_points")
     CREATE_TABLE(CreateZoneRecords, "wintox_zone_records")
     CREATE_TABLE(CreateTrackRecords, "wintox_track_records")
+    CREATE_TABLE(CreateTopRecords, "wintox_top_records")
 }
