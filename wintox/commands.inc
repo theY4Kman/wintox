@@ -164,13 +164,13 @@ DisplayCommands(client, bool:pub=true)
         if (pub)
         {
             if (g_PubCmdsMenu == INVALID_HANDLE)
-                g_PubCmdsMenu = BuildCommandsMenu(commands, title);
+                g_PubCmdsMenu = BuildCommandsMenu(client, commands, title);
             menu = g_PubCmdsMenu;
         }
         else
         {
             if (g_AdmCmdsMenu == INVALID_HANDLE)
-                g_AdmCmdsMenu = BuildCommandsMenu(commands, title);
+                g_AdmCmdsMenu = BuildCommandsMenu(client, commands, title, true);
             menu = g_AdmCmdsMenu;
         }
         
@@ -178,7 +178,7 @@ DisplayCommands(client, bool:pub=true)
     }
 }
 
-Handle:BuildCommandsMenu(Handle:commands, const String:title[])
+Handle:BuildCommandsMenu(client, Handle:commands, const String:title[], bool:admin=false)
 {
     new Handle:menu = CreateMenu(MenuHandler_DisplayCommands);
     SetMenuTitle(menu, title);
@@ -194,6 +194,9 @@ Handle:BuildCommandsMenu(Handle:commands, const String:title[])
         ReadPackString(pack, cmd, sizeof(cmd));
         ReadPackString(pack, description, sizeof(description));
         ResetPack(pack);
+        
+        if (admin && !CheckCommandAccess(client, cmd, ADMFLAG_GENERIC))
+            continue;
         
         decl String:display[256];
         Format(display, sizeof(display), "/%s", cmd[3]);

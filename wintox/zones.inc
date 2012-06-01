@@ -203,25 +203,25 @@ Zones_Init()
         }
     }
     
-    RegisterCommand("sm_zonemenu", ConCommand_ZoneMenu, "sm_zonemenu | Bring up the zone menu.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] [<track=0>] | Create a new zone.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_beginbox", ConCommand_BeginBox, "sm_beginbox | Start creating the current zone using a box (rectangular prism).",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_endbox", ConCommand_EndBox, "sm_endbox | End box creation, saving the points and height to the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_setname", ConCommand_SetName, "sm_setname | Set the name of the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> [<track=0>] | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_cleartrack", ConCommand_ClearTrack, "sm_cleartrack <track> | Clear all zones in the specified track.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_trackname", ConCommand_TrackName, "sm_trackname <track #> <name> | Set the name of the specified track.",  0, ADMFLAG_GENERIC);
-    RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_zonemenu", ConCommand_ZoneMenu, "sm_zonemenu | Bring up the zone menu.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_newzone", ConCommand_NewZone, "sm_newzone [<zone index>] [<track=0>] | Create a new zone.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_beginbox", ConCommand_BeginBox, "sm_beginbox | Start creating the current zone using a box (rectangular prism).",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_endbox", ConCommand_EndBox, "sm_endbox | End box creation, saving the points and height to the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_setname", ConCommand_SetName, "sm_setname | Set the name of the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_finishzone", ConCommand_FinishZone, "sm_finishzone | Finalize the zone and its points and sync with the database.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_removezone", ConCommand_RemoveZone, "sm_removezone <zone index> [<track=0>] | Remove the zone with the specified zone ID.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_cleartrack", ConCommand_ClearTrack, "sm_cleartrack <track> | Clear all zones in the specified track.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_clearallzones", ConCommand_ClearAllZones, "sm_clearallzones | Clear all zones for the current map.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_reloadzones", ConCommand_ReloadZones, "sm_reloadzones | Reload all the zones from the database. Note: this will overwrite any unfinished zones.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_trackname", ConCommand_TrackName, "sm_trackname <track #> <name> | Set the name of the specified track.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC, "editzones");
     
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);

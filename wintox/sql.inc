@@ -330,7 +330,7 @@ NEW_SQL_QUERY(CreateTopRecords) = {
         fk_map          INTEGER NOT NULL, \
         track           INTEGER NOT NULL, \
         type            VARCHAR(16) NOT NULL DEFAULT '', \
-        fk_record INTEGER PRIMARY KEY NOT NULL, \
+        fk_record       INTEGER NOT NULL, \
         FOREIGN KEY(fk_map) REFERENCES wintox_maps(id), \
         FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id), \
         UNIQUE(fk_map, track, type) \
@@ -341,7 +341,7 @@ NEW_SQL_QUERY(CreateTopRecords) = {
         fk_map          INTEGER NOT NULL, \
         track           INTEGER NOT NULL, \
         type            VARCHAR(16) NOT NULL DEFAULT '', \
-        fk_record INTEGER PRIMARY KEY NOT NULL, \
+        fk_record       INTEGER NOT NULL, \
         FOREIGN KEY(fk_map) REFERENCES wintox_maps(id) ON DELETE CASCADE ON UPDATE CASCADE, \
         FOREIGN KEY(fk_record) REFERENCES wintox_track_records(id) ON DELETE CASCADE ON UPDATE CASCADE, \
         UNIQUE(fk_map, track, type) \
@@ -591,9 +591,80 @@ NEW_SQL_QUERY_PARAMS(GetTopPartial,5) = {
                          ORDER BY time ASC \
                          LIMIT %d,11;")
 };
-
-new String:sql_GetPercentCompletion[DatabaseType][1152];
-new String:sql_GetPercentCompletionPartial[DatabaseType][1152];
+NEW_SQL_QUERY_PARAMS(GetPercentCompletion,2) = {
+    "SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
+        FROM `wintox_track_records` \
+        JOIN ( \
+            SELECT COUNT(wt.id) AS num_tracks, gametype \
+                FROM wintox_tracks AS wt \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                WHERE wzm.gametype = '%s' \
+        ) AS trackscnt \
+        JOIN ( \
+            SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                FROM wintox_track_records AS wtr \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE fk_player = %d \
+        ) AS records \
+        WHERE records.gametype = trackscnt.gametype \
+        LIMIT 1;",
+    
+    "SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
+        FROM `wintox_track_records` \
+        JOIN ( \
+            SELECT COUNT(wt.id) AS num_tracks, gametype \
+                FROM wintox_tracks AS wt \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                WHERE wzm.gametype = '%s' \
+        ) AS trackscnt \
+        JOIN ( \
+            SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                FROM wintox_track_records AS wtr \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE fk_player = %d \
+        ) AS records \
+        WHERE records.gametype = trackscnt.gametype \
+        LIMIT 1;"
+};
+NEW_SQL_QUERY_PARAMS(GetPercentCompletionPartial,3) = {
+    "SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
+        FROM `wintox_track_records` \
+        JOIN ( \
+            SELECT COUNT(wt.id) AS num_tracks, gametype \
+                FROM wintox_tracks AS wt \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                WHERE wzm.gametype = '%s' \
+        ) AS trackscnt \
+        JOIN ( \
+            SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                FROM wintox_track_records AS wtr \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE wp.latest_name LIKE '%%%s%%' \
+        ) AS records \
+        WHERE records.gametype = trackscnt.gametype \
+        LIMIT 1;",
+    
+    "SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
+        FROM `wintox_track_records` \
+        JOIN ( \
+            SELECT COUNT(wt.id) AS num_tracks, gametype \
+                FROM wintox_tracks AS wt \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                WHERE wzm.gametype = '%s' \
+        ) AS trackscnt \
+        JOIN ( \
+            SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
+                FROM wintox_track_records AS wtr \
+                JOIN wintox_maps AS wzm ON wzm.id = fk_map \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE wp.latest_name LIKE '%%%s%%' \
+        ) AS records \
+        WHERE records.gametype = trackscnt.gametype \
+        LIMIT 1;"
+};
 
 NEW_SQL_QUERY_PARAMS(GetWorldRecord,3) = {
     SQLITE_MYSQL("SELECT wp.latest_name, time, jumps FROM wintox_track_records \
@@ -615,25 +686,70 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,4) = {
 //   Rank
 // ===========================================================================
 
+/* GetPlayerRank MySQL query:
+SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( 
+        SELECT id, latest_name, grosspoints, @curRank := @curRank + 1 AS rank 
+            FROM wintox_players, (SELECT @curRank := 0) AS r 
+            ORDER BY grosspoints DESC, last_join DESC 
+        ) AS ranks, (SELECT @playerID := 1) AS x 
+        JOIN (
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed
+                FROM wintox_track_records
+                WHERE fk_player = @playerID
+        ) AS mc ON mc.fk_player = ranks.id
+        LEFT JOIN (
+            SELECT fk_player, COUNT(wtopr.id) AS map_records
+                FROM wintox_top_records AS wtopr
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record
+                WHERE fk_player = @playerID AND wtopr.track = 0
+        ) AS mr ON mr.fk_player = ranks.id
+        WHERE ranks.id = @playerID 
+        LIMIT 0,1
+*/
+
 NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
     "",
-    "SELECT id, latest_name, rank FROM ( \
-        SELECT id, latest_name, @curRank := @curRank + 1 AS rank \
-            FROM wintox_players, (SELECT @curRank := 0) AS r \
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
+        SELECT id, latest_name, grosspoints, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, (SELECT @curRank := 0, @playerID := %d) AS r \
             ORDER BY grosspoints DESC, last_join DESC \
         ) AS ranks \
-        WHERE id = %d \
-        LIMIT 0,1;"
+        JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
+        LIMIT 0,1"
 };
-NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,1) = {
+NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
     "",
-    "SELECT latest_name, rank FROM ( \
-        SELECT latest_name, @curRank := @curRank + 1 AS rank \
-            FROM wintox_players, (SELECT @curRank := 0) AS r \
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
+        SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS r \
             ORDER BY grosspoints DESC, last_join DESC \
         ) AS ranks \
-        WHERE latest_name LIKE '%%%s%%' \
-        LIMIT 0,1;"
+        JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE wp.latest_name LIKE @name AND wp.gametype = @gametype \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                JOIN wintox_players AS wp ON wp.id = fk_player \
+                WHERE wp.latest_name LIKE @name AND wp.gametype = @gametype AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        WHERE latest_name LIKE @name AND gametype = @gametype \
+        LIMIT 0,1"
 };
 NEW_SQL_QUERY_PARAMS(GetPlayerCountryRank,2) = {
     "",
@@ -712,43 +828,6 @@ NEW_SQL_QUERY_PARAMS(UpsertTopRecord,4) = {
 win_SQL_Init()
 {
     g_cv_DBConfig = CreateConVar("wintox_dbconfig", "default", "The database.cfg configuration to use with Wintox");
-    
-    // The query was so big, spcomp froze. Aww yeah.
-    for (new i=0; i<_:DatabaseType; i++)
-    {
-        new written = strcopy(sql_GetPercentCompletion[i], sizeof(sql_GetPercentCompletion[]), "\
-            SELECT records.latest_name, ((records.num_records / (trackscnt.num_tracks * %d)) * 100) AS pc \
-                FROM `wintox_track_records` \
-                JOIN ( \
-                    SELECT COUNT(wt.id) AS num_tracks, gametype \
-                        FROM wintox_tracks AS wt \
-                        JOIN wintox_maps AS wzm ON wzm.id = fk_map \
-                        WHERE wzm.gametype = '%s' \
-                ) AS trackscnt ");
-        strcopy(sql_GetPercentCompletionPartial[i], sizeof(sql_GetPercentCompletionPartial[]), sql_GetPercentCompletion[i]);
-        
-        strcopy(sql_GetPercentCompletion[i][written], sizeof(sql_GetPercentCompletion[])-written, "\
-            JOIN ( \
-                SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
-                    FROM wintox_track_records AS wtr \
-                    JOIN wintox_maps AS wzm ON wzm.id = fk_map \
-                    JOIN wintox_players AS wp ON wp.id = fk_player \
-                    WHERE fk_player = %d \
-            ) AS records \
-            WHERE records.gametype = trackscnt.gametype \
-            LIMIT 1;");
-        
-        strcopy(sql_GetPercentCompletionPartial[i][written], sizeof(sql_GetPercentCompletionPartial[]), "\
-            JOIN ( \
-                SELECT COUNT(wtr.id) AS num_records, latest_name, wzm.gametype \
-                    FROM wintox_track_records AS wtr \
-                    JOIN wintox_maps AS wzm ON wzm.id = fk_map \
-                    JOIN wintox_players AS wp ON wp.id = fk_player \
-                    WHERE wp.latest_name LIKE '%%%s%%' \
-            ) AS records \
-            WHERE records.gametype = trackscnt.gametype \
-            LIMIT 1;");
-    }
 }
 
 // Because this uses the `wintox_dbconfig` cvar, it must be called from OnConfigsExecuted (or later)

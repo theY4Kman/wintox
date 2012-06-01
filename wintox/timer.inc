@@ -1494,7 +1494,7 @@ win_SQL_GetPlayerRank(client, const String:partial[]="")
         decl String:esc_name[128];
         SQL_EscapeString(g_Database, partial, STR(esc_name));
         
-        SQLTH_H(GetPartialPlayerRank, T_GetPlayerRank, pack, esc_name);
+        SQLTH_H(GetPartialPlayerRank, T_GetPlayerRank, pack, WINTOX_GAMETYPE, esc_name);
     }
 }
 
@@ -1524,6 +1524,24 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
         return;
     }
     
+    decl String:latest_name[64];
+    decl rank;
+    decl grosspoints;
+    decl maps_completed;
+    decl map_records;
+    
     SQL_FetchRow(hndl);
     
+    SQL_FetchString(hndl, 0, STR(latest_name));
+    rank = SQL_FetchInt(hndl, 1);
+    grosspoints = SQL_FetchInt(hndl, 2);
+    maps_completed = SQL_FetchInt(hndl, 3);
+    map_records = SQL_FetchInt(hndl, 4);
+    
+#if defined(WINTOX_BHOP)
+    Timer_Reply(client, "{OG}%s{N}, Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+        latest_name, rank, grosspoints, maps_completed, map_records);
+#elseif defined(WINTOX_SURF)
+    #error T_GetPlayerRank needs a sruf-specific message
+#endif
 }
