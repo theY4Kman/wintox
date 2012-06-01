@@ -211,7 +211,10 @@ DisplayTimer(client, is_in_zone)
     
     if (!IsRacing(client))
     {
-        if (g_PlayerLowGrav[client])
+        if (g_ClientEditZone[client] != INVALID_ZONE)   
+            PrintHintText(client, "[Timer disabled when editing zones]");
+        
+        else if (g_PlayerLowGrav[client])
             PrintHintText(client, "[Disable low gravity to begin timing]");
         
         else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
@@ -1020,6 +1023,9 @@ PlayerCanTime(client)
     if (g_PlayerLowGrav[client])
         return false;
 #endif
+    
+    if (g_ClientEditZone[client] != INVALID_ZONE)
+        return false;
     
     return true;
 }

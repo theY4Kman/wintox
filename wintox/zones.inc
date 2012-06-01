@@ -1072,6 +1072,8 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
     }
     else if (action == MenuAction_Cancel)
     {
+        g_ClientEditZone[param1] = INVALID_ZONE;
+        
         // Somehow the menu is cancelled when its handle is closed, which leads
         // to double-popping when PrevSubmenu is called upon changing zone name
         // So we won't handle the cancel (calling PrevSubmenu) in that case
@@ -1271,6 +1273,8 @@ FindTrackPath(track)
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
 {
+    ResetTimer(client);
+    
     if (zone_id == ZONE_NEXT_NEW_ZONE)
     {
         zone_id = GetNextNewZone(track);
