@@ -240,8 +240,8 @@ DisplayTimer(client, is_in_zone)
             {
                 new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
                 
-                // TODO: select closest style
-                if (g_BestZoneRecords[track][zone][style] != 0.0)
+                new closest_style = GetClosestStyleForBestRecord(track, zone, style);
+                if (g_BestZoneRecords[track][zone][closest_style] != 0.0)
                 {
                     new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][style];
                     
@@ -431,6 +431,32 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
     {
         g_PlayerPoints[client] += g_CurMapTier;
         win_SQL_UpdatePlayerPoints(client);
+    }
+    
+    // Display +/-
+    if (g_PointsToChatEnabled[client] && g_EndZone[track] != zone_id)
+    {
+        decl String:sz_time[64];
+        decl String:plus_minus[84];
+        plus_minus[0] = '\0';
+        
+        new Float:zone_time = g_StartTimes[client][zone_id] - g_StartTimes[client][zone_id-1];
+        
+        new closest_style = GetClosestStyleForBestRecord(track, zone_id, style);
+        if (g_BestZoneRecords[track][zone_id][closest_style] != 0.0)
+        {
+            new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone_id][style];
+            
+            SecondsToTimeString(zone_pm, STR(sz_time), true);
+            Format(STR(plus_minus), " Zone ({G}%s{N}) |", sz_time);
+        }
+        
+        new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone_id][style];
+        
+        SecondsToTimeString(wr_pm, STR(sz_time), true);
+        Format(STR(plus_minus), "%s Total ({G}%s{N})", plus_minus, sz_time);
+        
+        Timer_PrintToChat(client, "Reached zone {G}%d{N} |%s", zone_id+1, plus_minus);
     }
     
     new Float:top_zone_record = g_BestZoneRecords[track][zone_id][style];
@@ -1069,6 +1095,18 @@ SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
     Format(buffer, maxlength, "%s%s%02d:%06.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
 }
 
+GetClosestStyleForBestRecord(track, zone, style)
+{
+    if (g_BestZoneRecords[track][zone][style] != 0.0)
+        return style;
+    
+    for (new i=MAX_STYLES; i>=0; i--)
+        if (g_BestZoneRecords[track][zone][i] != 0.0)
+            return i;
+    
+    return STYLE_NORMAL;
+}
+
 
 
 /* ========================================================================
@@ -1485,6 +1523,8 @@ win_SQL_GetPlayerRank(client, const String:partial[]="")
     WritePackString(pack, partial);
     ResetPack(pack);
     
+    decl String:query[1024];
+    
     if (IS_STR_EMPTY(partial))
     {
         if (g_PlayerIDs[client] == -1)
@@ -1493,14 +1533,14 @@ win_SQL_GetPlayerRank(client, const String:partial[]="")
             return;
         }
         
-        SQLTH(GetPlayerRank, pack, g_PlayerIDs[client]);
+        SQLTH_D(GetPlayerRank, pack, g_PlayerIDs[client]);
     }
     else
     {
         decl String:esc_name[128];
         SQL_EscapeString(g_Database, partial, STR(esc_name));
         
-        SQLTH_H(GetPartialPlayerRank, T_GetPlayerRank, pack, WINTOX_GAMETYPE, esc_name);
+        SQLTH_H_D(GetPartialPlayerRank, T_GetPlayerRank, pack, WINTOX_GAMETYPE, esc_name);
     }
 }
 
@@ -1516,7 +1556,7 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error getting player rank for client %d (partial: \"%s\")", client, partial);
+        LogError("Error getting player rank for client %d (partial: \"%s\"): %s", client, partial, error);
         Timer_Reply(client, "There was a database error retrieving the player rank for \"%s\". Please try again.", partial);
         return;
     }

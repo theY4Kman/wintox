@@ -714,7 +714,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
             FROM wintox_players, (SELECT @curRank := 0, @playerID := %d) AS r \
             ORDER BY grosspoints DESC, last_join DESC \
         ) AS ranks \
-        JOIN ( \
+        LEFT JOIN ( \
             SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
                 FROM wintox_track_records \
                 WHERE fk_player = @playerID \
@@ -735,7 +735,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
             FROM wintox_players, (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS r \
             ORDER BY grosspoints DESC, last_join DESC \
         ) AS ranks \
-        JOIN ( \
+        LEFT JOIN ( \
             SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
                 FROM wintox_track_records \
                 JOIN wintox_players AS wp ON wp.id = fk_player \
