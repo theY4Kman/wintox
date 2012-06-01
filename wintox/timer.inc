@@ -998,7 +998,7 @@ public Action:ConCommand_CRank(client, args)
     decl String:partial[64];
     GetCmdArgString(STR(partial));
     
-    // TODO
+    win_SQL_GetPlayerCountryRank(client, partial);
     
     return Plugin_Handled;
 }
@@ -1557,7 +1557,10 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
     if (hndl == INVALID_HANDLE)
     {
         LogError("Error getting player rank for client %d (partial: \"%s\"): %s", client, partial, error);
-        Timer_Reply(client, "There was a database error retrieving the player rank for \"%s\". Please try again.", partial);
+        if (IS_STR_EMPTY(partial))
+            Timer_Reply(client, "There was a database error retrieving your rank. Please try again.");
+        else
+            Timer_Reply(client, "There was a database error retrieving the player rank for \"%s\". Please try again.", partial);
         return;
     }
     
@@ -1589,5 +1592,91 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
         latest_name, rank, grosspoints, maps_completed, map_records);
 #elseif defined(WINTOX_SURF)
     #error T_GetPlayerRank needs a sruf-specific message
+#endif
+}
+
+win_SQL_GetPlayerCountryRank(client, const String:partial[]="")
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackString(pack, partial);
+    ResetPack(pack);
+    
+    decl String:query[1024];
+    
+    if (IS_STR_EMPTY(partial))
+    {
+        if (g_PlayerIDs[client] == -1)
+        {
+            Timer_Reply(client, "You are not in the database, yet. How'd that happen?");
+            return;
+        }
+        
+        SQLTH_D(GetPlayerCountryRank, pack, g_PlayerIDs[client]);
+    }
+    else
+    {
+        decl String:esc_name[128];
+        SQL_EscapeString(g_Database, partial, STR(esc_name));
+        
+        SQLTH_H_D(GetPartialPlayerCountryRank, T_GetPlayerCountryRank, pack, WINTOX_GAMETYPE, esc_name);
+    }
+}
+
+public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl Handle:pack;
+    decl client;
+    decl String:partial[64];
+    
+    pack = Handle:data;
+    client = ReadPackCell(pack);
+    ReadPackString(pack, STR(partial));
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error getting country rank for client %d (partial: \"%s\"): %s", client, partial, error);
+        if (IS_STR_EMPTY(partial))
+            Timer_Reply(client, "There was a database error retrieving your country rank. Please try again.");
+        else
+            Timer_Reply(client, "There was a database error retrieving the country rank for \"%s\". Please try again.", partial);
+        return;
+    }
+    
+    if (!SQL_GetRowCount(hndl))
+    {
+        if (IS_STR_EMPTY(partial))
+            Timer_Reply(client, "We couldn't find you in the database! Uh-oh.");
+        else
+            Timer_Reply(client, "There were no matches for \"%s\"", partial);
+        return;
+    }
+    
+    decl String:latest_name[64];
+    decl rank;
+    decl grosspoints;
+    decl maps_completed;
+    decl map_records;
+    decl String:country[4];
+    
+    SQL_FetchRow(hndl);
+    
+    SQL_FetchString(hndl, 0, STR(latest_name));
+    rank = SQL_FetchInt(hndl, 1);
+    grosspoints = SQL_FetchInt(hndl, 2);
+    maps_completed = SQL_FetchInt(hndl, 3);
+    map_records = SQL_FetchInt(hndl, 4);
+    SQL_FetchString(hndl, 5, STR(country));
+    
+    decl String:sz_country[16];
+    sz_country[0] = '\0';
+    if (!IS_STR_EMPTY(country))
+        Format(STR(sz_country), " ({OG}%s{N})", country);
+    
+#if defined(WINTOX_BHOP)
+    Timer_Reply(client, "{OG}%s{N}, Country%s Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+        latest_name, sz_country, rank, grosspoints, maps_completed, map_records);
+#elseif defined(WINTOX_SURF)
+    #error T_GetPlayerCountryRank needs a surf-specific message
 #endif
 }
