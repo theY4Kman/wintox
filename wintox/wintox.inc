@@ -33,6 +33,8 @@ new bool:g_RemoveDroppedWeapons = true;
 // Holds the state of wintox_suppress_hint, whether to actiely suppress hint text
 // if the player disables the hint text timer
 new bool:g_SuppressHintText = true;
+// Holds the state of wintox_max_prespeed_velocity, the max velocity allowed in a start zone
+new Float:g_MaxPrespeedVelocity = 278.0;
 
 // Database IDs for each player
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
@@ -98,6 +100,10 @@ Wintox_Init()
     new Handle:suppress_hint_text = CreateConVar("wintox_suppress_hint_text", "1", "Whether or not to actively suppress the hint text box if the user disables the timer display (if false, hint text boxes take a few seconds to disappear)", 0, true, 0.0, true, 1.0);
     g_SuppressHintText = GetConVarBool(suppress_hint_text);
     HookConVarChange(suppress_hint_text, ConVar_SuppressHintText);
+    
+    new Handle:max_prespeed_velocity = CreateConVar("wintox_max_prespeed_velocity", "278.0", "The maximum velocity allowed in a start zone.");
+    g_MaxPrespeedVelocity = GetConVarFloat(max_prespeed_velocity);
+    HookConVarChange(max_prespeed_velocity, ConVar_MaxPrespeedVelocity);
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
@@ -200,6 +206,11 @@ public ConVar_LowGravMultiplier(Handle:cvar, const String:oldVal[], const String
 }
 #endif
 
+public ConVar_MaxPrespeedVelocity(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_MaxPrespeedVelocity = GetConVarFloat(cvar);
+}
+
 public OnGameFrame()
 {
     g_CurrentTick++;
@@ -282,9 +293,21 @@ public OnGameFrame()
                     g_PlayerCurrentZone[client] = i;
                     break;
                 }
-                else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0)
+                else if (g_PlayerCurrentZone[client] == 0)
                 {
-                    if (!IsRacing(client))
+                    // Anti-pre-speed
+                    decl Float:velocity[3];
+                    Entity_GetAbsVelocity(client, velocity);
+                    
+                    if (GetVectorLength(velocity) > g_MaxPrespeedVelocity)
+                    {
+                        NormalizeVector(velocity, velocity);
+                        ScaleVector(velocity, g_MaxPrespeedVelocity);
+                        Entity_SetAbsVelocity(client, velocity);
+                    }
+                    
+                    // Start the timer
+                    if (g_StartTimes[client][0] == 0.0 && !IsRacing(client))
                     {
                         StartTimer(client);
                         g_IsTiming[client] = true;

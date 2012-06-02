@@ -1236,8 +1236,6 @@ public T_GetPercentCompletion(Handle:owner, Handle:hndl, const String:error[], a
 
 win_SQL_UpsertTrackRecord(client, track, style, Float:total_time, bool:is_top=false)
 {
-    decl String:query[256];
-    
     if (g_PlayerIDs[client] == -1)
     {
 #if defined(WINTOX_DEBUG)
@@ -1253,8 +1251,7 @@ win_SQL_UpsertTrackRecord(client, track, style, Float:total_time, bool:is_top=fa
     WritePackCell(pack, _:is_top);
     ResetPack(pack);
     
-    Format(STR(query), SQL_QUERY[UpsertTrackRecord], g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
-    SQLT(query, T_UpsertTrackRecord, pack);
+    SQLTH(UpsertTrackRecord, pack, g_PlayerIDs[client], g_CurMapID, track, STYLE_NAMES[style], total_time, g_Jumps[client]);
 }
 
 public T_UpsertTrackRecord(Handle:owner, Handle:hndl, const String:error[], any:data)
@@ -1588,7 +1585,7 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
     map_records = SQL_FetchInt(hndl, 4);
     
 #if defined(WINTOX_BHOP)
-    Timer_Reply(client, "{OG}%s{N}, Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+    Timer_Reply(client, "{G}%s{N}, Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
         latest_name, rank, grosspoints, maps_completed, map_records);
 #elseif defined(WINTOX_SURF)
     #error T_GetPlayerRank needs a sruf-specific message
@@ -1674,7 +1671,7 @@ public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], a
         Format(STR(sz_country), " ({OG}%s{N})", country);
     
 #if defined(WINTOX_BHOP)
-    Timer_Reply(client, "{OG}%s{N}, Country%s Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+    Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
         latest_name, sz_country, rank, grosspoints, maps_completed, map_records);
 #elseif defined(WINTOX_SURF)
     #error T_GetPlayerCountryRank needs a surf-specific message
