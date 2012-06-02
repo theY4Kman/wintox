@@ -280,6 +280,20 @@ public OnGameFrame()
                             Race_PlayerReachedZone(client, track, i);
                     }
                     
+                    if (i == 0)
+                    {
+                        // Anti-pre-speed
+                        decl Float:velocity[3];
+                        Entity_GetAbsVelocity(client, velocity);
+                        
+                        if (GetVectorLength(velocity) > g_MaxPrespeedVelocity)
+                        {
+                            NormalizeVector(velocity, velocity);
+                            ScaleVector(velocity, g_MaxPrespeedVelocity);
+                            Entity_SetAbsVelocity(client, velocity);
+                        }
+                    }
+                    
                     // Yeah, you go, player! YOU ROCK!
                     if (IS_END_ZONE_T(track,i) && (g_IsTiming[client] || IsRacing(client)))
                     {
@@ -293,25 +307,11 @@ public OnGameFrame()
                     g_PlayerCurrentZone[client] = i;
                     break;
                 }
-                else if (g_PlayerCurrentZone[client] == 0)
+                else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0 && !IsRacing(client))
                 {
-                    // Anti-pre-speed
-                    decl Float:velocity[3];
-                    Entity_GetAbsVelocity(client, velocity);
-                    
-                    if (GetVectorLength(velocity) > g_MaxPrespeedVelocity)
-                    {
-                        NormalizeVector(velocity, velocity);
-                        ScaleVector(velocity, g_MaxPrespeedVelocity);
-                        Entity_SetAbsVelocity(client, velocity);
-                    }
-                    
                     // Start the timer
-                    if (g_StartTimes[client][0] == 0.0 && !IsRacing(client))
-                    {
-                        StartTimer(client);
-                        g_IsTiming[client] = true;
-                    }
+                    StartTimer(client);
+                    g_IsTiming[client] = true;
                 }
             }
         }

@@ -11,6 +11,8 @@
 
 #include "./wintox/stocks"
 
+new bool:g_wintoxDBConnected = false;
+
 /**
  *  Database structure
  * ====================
@@ -876,6 +878,7 @@ win_SQL_Connect()
     SQL_GetDriverProduct(g_DatabaseDriver, STR(driver));
     
     LogMessage("Successfully connected to %s database config \"%s\"", driver, config);
+    g_wintoxDBConnected = true;
 }
 
 win_SQL_CreateTables()

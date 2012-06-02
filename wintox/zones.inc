@@ -223,6 +223,10 @@ Zones_Init()
     RegisterCommand("sm_trackname", ConCommand_TrackName, "sm_trackname <track #> <name> | Set the name of the specified track.",  0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC, "editzones");
     
+#if defined(WINTOX_DEBUG)
+    RegisterCommand("sm_curmapid", ConCommand_CurMapID, "sm_curmapid | Prints the database ID of the current map", 0, ADMFLAG_GENERIC, "wtxdebug");
+#endif
+    
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
     HookConVarChange(draw_zones, ConVar_DrawZones);
@@ -671,6 +675,18 @@ public Action:ConCommand_MapTier(client, args)
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_DEBUG)
+public Action:ConCommand_CurMapID(client, args)
+{
+    NO_ARGS()
+    RESET_REPLY()
+    
+    Reply(client, "Current map ID: %d", g_CurMapID);
+    
+    return Plugin_Handled;
+}
+#endif
 
 
 
