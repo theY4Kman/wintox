@@ -860,6 +860,13 @@ win_SQL_Connect()
     decl String:error[256];
     decl String:driver[64];
     
+    if (g_Database != INVALID_HANDLE)
+    {
+        CloseHandle(g_Database);
+        g_Database = INVALID_HANDLE;
+        g_wintoxDBConnected = false;
+    }
+    
     GetConVarString(g_cv_DBConfig, STR(config));
     g_Database = SQL_Connect(config, true, STR(error));
     

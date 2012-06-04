@@ -63,7 +63,7 @@ public OnConfigsExecuted()
     win_SQL_CreateTables();
     
     // Cache map info from database
-    GetOrInsertMap(g_CurMapName);
+    Timer_GetMapInfo(INVALID_HANDLE);
     
     if (g_wintoxLateLoad)
     {
@@ -92,8 +92,6 @@ public OnMapStart()
     decl String:mapname[256];
     GetCurrentMap(STR(mapname));
     String_ToLower(mapname, STR(g_CurMapName));
-    
-    Timer_GetMapInfo(INVALID_HANDLE);
 }
 
 public Action:Timer_GetMapInfo(Handle:timer)
@@ -102,6 +100,8 @@ public Action:Timer_GetMapInfo(Handle:timer)
         GetOrInsertMap(g_CurMapName);
     else
         CreateTimer(0.1, Timer_GetMapInfo);
+    
+    return Plugin_Continue;
 }
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)

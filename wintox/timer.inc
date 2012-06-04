@@ -209,6 +209,19 @@ DisplayTimer(client, is_in_zone)
     new zone = g_PlayerCurrentZone[client];
     new style = g_PlayerCurrentStyle[client];
     
+    decl String:stagename[72];
+    stagename[0] = '\0';
+    
+    if (zone >= 0)
+    {
+        if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
+            strcopy(STR(stagename), g_ZoneNames[track][zone]);
+        else if (zone > 0)
+            Format(STR(stagename), "Stage %d", zone + 1);
+        else
+            strcopy(STR(stagename), "Start");
+    }
+    
     if (!IsRacing(client))
     {
         if (g_ClientEditZone[client] != INVALID_ZONE)   
@@ -261,21 +274,17 @@ DisplayTimer(client, is_in_zone)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
             {
-                decl String:stagename[72];
-                stagename[0] = '\0';
-                if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
-                    Format(STR(stagename), " (%s)", g_ZoneNames[track][zone]);
                 
                 PrintHintText(client, "\
 %s\
 Time: %s\n\
 Style: %s\n\
-Stage %d%s%s\n\
+%s%s\n\
 Jumps: %d",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
-                zone, stagename, plus_minus,
+                stagename, plus_minus,
                 g_Jumps[client]);
             }
             else
@@ -345,20 +354,15 @@ Jumps: %d",
             (time > -1.0) ? "\nSet..." : ((time > -2.0) ? "\nReady..." : ""));
         else if (g_RaceEndElapsed[client] == 0.0)
         {
-            decl String:stagename[72];
-            stagename[0] = '\0';
-            if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
-                Format(STR(stagename), " (%s)", g_ZoneNames[track][zone]);
-            
             PrintHintText(client, "\
 [RACE]\n\
 Time: %s\n\
 Style: %s (opp %s)\n\
-Stage %d%s%s\n\
+%s%s\n\
 Jumps: %d (opp %d)",
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            zone, stagename, plus_minus,
+            stagename, plus_minus,
             g_Jumps[client], g_Jumps[opponent]);
         }
         else

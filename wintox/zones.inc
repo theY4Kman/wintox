@@ -1315,6 +1315,14 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
     ZONE_HEIGHT_T[track][zone_id] = DEFAULT_ZONE_HEIGHT;
     ZONE_EDITING_T[track][zone_id] = true;
     
+    if (IS_STR_EMPTY(g_ZoneNames[track][zone_id]))
+    {
+        if (zone_id == 0)
+            strcopy(g_ZoneNames[track][zone_id], sizeof(g_ZoneNames[][]), "Start");
+        else
+            Format(g_ZoneNames[track][zone_id], sizeof(g_ZoneNames[][]), "Stage %d", zone_id + 1);
+    }
+    
     win_SQL_UpsertZone(zone_id, track);
 }
 
