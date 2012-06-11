@@ -34,7 +34,7 @@ new bool:g_RemoveDroppedWeapons = true;
 // if the player disables the hint text timer
 new bool:g_SuppressHintText = true;
 // Holds the state of wintox_max_prespeed_velocity, the max velocity allowed in a start zone
-new Float:g_MaxPrespeedVelocity = 278.0;
+new Float:g_MaxPrespeedVelocity = 378.0;
 
 // Database IDs for each player
 new g_PlayerIDs[MAXPLAYERS] = { -1, ... };
@@ -101,7 +101,7 @@ Wintox_Init()
     g_SuppressHintText = GetConVarBool(suppress_hint_text);
     HookConVarChange(suppress_hint_text, ConVar_SuppressHintText);
     
-    new Handle:max_prespeed_velocity = CreateConVar("wintox_max_prespeed_velocity", "278.0", "The maximum velocity allowed in a start zone.");
+    new Handle:max_prespeed_velocity = CreateConVar("wintox_max_prespeed_velocity", "378.0", "The maximum velocity allowed in a start zone.");
     g_MaxPrespeedVelocity = GetConVarFloat(max_prespeed_velocity);
     HookConVarChange(max_prespeed_velocity, ConVar_MaxPrespeedVelocity);
     

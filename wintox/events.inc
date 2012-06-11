@@ -14,6 +14,7 @@
 #include <sourcemod>
 #include <geoip>
 #include <sdkhooks>
+#include <clientprefs>
 
 new Handle:g_fwdMapLoaded = INVALID_HANDLE;
 new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
@@ -143,6 +144,25 @@ public OnClientDisconnect(client)
 public QueryConVar_FpsMax(QueryCookie:cookie, client, ConVarQueryResult:result, const String:cvarName[], const String:cvarValue[])
 {
     g_ClientFpsMax[client] = StringToInt(cvarValue);
+}
+
+public OnClientCookiesCached(client)
+{
+#define GET_COOKIE(%1,%2) { \
+        new Handle:cookie = FindClientCookie((%1)); \
+        if (cookie != INVALID_HANDLE) \
+        { \
+            decl String:sz_cookie[8]; \
+            GetClientCookie(client, cookie, STR(sz_cookie)); \
+            %2 = bool:StringToInt(sz_cookie); \
+        } \
+    }
+
+    GET_COOKIE(COOKIE_TIMER_ENABLED,g_TimerEnabled[client])
+    GET_COOKIE(COOKIE_SIDE_STAGE_INFO_ENABLED,g_SideStageInfoEnabled[client])
+    GET_COOKIE(COOKIE_POINTS_TO_CHAT_ENABLED,g_PointsToChatEnabled[client])
+
+#undef GET_COOKIE
 }
 
 

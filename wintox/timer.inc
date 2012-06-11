@@ -9,6 +9,7 @@
 #endif
 #define _wintox_timer_included
 
+#include <clientprefs>
 #include "./wintox/zones"
 #include "./wintox/menus"
 #include "./wintox/sql"
@@ -100,6 +101,11 @@ new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
 
+#define COOKIE_TIMER_ENABLED "WTX_TimerEnabled"
+#define COOKIE_SIDE_STAGE_INFO_ENABLED "WTX_SideStageInfoEnabled"
+#define COOKIE_POINTS_TO_CHAT_ENABLED "WTX_PointsToChatEnabled"
+
+
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
 #define TIMER_STARTED(%1) (g_StartTimes[(%1)][0] != 0.0)
 #define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
@@ -151,6 +157,10 @@ Timer_Init()
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
     AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Timer_OnMapLoaded);
+    
+    RegClientCookie(COOKIE_TIMER_ENABLED, "Whether to display the middle (hint text) timer.", CookieAccess_Public);
+    RegClientCookie(COOKIE_SIDE_STAGE_INFO_ENABLED, "Whether to display side stage info.", CookieAccess_Public);
+    RegClientCookie(COOKIE_POINTS_TO_CHAT_ENABLED, "Whether to print points and +/- timers to chat.", CookieAccess_Public);
 }
 
 Timer_DeinitPlayer(client)
@@ -586,16 +596,35 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
         decl String:info[16];
         GetMenuItem(menu, param2, STR(info));
         
+#define SET_COOKIE(%1,%2) \
+    new Handle:cookie = FindClientCookie((%1)); \
+    if (cookie != INVALID_HANDLE) \
+    { \
+        decl String:sz_cookie[8]; \
+        IntToString(_:%2[param1], STR(sz_cookie)); \
+        SetClientCookie(param1, cookie, sz_cookie); \
+        CloseHandle(cookie); \
+    }
+        
         if (StrEqual(info, TSET_MENU_MIDDLE))
         {
             g_TimerEnabled[param1] = !g_TimerEnabled[param1];
+            SET_COOKIE(COOKIE_TIMER_ENABLED,g_TimerEnabled)
+            
             if (!g_TimerEnabled[param1])
                 HideHintText(param1);
         }
         else if (StrEqual(info, TSET_MENU_SIDE))
+        {
             g_SideStageInfoEnabled[param1] = !g_SideStageInfoEnabled[param1];
+            SET_COOKIE(COOKIE_SIDE_STAGE_INFO_ENABLED,g_SideStageInfoEnabled)
+        }
         else if (StrEqual(info, TSET_MENU_POINTS))
+        {
             g_PointsToChatEnabled[param1] = !g_PointsToChatEnabled[param1];
+            SET_COOKIE(COOKIE_POINTS_TO_CHAT_ENABLED,g_PointsToChatEnabled)
+        }
+#undef SET_COOKIE
         
         // Cancel this menu without redisplaying previous submenu
         PrevSubmenu(param1, false);
@@ -1504,17 +1533,24 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
     
     decl String:latest_name[64];
     decl Float:time;
-    decl jumps;
     
     SQL_FetchString(hndl, 0, STR(latest_name));
     time = SQL_FetchFloat(hndl, 1);
-    jumps = SQL_FetchInt(hndl, 2);
     
     decl String:sz_time[32];
     SecondsToTimeString(time, STR(sz_time));
     
+#if defined(WINTOX_BHOP)
+    decl jumps;
+    jumps = SQL_FetchInt(hndl, 2);
+    
     Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N} and {G}%d{N} jumps!", \
         STYLE_NAMES_C[style], latest_name, sz_time, jumps);
+        
+#elseif defined(WINTOX_SURF)
+    Timer_Reply(client, "World record holder is {G}%s{N} with a time of {G}%s{N}", \
+        latest_name, sz_time);
+#endif
 }
 
 win_SQL_GetPlayerRank(client, const String:partial[]="")
