@@ -26,6 +26,7 @@ new Handle:g_fwdTextEntryComplete = INVALID_HANDLE;
 #include "./wintox/stocks"
 #include "./wintox/zones"
 #include "./wintox/timer"
+#include "./wintox/teleport"
 
 Events_Init()
 {
@@ -346,8 +347,11 @@ ResetPlayerVariables(client)
     Wintox_DeinitPlayer(client);
     Timer_DeinitPlayer(client);
     Utils_DeinitPlayer(client);
-    Teleport_DeinitPlayer(client);
     Race_DeinitPlayer(client);
+
+#if defined(WINTOX_BHOP)
+    Teleport_DeinitPlayer(client);
+#endif
 }
 
 WarnPlayerNotRecording(client, bool:retrieve=true)

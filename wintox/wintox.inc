@@ -129,8 +129,10 @@ Wintox_Init()
             if (!IsClientConnected(client) || !IsClientInGame(client))
                 continue;
             
+#if defined(WINTOX_BHOP)
             if (GetEntPropFloat(client, Prop_Data, "m_flGravity") == g_LowGravMultiplier)
                 g_PlayerLowGrav[client] = true;
+#endif
         }
     }
     
@@ -255,7 +257,7 @@ public OnGameFrame()
                             Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", check_track, bonus_name);
                         }
                     }
-                    else if (((g_PlayerCurrentZone[client] >= 0 && g_IsTiming[client]) || IS_END_ZONE_T(track,g_PlayerCurrentZone[client])) && !IsRacing(client))
+                    else if (((g_PlayerCurrentZone[client] >= 0 && g_IsTiming[client]) || (IS_END_ZONE_T(track,g_PlayerCurrentZone[client])) && g_PlayerCurrentZone[client] > 0) && !IsRacing(client))
                     {
                         ResetTimer(client);
                         g_PlayerCurrentTrack[client] = track;

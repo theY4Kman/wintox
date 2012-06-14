@@ -5,3 +5,7 @@ build/
 *.nppsession
 *.asm
 *.lst
+docs/COMMANDS*.txt
+*.xml
+css_run.bat
+*.log

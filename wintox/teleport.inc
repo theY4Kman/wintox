@@ -9,6 +9,10 @@
 #endif
 #define _wintox_teleport_included
 
+#if !defined(WINTOX_BHOP)
+ #endinput
+#endif
+
 #include "./wintox/stocks"
 #include "./wintox/commands"
 

@@ -1,5 +1,8 @@
 @echo OFF
 
+SET spcomp=.\spcomp_longlines.exe
+SET spinclude=..\include
+
 REM Handle build options
 REM Game type
 SET gametype=invalid
@@ -42,7 +45,7 @@ IF %debug%==1 (
 ) ELSE (
     echo ######## Commencing build #%build%...
 )
-..\spcomp wintox_%gametype%.sp %list% %debug_define%
+%spcomp% wintox_%gametype%.sp %list% %debug_define% -i%spinclude%
 
 IF NOT "%list%" == "" EXIT /b %ERRORLEVEL%
 IF NOT %ERRORLEVEL% == 0 EXIT /b %ERRORLEVEL% ELSE GOTO success_build 

@@ -679,9 +679,25 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,4) = {
     SQLITE_MYSQL("SELECT wp.latest_name, time, jumps FROM wintox_track_records \
                          JOIN wintox_players AS wp ON wp.id = fk_player \
                          JOIN wintox_maps AS wm ON wm.id = fk_map \
-                         WHERE gametype = '%s' wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
+                         WHERE gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
                          ORDER BY time ASC \
                          LIMIT 1;")
+};
+
+NEW_SQL_QUERY_PARAMS(GetWorldRecordStage,4) = {
+    SQLITE_MYSQL("SELECT latest_name, time FROM `wintox_zone_records` \
+                        JOIN `wintox_players` AS wp ON wp.id = fk_player \
+                        JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
+                        WHERE wz.fk_map = %d AND track = %d AND number = %d AND type = '%s' \
+                        ORDER BY time ASC;")
+};
+NEW_SQL_QUERY_PARAMS(GetWorldRecordStagePartial,5) = {
+    SQLITE_MYSQL("SELECT latest_name, time FROM `wintox_zone_records` \
+                        JOIN `wintox_players` AS wp ON wp.id = fk_player \
+                        JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
+                        JOIN `wintox_maps` AS wm ON wm.id = fk_map \
+                        WHERE gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND number = %d AND type = '%s' \
+                        ORDER BY time ASC;")
 };
 
 // ===========================================================================
@@ -712,6 +728,7 @@ SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_complete
 NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
     "",
     
+#if defined(WINTOX_BHOP)
     "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
         SELECT id, latest_name, grosspoints, @curRank := @curRank + 1 AS rank \
             FROM wintox_players, (SELECT @curRank := 0, @playerID := %d) AS r \
@@ -720,7 +737,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
         LEFT JOIN ( \
             SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
                 FROM wintox_track_records \
-                WHERE fk_player = @playerID \
+                WHERE fk_player = @playerID AND track = 0 \
         ) AS mc ON mc.fk_player = ranks.id \
         LEFT JOIN ( \
             SELECT fk_player, COUNT(wtopr.id) AS map_records \
@@ -730,10 +747,46 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
         ) AS mr ON mr.fk_player = ranks.id \
         WHERE ranks.id = @playerID \
         LIMIT 0,1"
+
+#elseif defined(WINTOX_SURF)
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
+        SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, \
+                (SELECT @curRank := 0, @playerID := %d) AS a, \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track = 0 \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS bonuses_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track > 0 \
+        ) AS bc ON bc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS bonus_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track > 0 \
+        ) AS br ON br.fk_player = ranks.id \
+        LIMIT 0,1"
+
+#else
+    ""
+#endif
 };
 NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
     "",
     
+#if defined(WINTOX_BHOP)
     "SELECT @playerID, latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
         SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
             FROM wintox_players, \
@@ -747,7 +800,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
         LEFT JOIN ( \
             SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
                 FROM wintox_track_records \
-                WHERE fk_player = @playerID \
+                WHERE fk_player = @playerID AND track = 0 \
         ) AS mc ON mc.fk_player = ranks.id \
         LEFT JOIN ( \
             SELECT fk_player, COUNT(wtopr.id) AS map_records \
@@ -756,9 +809,50 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
                 WHERE fk_player = @playerID AND wtopr.track = 0 \
         ) AS mr ON mr.fk_player = ranks.id \
         LIMIT 0,1"
+
+#elseif defined(WINTOX_SURF)
+    "SELECT @playerID, latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
+        SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players, \
+                (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS a, \
+                (SELECT @playerID := `id` \
+                    FROM wintox_players \
+                    WHERE gametype = @gametype AND latest_name LIKE @name \
+                    LIMIT 0,1) AS r \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track = 0 \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS bonuses_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track > 0 \
+        ) AS bc ON bc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS bonus_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track > 0 \
+        ) AS br ON br.fk_player = ranks.id \
+        LIMIT 0,1"
+
+#else
+    ""
+#endif
 };
 NEW_SQL_QUERY_PARAMS(GetPlayerCountryRank,1) = {
     "",
+
+#if defined(WINTOX_BHOP)
     "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, ranks.country FROM ( \
         SELECT id, latest_name, grosspoints, wp.country, @curRank := @curRank + 1 AS rank \
             FROM wintox_players AS wp, \
@@ -770,7 +864,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayerCountryRank,1) = {
         LEFT JOIN ( \
             SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
                 FROM wintox_track_records \
-                WHERE fk_player = @playerID \
+                WHERE fk_player = @playerID AND track = 0 \
         ) AS mc ON mc.fk_player = ranks.id \
         LEFT JOIN ( \
             SELECT fk_player, COUNT(wtopr.id) AS map_records \
@@ -780,10 +874,84 @@ NEW_SQL_QUERY_PARAMS(GetPlayerCountryRank,1) = {
         ) AS mr ON mr.fk_player = ranks.id \
         WHERE ranks.id = @playerID \
         LIMIT 0,1"
+    
+#elseif defined(WINTOX_SURF)
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, ranks.country, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
+        SELECT id, latest_name, grosspoints, wp.country, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players AS wp, \
+                (SELECT @curRank := 0, @playerID := %d) AS r, \
+                (SELECT country FROM wintox_players WHERE id = @playerID) AS c \
+            WHERE wp.country = c.country \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track = 0 \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS bonuses_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track > 0 \
+        ) AS bc ON bc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS bonus_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track > 0 \
+        ) AS br ON br.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
+        LIMIT 0,1"
+#endif
 };
 NEW_SQL_QUERY_PARAMS(GetPartialPlayerCountryRank,2) = {
     "",
+
+#if defined(WINTOX_BHOP)
     "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, ranks.country FROM ( \
+        SELECT id, latest_name, grosspoints, wp.country, @curRank := @curRank + 1 AS rank \
+            FROM wintox_players AS wp, \
+                (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS a, \
+                (SELECT @playerID := `id`, country \
+                    FROM wintox_players \
+                    WHERE gametype = @gametype AND latest_name LIKE @name \
+                    LIMIT 0,1) AS r \
+            WHERE wp.country = r.country \
+            ORDER BY grosspoints DESC, last_join DESC \
+        ) AS ranks \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS maps_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track = 0 \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(DISTINCT fk_map) AS bonuses_completed \
+                FROM wintox_track_records \
+                WHERE fk_player = @playerID AND track > 0 \
+        ) AS mc ON mc.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS map_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track = 0 \
+        ) AS mr ON mr.fk_player = ranks.id \
+        LEFT JOIN ( \
+            SELECT fk_player, COUNT(wtopr.id) AS bonus_records \
+                FROM wintox_top_records AS wtopr \
+                JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
+                WHERE fk_player = @playerID AND wtopr.track > 0 \
+        ) AS br ON br.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
+        LIMIT 0,1"
+    
+#elseif defined(WINTOX_SURF)
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, ranks.country, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
         SELECT id, latest_name, grosspoints, wp.country, @curRank := @curRank + 1 AS rank \
             FROM wintox_players AS wp, \
                 (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS a, \
@@ -807,6 +975,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerCountryRank,2) = {
         ) AS mr ON mr.fk_player = ranks.id \
         WHERE ranks.id = @playerID \
         LIMIT 0,1"
+#endif
 };
 NEW_SQL_QUERY_PARAMS(GetAllRanks,1) = {
     "",

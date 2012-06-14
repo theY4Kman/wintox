@@ -385,7 +385,7 @@ IsRacing(client)
     return g_RaceOpponents[g_RaceOpponents[client]] == client;
 }
 
-IsRaceStarted(client)
+stock IsRaceStarted(client)
 {
     return g_Racing[client];
 }

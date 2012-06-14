@@ -226,6 +226,12 @@ Zones_Init()
 #if defined(WINTOX_DEBUG)
     RegisterCommand("sm_curmapid", ConCommand_CurMapID, "sm_curmapid | Prints the database ID of the current map", 0, ADMFLAG_GENERIC, "wtxdebug");
 #endif
+
+#if defined(WINTOX_SURF)
+    RegisterCommand("sm_teleport", ConCommand_Teleport, "sm_teleport | Teleports you to the start of the current stage.");
+    RegisterCommand("sm_tele", ConCommand_Teleport, "sm_tele | Teleports you to the start of the current stage (alias for sm_teleport).");
+    RegisterCommand("sm_goback", ConCommand_GoBack, "sm_goback | Teleports you to the previous stage.");
+#endif
     
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
@@ -683,6 +689,40 @@ public Action:ConCommand_CurMapID(client, args)
     RESET_REPLY()
     
     Reply(client, "Current map ID: %d", g_CurMapID);
+    
+    return Plugin_Handled;
+}
+#endif
+
+#if defined(WINTOX_SURF)
+public Action:ConCommand_Teleport(client, args)
+{
+    NO_ARGS()
+    
+    if (!IsOnPlayingTeam(client))
+    {
+        Tele_Reply(client, "You are not on a playing team and cannot teleport back.");
+        return Plugin_Handled;
+    }
+    
+    ZoneTeleport(client, MAX(g_PlayerCurrentZone[client], 0), g_PlayerCurrentTrack[client]);
+    Tele_Reply(client, "Teleported to the start of the current stage.");
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_GoBack(client, args)
+{
+    NO_ARGS()
+    
+    if (!IsOnPlayingTeam(client))
+    {
+        Tele_Reply(client, "You are not on a playing team and cannot teleport to the last stage.");
+        return Plugin_Handled;
+    }
+    
+    ZoneTeleport(client, MAX(g_PlayerCurrentZone[client], 0), g_PlayerCurrentTrack[client]);
+    Tele_Reply(client, "Teleported to the previous stage.");
     
     return Plugin_Handled;
 }

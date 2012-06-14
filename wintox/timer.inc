@@ -153,6 +153,11 @@ Timer_Init()
     RegisterCommand("sm_wrw", ConCommand_WrW, "sm_wrw [<partial map name>] | Shows the current W-only world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrsw", ConCommand_WrSW, "sm_wrsw [<partial map name>] | Shows the current sideways world record holder for the specified map (or the current map if none specified).");
 #endif
+
+#if defined(WINTOX_SURF)
+    RegisterCommand("sm_wrb", ConCommand_WrB, "sm_wrb <bonus #> [<partial map name>] | Shows the current bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current stage record holder for the specified stage on the specified map (or the current map if none specified).");
+#endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
     AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
@@ -237,8 +242,10 @@ DisplayTimer(client, is_in_zone)
         if (g_ClientEditZone[client] != INVALID_ZONE)   
             PrintHintText(client, "[Timer disabled when editing zones]");
         
+#if defined(WINTOX_BHOP)
         else if (g_PlayerLowGrav[client])
             PrintHintText(client, "[Disable low gravity to begin timing]");
+#endif
         
         else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
             PrintHintText(client, "[Enter the start zone]");
@@ -806,7 +813,7 @@ public Action:ConCommand_Restart(client, args)
 {
     NO_ARGS()
     
-    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    if (!IsOnPlayingTeam(client))
     {
         Timer_Reply(client, "You are not on a playing team and have no run to restart.");
         return Plugin_Handled;
@@ -828,7 +835,7 @@ public Action:ConCommand_Stop(client, args)
 {
     NO_ARGS()
     
-    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    if (!IsOnPlayingTeam(client))
     {
         Timer_Reply(client, "You are not on a playing team and have no timer to stop.");
         return Plugin_Handled;
@@ -844,7 +851,7 @@ public Action:ConCommand_Respawn(client, args)
 {
     NO_ARGS()
     
-    if (!IS_PLAYING_TEAM(GetClientTeam(client)))
+    if (!IsOnPlayingTeam(client))
     {
         Timer_Reply(client, "You are not on a playing team and can't be respawned. {OG}Nice try{N}.");
         return Plugin_Handled;
@@ -950,6 +957,18 @@ public Action:ConCommand_Wr(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_Pc(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPercentCompletion(client, partial);
+    
+    return Plugin_Handled;
+}
+
 #if defined(WINTOX_BHOP)
 public Action:ConCommand_TopSW(client, args)
 {
@@ -971,18 +990,6 @@ public Action:ConCommand_TopW(client, args)
     GetCmdArg(1, STR(mapname));
     
     ShowTopStyle(client, STYLE_WONLY, mapname, 0);
-    
-    return Plugin_Handled;
-}
-
-public Action:ConCommand_Pc(client, args)
-{
-    CHECK_ARGS_UPPER(1)
-    
-    decl String:partial[64];
-    GetCmdArgString(STR(partial));
-    
-    win_SQL_GetPercentCompletion(client, partial);
     
     return Plugin_Handled;
 }
@@ -1035,6 +1042,44 @@ public Action:ConCommand_CRank(client, args)
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_SURF)
+public Action:ConCommand_WrB(client, args)
+{
+    CHECK_ARGS_SPAN(1,2)
+    
+    decl String:sz_bonus[12];
+    decl String:partial[64];
+    decl bonus;
+    
+    GetCmdArg(1, STR(sz_bonus));
+    if (StringToIntEx(sz_bonus, bonus) == 0)
+    {
+        Timer_Reply(client, "\"%s\" is an invalid bonus index.", sz_bonus);
+        return Plugin_Handled;
+    }
+    
+    partial[0] = '\0';
+    if (args >= 2)
+        GetCmdArg(2, STR(partial));
+    
+    win_SQL_GetWorldRecord(client, INVALID_TRACK, STYLE_NORMAL, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_WrS(client, args)
+{
+    CHECK_ARGS_SPAN(1,2)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPlayerCountryRank(client, partial);
+    
+    return Plugin_Handled;
+}
+#endif
 
 
 
@@ -1464,7 +1509,7 @@ public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:
 }
 
 win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
-                       const String:mapname[]="")
+        const String:mapname[]="", zone=INVALID_ZONE)
 {   
     new Handle:pack = CreateDataPack();
     WritePackCell(pack, client);
@@ -1472,19 +1517,38 @@ win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
     WritePackCell(pack, style);
     WritePackString(pack, mapname);
     WritePackCell(pack, _:GetCmdReplySource());
+#if defined(WINTOX_SURF)
+    WritePackCell(pack, zone);
+#endif
     ResetPack(pack);
     
     if (IS_STR_EMPTY(mapname))
     {
-        SQLTH(GetWorldRecord, pack, g_CurMapID, track, STYLE_NAMES[style]);
+        if (zone == INVALID_ZONE)
+        {
+            SQLTH(GetWorldRecord, pack, g_CurMapID, track, STYLE_NAMES[style]);
+        }
+        else
+        {
+            SQLTH_H(GetWorldRecordStage, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+                g_CurMapID, track, zone, STYLE_NAMES[style]);
+        }
     }
     else
     {
         decl String:esc_mapname[128];
         SQL_EscapeString(g_Database, mapname, STR(esc_mapname));
         
-        SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
-            esc_mapname, track, STYLE_NAMES[style]);
+        if (zone == INVALID_ZONE)
+        {
+            SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+                esc_mapname, track, STYLE_NAMES[style]);
+        }
+        else
+        {
+            SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+                esc_mapname, track, zone, STYLE_NAMES[style]);
+        }
     }
 }
 
@@ -1495,6 +1559,7 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
     decl style;
     decl String:mapname[64];
     decl ReplySource:reply_to;
+    decl zone;
     
     new Handle:pack = Handle:data;
     client = ReadPackCell(pack);
@@ -1502,13 +1567,18 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
     style = ReadPackCell(pack);
     ReadPackString(pack, STR(mapname));
     reply_to = ReplySource:ReadPackCell(pack);
+#if defined(WINTOX_SURF)
+    zone = ReadPackCell(pack);
+#else
+    zone = INVALID_ZONE;
+#endif
     CloseHandle(pack);
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error retrieving %s world record for \"%s\", track %d: %s",
+        LogError("Error retrieving %s world record for \"%s\", track %d, zone %d: %s",
             STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname,
-            track, error);
+            track, zone, error);
         
         if (client != -1)
         {
@@ -1524,8 +1594,23 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
     if (!SQL_FetchRow(hndl))
     {
         ENTER_REPLY(reply_to);
+        
+#if defined(WINTOX_SURF)
+        if (track > 0)
+            Timer_Reply(client, "There are no {OG}Bonus %d{N} world records for \"{OG}%s{N}\"", \
+                track, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        else if (zone != INVALID_ZONE)
+            Timer_Reply(client, "There are no {OG}Stage %d{N} world records for \"{OG}%s{N}\"", \
+                zone+1, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        else
+            Timer_Reply(client, "There are no world records for \"{OG}%s{N}\"", \
+                IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        
+#else
         Timer_Reply(client, "There are no {OG}%s{N} world records for \"{OG}%s{N}\"", \
             STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+#endif
+        
         EXIT_REPLY();
         
         return;
@@ -1541,15 +1626,21 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
     SecondsToTimeString(time, STR(sz_time));
     
 #if defined(WINTOX_BHOP)
-    decl jumps;
-    jumps = SQL_FetchInt(hndl, 2);
+    new jumps = SQL_FetchInt(hndl, 2);
     
     Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N} and {G}%d{N} jumps!", \
         STYLE_NAMES_C[style], latest_name, sz_time, jumps);
         
 #elseif defined(WINTOX_SURF)
-    Timer_Reply(client, "World record holder is {G}%s{N} with a time of {G}%s{N}", \
-        latest_name, sz_time);
+    if (track > 0)
+        Timer_Reply(client, "World record holder for {OG}Bonus %d{N} is {G}%s{N} with a time of {G}%s{N}", \
+            latest_name, track, sz_time);
+    else if (zone != INVALID_ZONE)
+        Timer_Reply(client, "World record holder for {OG}Stage %d{N} is {G}%s{N} with a time of {G}%s{N}", \
+            latest_name, zone+1, sz_time);
+    else
+        Timer_Reply(client, "World record holder is {G}%s{N} with a time of {G}%s{N}", \
+            latest_name, sz_time);
 #endif
 }
 
@@ -1560,7 +1651,7 @@ win_SQL_GetPlayerRank(client, const String:partial[]="")
     WritePackString(pack, partial);
     ResetPack(pack);
     
-    decl String:query[1024];
+    decl String:query[1440];
     
     if (IS_STR_EMPTY(partial))
     {
@@ -1610,13 +1701,17 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
         return;
     }
     
+    SQL_FetchRow(hndl);
+    
     decl String:latest_name[64];
     decl rank;
     decl grosspoints;
     decl maps_completed;
     decl map_records;
-    
-    SQL_FetchRow(hndl);
+#if defined(WINTOX_SURF)
+    decl bonuses_completed;
+    decl bonus_wr;
+#endif
     
     SQL_FetchString(hndl, 0, STR(latest_name));
     rank = SQL_FetchInt(hndl, 1);
@@ -1624,11 +1719,18 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
     maps_completed = SQL_FetchInt(hndl, 3);
     map_records = SQL_FetchInt(hndl, 4);
     
+#if defined(WINTOX_SURF)
+    bonuses_completed = SQL_FetchInt(hndl, 6);
+    bonus_wr = SQL_FetchInt(hndl, 7);
+#endif
+    
 #if defined(WINTOX_BHOP)
-    Timer_Reply(client, "{G}%s{N}, Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+    Timer_Reply(client, "{G}%s{N}, Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N}", \
         latest_name, rank, grosspoints, maps_completed, map_records);
+
 #elseif defined(WINTOX_SURF)
-    #error T_GetPlayerRank needs a sruf-specific message
+    Timer_Reply(client, "{G}%s{N}, Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N} | BC: {G}%d{N} | BR: {G}%d{N}", \
+        latest_name, rank, grosspoints, maps_completed, map_records, bonuses_completed, bonus_wr);
 #endif
 }
 
@@ -1639,7 +1741,7 @@ win_SQL_GetPlayerCountryRank(client, const String:partial[]="")
     WritePackString(pack, partial);
     ResetPack(pack);
     
-    decl String:query[1024];
+    decl String:query[1440];
     
     if (IS_STR_EMPTY(partial))
     {
@@ -1695,6 +1797,10 @@ public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], a
     decl maps_completed;
     decl map_records;
     decl String:country[4];
+#if defined(WINTOX_SURF)
+    decl bonuses_completed;
+    decl bonus_wr;
+#endif
     
     SQL_FetchRow(hndl);
     
@@ -1705,15 +1811,22 @@ public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], a
     map_records = SQL_FetchInt(hndl, 4);
     SQL_FetchString(hndl, 5, STR(country));
     
+#if defined(WINTOX_SURF)
+    bonuses_completed = SQL_FetchInt(hndl, 6);
+    bonus_wr = SQL_FetchInt(hndl, 7);
+#endif
+    
     decl String:sz_country[16];
     sz_country[0] = '\0';
     if (!IS_STR_EMPTY(country))
         Format(STR(sz_country), " ({OG}%s{N})", country);
     
 #if defined(WINTOX_BHOP)
-    Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N}, Points: {G}%d{N}, MC: {G}%d{N}, MR: {G}%d{N}", \
+    Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N}", \
         latest_name, sz_country, rank, grosspoints, maps_completed, map_records);
+    
 #elseif defined(WINTOX_SURF)
-    #error T_GetPlayerCountryRank needs a surf-specific message
+    Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N} | BC: {G}%d{N} | BR: {G}%d{N}", \
+        latest_name, sz_country, rank, grosspoints, maps_completed, map_records, bonuses_completed, bonus_wr);
 #endif
 }

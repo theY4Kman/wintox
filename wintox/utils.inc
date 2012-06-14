@@ -15,6 +15,7 @@ new bool:g_ClientTextEntryRegurgitate[MAXPLAYERS] = { true, ... };
 
 #include "./wintox/stocks"
 #include "./wintox/events"
+#include "./wintox/game"
 
 
 Utils_Init()
@@ -76,3 +77,4 @@ public Action:CmdHook_Say_TextEntry(client, const String:command[], argc)
     // Return Plugin_Handled, so the message isn't displayed
     return Plugin_Handled;
 }
+

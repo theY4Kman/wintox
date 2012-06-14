@@ -59,6 +59,7 @@ stock Reply(client, const String:format[], any:...)
 #define Timer_Reply(%1,%2) ReplyTag((%1), "Timer", %2)
 #define Race_Reply(%1,%2) ReplyTag((%1), "Race", %2)
 #define Tele_Reply(%1,%2) ReplyTag((%1), "Tele", %2)
+#define Zone_Reply(%1,%2) ReplyTag((%1), "Stage", %2)
 stock ReplyTag(client, const String:tag[], const String:format[], any:...)
 {
     decl String:buffer[1024];
@@ -100,4 +101,9 @@ stock HideHintText(client)
 stock Float:FloatMod(Float:value, Float:divisor)
 {
     return value - RoundToFloor(value / divisor) * divisor;
+}
+
+stock IsOnPlayingTeam(client)
+{
+    return IS_PLAYING_TEAM(GetClientTeam(client));
 }
