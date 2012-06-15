@@ -752,7 +752,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
     "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
         SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
             FROM wintox_players, \
-                (SELECT @curRank := 0, @playerID := %d) AS a, \
+                (SELECT @curRank := 0, @playerID := %d) AS a \
             ORDER BY grosspoints DESC, last_join DESC \
         ) AS ranks \
         LEFT JOIN ( \
@@ -777,6 +777,7 @@ NEW_SQL_QUERY_PARAMS(GetPlayerRank,1) = {
                 JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
                 WHERE fk_player = @playerID AND wtopr.track > 0 \
         ) AS br ON br.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
         LIMIT 0,1"
 
 #else
@@ -787,7 +788,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
     "",
     
 #if defined(WINTOX_BHOP)
-    "SELECT @playerID, latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records FROM ( \
         SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
             FROM wintox_players, \
                 (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS a, \
@@ -808,10 +809,11 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
                 JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
                 WHERE fk_player = @playerID AND wtopr.track = 0 \
         ) AS mr ON mr.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
         LIMIT 0,1"
 
 #elseif defined(WINTOX_SURF)
-    "SELECT @playerID, latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
+    "SELECT latest_name, rank, grosspoints, IFNULL(maps_completed,0) AS maps_completed, IFNULL(map_records,0) AS map_records, IFNULL(bonuses_completed,0) AS bonuses_completed, IFNULL(bonus_records,0) AS bonus_records FROM ( \
         SELECT id, latest_name, grosspoints, gametype, @curRank := @curRank + 1 AS rank \
             FROM wintox_players, \
                 (SELECT @curRank := 0, @gametype := '%s', @name := '%%%s%%') AS a, \
@@ -843,6 +845,7 @@ NEW_SQL_QUERY_PARAMS(GetPartialPlayerRank,2) = {
                 JOIN wintox_track_records AS wtr ON wtr.id = wtopr.fk_record \
                 WHERE fk_player = @playerID AND wtopr.track > 0 \
         ) AS br ON br.fk_player = ranks.id \
+        WHERE ranks.id = @playerID \
         LIMIT 0,1"
 
 #else

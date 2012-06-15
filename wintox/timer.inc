@@ -1720,8 +1720,8 @@ public T_GetPlayerRank(Handle:owner, Handle:hndl, const String:error[], any:data
     map_records = SQL_FetchInt(hndl, 4);
     
 #if defined(WINTOX_SURF)
-    bonuses_completed = SQL_FetchInt(hndl, 6);
-    bonus_wr = SQL_FetchInt(hndl, 7);
+    bonuses_completed = SQL_FetchInt(hndl, 5);
+    bonus_wr = SQL_FetchInt(hndl, 6);
 #endif
     
 #if defined(WINTOX_BHOP)
