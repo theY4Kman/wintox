@@ -721,8 +721,21 @@ public Action:ConCommand_GoBack(client, args)
         return Plugin_Handled;
     }
     
-    ZoneTeleport(client, MAX(g_PlayerCurrentZone[client], 0), g_PlayerCurrentTrack[client]);
-    Tele_Reply(client, "Teleported to the previous stage.");
+    new track = g_PlayerCurrentTrack[client];
+    new path = g_PlayerCurrentPath[client] - 1;
+    new zone = 0;
+    if (path >= 0)
+        zone = g_TrackPaths[track][path];
+    
+    if (zone != g_PlayerCurrentZone[client])
+    {
+        ZoneTeleport(client, zone, track);
+        Tele_Reply(client, "Teleported to the previous stage.");
+        
+        // Set their current path and zone to the correct current one
+        g_PlayerCurrentZone[client] = zone;
+        g_PlayerCurrentPath[client] = MAX(path, 0);
+    }
     
     return Plugin_Handled;
 }
