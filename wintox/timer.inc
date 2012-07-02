@@ -144,12 +144,12 @@ Timer_Init()
     RegisterCommand("sm_wr", ConCommand_Wr, "sm_wr [<partial map name>] | Shows the current normal world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_rank", ConCommand_Rank, "sm_rank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map.");
     RegisterCommand("sm_crank", ConCommand_CRank, "sm_crank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map, restricted to players of the same country.");
+    RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
 
 #if defined(WINTOX_BHOP)
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
     RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
     RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
-    RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
     RegisterCommand("sm_wrw", ConCommand_WrW, "sm_wrw [<partial map name>] | Shows the current W-only world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrsw", ConCommand_WrSW, "sm_wrsw [<partial map name>] | Shows the current sideways world record holder for the specified map (or the current map if none specified).");
 #endif
@@ -897,6 +897,18 @@ public Action:ConCommand_Pause(client, args)
     return Plugin_Handled;
 }
 
+public Action:ConCommand_Pc(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPercentCompletion(client, partial);
+    
+    return Plugin_Handled;
+}
+
 #if defined(WINTOX_BHOP)
 public Action:ConCommand_Cp(client, args)
 {
@@ -953,18 +965,6 @@ public Action:ConCommand_Wr(client, args)
     GetCmdArgString(STR(partial));
     
     win_SQL_GetWorldRecord(client, MAIN_TRACK, STYLE_NORMAL, partial);
-    
-    return Plugin_Handled;
-}
-
-public Action:ConCommand_Pc(client, args)
-{
-    CHECK_ARGS_UPPER(1)
-    
-    decl String:partial[64];
-    GetCmdArgString(STR(partial));
-    
-    win_SQL_GetPercentCompletion(client, partial);
     
     return Plugin_Handled;
 }

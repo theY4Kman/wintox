@@ -10,6 +10,7 @@
 #define _wintox_stocks_included
 
 #include <smlib>
+#include "./wintox/game"
 
 #define MIN(%1,%2) ((%1) < (%2) ? (%1) : (%2))
 #define MAX(%1,%2) ((%1) > (%2) ? (%1) : (%2))

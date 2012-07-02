@@ -25,4 +25,7 @@
     #define IS_PLAYING_TEAM(%1) ((%1) == TFTeam_Red || (%1) == TFTeam_Blue)
     #define RESPAWN_PLAYER TF2_RespawnPlayer
 
+#else
+    #error No game defined!
+
 #endif
