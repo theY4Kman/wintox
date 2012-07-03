@@ -266,7 +266,7 @@ DisplayTimer(client, is_in_zone)
             
             decl String:plus_minus[64];
             plus_minus[0] = '\0';
-            if (g_DisplayPlusMinus[client])
+            if (g_DisplayPlusMinus[client] && zone >= 1)
             {
                 new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
                 
@@ -293,11 +293,11 @@ DisplayTimer(client, is_in_zone)
             {
                 
                 PrintHintText(client, "\
-%s\
-Time: %s\n\
-Style: %s\n\
-%s%s\n\
-Jumps: %d",
+                    %s\
+                    Time: %s\n\
+                    Style: %s\n\
+                    %s%s\n\
+                    Jumps: %d",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
@@ -306,16 +306,39 @@ Jumps: %d",
             }
             else
                 PrintHintText(client, "\
-Final time: %s\n\
-Style: %s\
-%s%s\n\
-Jumps: %d",
+                    Final time: %s\n\
+                    Style: %s\
+                    %s%s\n\
+                    Jumps: %d",
                 sz_time,
                 STYLE_NAMES_C[style],
                 IS_STR_EMPTY(g_ZoneNames[track][zone]) ? "" : "\nFinal stage: ", g_ZoneNames[track][zone],
                 g_Jumps[client]);
 
 #elseif defined(WINTOX_SURF)
+
+            if (g_StartTimes[client][g_EndZone[track]] == 0.0)
+            {
+                
+                PrintHintText(client, "\
+                    %s\
+                    Time: %s\n\
+                    Style: %s\n\
+                    %s%s",
+                IS_PAUSED(client) ? "[PAUSED]\n" : "", 
+                sz_time,
+                STYLE_NAMES_C[style],
+                stagename, plus_minus);
+            }
+            else
+                PrintHintText(client, "\
+                    Final time: %s\n\
+                    Style: %s\
+                    %s%s",
+                sz_time,
+                STYLE_NAMES_C[style],
+                IS_STR_EMPTY(g_ZoneNames[track][zone]) ? "" : "\nFinal stage: ", g_ZoneNames[track][zone]);
+
 #endif
 
         }
@@ -333,7 +356,7 @@ Jumps: %d",
             
         decl String:plus_minus[64];
         plus_minus[0] = '\0';
-        if (g_DisplayPlusMinus[client])
+        if (g_DisplayPlusMinus[client] && zone >= 1)
         {
             decl Float:opponent_pm;
             if (zone < g_PlayerCurrentZone[opponent])
@@ -365,33 +388,59 @@ Jumps: %d",
         
         if (time < 0.0)
             PrintHintText(client, "\
-[RACE COUNTDOWN]\n\
-%s%s",
+                [RACE COUNTDOWN]\n\
+                %s%s",
             sz_time,
             (time > -1.0) ? "\nSet..." : ((time > -2.0) ? "\nReady..." : ""));
         else if (g_RaceEndElapsed[client] == 0.0)
         {
+#if defined(WINTOX_BHOP)
             PrintHintText(client, "\
-[RACE]\n\
-Time: %s\n\
-Style: %s (opp %s)\n\
-%s%s\n\
-Jumps: %d (opp %d)",
+                [RACE]\n\
+                Time: %s\n\
+                Style: %s (opp %s)\n\
+                %s%s\n\
+                Jumps: %d (opp %d)",
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
             stagename, plus_minus,
             g_Jumps[client], g_Jumps[opponent]);
+
+#elseif defined(WINTOX_SURF)
+            PrintHintText(client, "\
+                [RACE]\n\
+                Time: %s\n\
+                Style: %s (opp %s)\n\
+                %s%s",
+            sz_time,
+            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
+            stagename, plus_minus);
+#endif
         }
         else
+        {
+#if defined(WINTOX_BHOP)
             PrintHintText(client, "\
-%s won!\n\
-Final time: %s\n\
-Style: %s (opp %s)\n\
-Jumps: %d (opp %d)",
+                %s won!\n\
+                Final time: %s\n\
+                Style: %s (opp %s)\n\
+                Jumps: %d (opp %d)",
             winner,
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
             g_Jumps[client], g_Jumps[opponent]);
+
+#elseif defined(WINTOX_SURF)
+            PrintHintText(client, "\
+                %s won!\n\
+                Final time: %s\n\
+                Style: %s (opp %s)",
+            winner,
+            sz_time,
+            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]]);
+            
+#endif
+        }
     }
 }
 
@@ -897,18 +946,6 @@ public Action:ConCommand_Pause(client, args)
     return Plugin_Handled;
 }
 
-public Action:ConCommand_Pc(client, args)
-{
-    CHECK_ARGS_UPPER(1)
-    
-    decl String:partial[64];
-    GetCmdArgString(STR(partial));
-    
-    win_SQL_GetPercentCompletion(client, partial);
-    
-    return Plugin_Handled;
-}
-
 #if defined(WINTOX_BHOP)
 public Action:ConCommand_Cp(client, args)
 {
@@ -1039,6 +1076,18 @@ public Action:ConCommand_CRank(client, args)
     GetCmdArgString(STR(partial));
     
     win_SQL_GetPlayerCountryRank(client, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Pc(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    win_SQL_GetPercentCompletion(client, partial);
     
     return Plugin_Handled;
 }

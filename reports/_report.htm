@@ -19,6 +19,14 @@
       img.type {
         margin: 5px 5px 0 0;
       }
+      span.label {
+        color: white;
+        background-color: #588A00;
+        font-size: 11px;
+        padding: 2px 4px;
+        border-radius: 7px;
+        min-width: 25px;
+      }
 
       .clearfix:before, .clearfix:after {
         content: "";
@@ -42,7 +50,12 @@
         <li>
           <img class="type" src="https://www.pivotaltracker.com/images/v7/application/stories_view/icons/{{ story.story_type }}.png" alt="{{ story.story_type|capitalize }}" />
           <div class="text">
-            <div>{{ story.name }}</div>
+            <div>
+              {%- for label in story.labels %}
+              <span class="label">{{ label }}</span>
+              {%- endfor  %}
+              <span class="story_name">{{ story.name }}</span>
+            </div>
             <div class="dates">
               last updated {{ story.updated_at }} &mdash; created at {{ story.created_at }}
             </div>

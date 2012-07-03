@@ -3,6 +3,14 @@
 SET spcomp=.\spcomp_longlines.exe
 SET spinclude=..\include
 
+REM Essentially, our first argument is the command, so "report" generates a report
+IF /i "%~1" == "report" (
+    PUSHD .\reports\
+    python gen_pivotal_report.py
+    POPD
+    EXIT /b 0
+)
+
 REM Handle build options
 REM Game type
 SET gametype=invalid
