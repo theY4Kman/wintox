@@ -160,6 +160,10 @@ new g_TrackMenuSelected[MAXPLAYERS] = { INVALID_TRACK, ... };
 // The menu of the player's current zone edit menu (used for updating the title
 // when the zone title changes)
 new Handle:g_ClientEditZoneMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
+// Saves the zone id being edited at the time of title text entry
+new g_ClientTitleEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+// Saves the track being edited at the time of title text entry
+new g_ClientTitleEditTrack[MAXPLAYERS] = { INVALID_TRACK, ... };
 
 // Stores the state of the cvar wintox_draw_zones, whether to draw zones
 new bool:g_DrawZones = false;
@@ -280,6 +284,9 @@ Zone_DeinitPlayer(client)
     g_ClientEditZone[client] = INVALID_ZONE;
     g_ClientEditTrack[client] = INVALID_TRACK;
     
+    g_ClientTitleEditZone[client] = 0;
+    g_ClientTitleEditTrack[client] = 0;
+    
     g_ClientEditBox[client][0] = 0.0;
     g_ClientEditBox[client][1] = 0.0;
     g_ClientEditBox[client][2] = 0.0;
@@ -343,7 +350,7 @@ public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
     if (data == TEXT_ENTRY_ZONE_NAME)
     {
         Zone_SetName(client, text);
-        ResetClientZoneEditMenu(client);
+        ResetClientZoneEditMenu(client, g_ClientTitleEditTrack[client], g_ClientTitleEditZone[client]);
     }
 }
 
@@ -823,13 +830,18 @@ Handle:BuildEditZoneMenu(client, zone_id, track)
     return zone_menu;
 }
 
-ResetClientZoneEditMenu(client)
+ResetClientZoneEditMenu(client, track=-1, zone_id=-1)
 {
+    if (track == -1)
+        track = g_ClientEditTrack[client];
+    if (zone_id == -1)
+        zone_id = g_ClientEditZone[client];
+    
     // Set to something other than INVALID_HANDLE (see MenuAction_Cancel of zone edit menu)
     g_ClientEditZoneMenu[client] = NOT_INVALID_HANDLE;
     PrevSubmenu(client, false);
     
-    g_ClientEditZoneMenu[client] = BuildEditZoneMenu(client, g_ClientEditZone[client], g_ClientEditTrack[client]);
+    g_ClientEditZoneMenu[client] = BuildEditZoneMenu(client, zone_id, track);
     DisplaySubmenu(g_ClientEditZoneMenu[client], client, MENU_TIME_FOREVER);
     
     // Finally revert to INVALID_HANDLE, so zone edit menu cancel calls PrevSubmenu
@@ -1121,11 +1133,15 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
             decl String:reason[32];
             
             new zone_id = g_ClientEditZone[param1];
+            new track = g_ClientEditTrack[param1];
             if (zone_id == INVALID_ZONE)
                 Reply(param1, "You're not currently editing a zone. Use sm_newzone or /zonemenu to begin editing.");
             else
             {
                 g_ClientEditZoneMenu[param1] = menu;
+                g_ClientTitleEditZone[param1] = zone_id;
+                g_ClientTitleEditTrack[param1] = track;
+                
                 Format(STR(reason), "set zone %d name", zone_id);
                 BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME, false);
             }
