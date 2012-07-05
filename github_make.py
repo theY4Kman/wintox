@@ -155,7 +155,10 @@ def main(argv=None):
         import sys
         argv = sys.argv
 
-    password = getpass.getpass('Github Password: ')
+    password = getpass.getpass('Github Password (enter to quit): ')
+    if not password:
+        return
+    
     github = Github(login='theY4Kman', password=password)
 
     for debug in (True, False):
