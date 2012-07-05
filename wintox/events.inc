@@ -110,6 +110,13 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
     g_wintoxLateLoad = late;
     
+    new Handle:wintox_gametype = CreateConVar("wintox_gametype", "", "The game type of Wintox which should run on this server. This is to prevent the loading of multiple game types. Leave blank to disable.");
+    decl String:sz_wintox_gametype[16];
+    GetConVarString(wintox_gametype, STR(sz_wintox_gametype));
+    
+    if (!IS_STR_EMPTY(sz_wintox_gametype) && !StrEqual(sz_wintox_gametype, WINTOX_GAMETYPE))
+        return APLRes_SilentFailure;
+    
     return APLRes_Success;
 }
 
