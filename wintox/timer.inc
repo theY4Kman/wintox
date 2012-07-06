@@ -25,6 +25,8 @@
     #define STYLE_WONLY 2
     #define MAX_STYLES 3
     
+    #define DEFAULT_STYLE STYLE_WONLY
+    
     new String:STYLE_NAMES[MAX_STYLES][] = {
         "normal",
         "sideways",
@@ -37,13 +39,21 @@
     };
 #else
     #define STYLE_NORMAL 0
-    #define MAX_STYLES 1
+    #define STYLE_SIDEWAYS 1
+    #define STYLE_BACKWARDS 2
+    #define MAX_STYLES 3
+    
+    #define DEFAULT_STYLE STYLE_SIDEWAYS
     
     new String:STYLE_NAMES[MAX_STYLES][] = {
-        ""
+        "normal",
+        "sideways",
+        "backwards"
     };
     new String:STYLE_NAMES_C[MAX_STYLES][] = {
-        ""
+        "Normal",
+        "Sideways",
+        "Backwards"
     };
 #endif
 
@@ -61,7 +71,7 @@ new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 // Number of jumps in the last attempt
 new g_Jumps[MAXPLAYERS];
 // The current playing style of the player
-new g_PlayerCurrentStyle[MAXPLAYERS] = { MAX_STYLES-1, ... };
+new g_PlayerCurrentStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];

@@ -12,6 +12,9 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
+// Include this first, so our declarations can use game-specific defines
+#include "./wintox/game"
+
 // Amount of ticks to skip in between sending hint texts
 new g_TimerDisplaySkipTicks = 8;
 
@@ -60,7 +63,6 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #include "./wintox/teleport"
 #endif
 
-#include "./wintox/game"
 #include "./wintox/commands"
 #include "./wintox/sql"
 #include "./wintox/utils"
