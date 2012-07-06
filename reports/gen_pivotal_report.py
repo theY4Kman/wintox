@@ -9,7 +9,7 @@ PIVOTAL_TOKEN_ENV_VAR = 'PIVOTAL_TOKEN'
 PIVOTAL_STATUS_GROUPS = {
     'unstarted': ('unscheduled', 'unstarted', 'rejected'),
     'started': ('started',),
-    'finished': ('finished'),
+    'finished': ('finished',),
     'delivered': ('delivered',),
     'accepted': ('accepted',),
 }
