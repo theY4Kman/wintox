@@ -645,13 +645,13 @@ Handle:BuildTimerSettingsMenu(client)
     SetMenuTitle(menu, "Timer settings");
     SetMenuExitButton(menu, true);
     
-    Format(STR(buffer), "%s middle timer", g_TimerEnabled[client] ? "Disable" : "Enable");
+    Format(STR(buffer), "Middle timer: %s", g_TimerEnabled[client] ? "On" : "Off");
     AddMenuItem(menu, TSET_MENU_MIDDLE, buffer);
     
-    Format(STR(buffer), "%s side stage info", g_SideStageInfoEnabled[client] ? "Disable" : "Enable");
+    Format(STR(buffer), "Side stage info: %s", g_SideStageInfoEnabled[client] ? "On" : "Off");
     AddMenuItem(menu, TSET_MENU_SIDE, buffer);
     
-    Format(STR(buffer), "%s points and +/- printed to chat", g_PointsToChatEnabled[client] ? "Disable" : "Enable");
+    Format(STR(buffer), "Points and +/- printed to chat: %s", g_PointsToChatEnabled[client] ? "On" : "Off");
     AddMenuItem(menu, TSET_MENU_POINTS, buffer);
     
     return menu;
