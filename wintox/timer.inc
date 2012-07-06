@@ -297,6 +297,8 @@ DisplayTimer(client, is_in_zone)
             
             SecondsToTimeString(time, STR(sz_time));
             
+            new Float:velocity = GetPlayerVelocity(client);
+            
 #if defined(WINTOX_BHOP)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
@@ -307,12 +309,14 @@ DisplayTimer(client, is_in_zone)
                     Time: %s\n\
                     Style: %s\n\
                     %s%s\n\
-                    Jumps: %d",
+                    Jumps: %d\n\
+                    Speed: %.1f",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
                 stagename, plus_minus,
-                g_Jumps[client]);
+                g_Jumps[client],
+                velocity);
             }
             else
                 PrintHintText(client, "\
@@ -410,11 +414,13 @@ DisplayTimer(client, is_in_zone)
                 Time: %s\n\
                 Style: %s (opp %s)\n\
                 %s%s\n\
-                Jumps: %d (opp %d)",
+                Jumps: %d (opp %d)\n\
+                Speed: %.1f (opp %.1f)",
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
             stagename, plus_minus,
-            g_Jumps[client], g_Jumps[opponent]);
+            g_Jumps[client], g_Jumps[opponent],
+            GetPlayerVelocity(client), GetPlayerVelocity(opponent));
 
 #elseif defined(WINTOX_SURF)
             PrintHintText(client, "\

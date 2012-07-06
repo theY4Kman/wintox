@@ -108,3 +108,11 @@ stock IsOnPlayingTeam(client)
 {
     return IS_PLAYING_TEAM(GetClientTeam(client));
 }
+
+stock Float:GetPlayerVelocity(client)
+{
+    decl Float:velocity[3];
+    Entity_GetAbsVelocity(client, velocity);
+    
+    return GetVectorLength(velocity);
+}
