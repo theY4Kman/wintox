@@ -40,20 +40,17 @@
 #else
     #define STYLE_NORMAL 0
     #define STYLE_SIDEWAYS 1
-    #define STYLE_BACKWARDS 2
-    #define MAX_STYLES 3
+    #define MAX_STYLES 2
     
     #define DEFAULT_STYLE STYLE_SIDEWAYS
     
     new String:STYLE_NAMES[MAX_STYLES][] = {
         "normal",
-        "sideways",
-        "backwards"
+        "sideways"
     };
     new String:STYLE_NAMES_C[MAX_STYLES][] = {
         "Normal",
-        "Sideways",
-        "Backwards"
+        "Sideways"
     };
 #endif
 
