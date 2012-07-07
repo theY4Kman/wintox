@@ -604,7 +604,7 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 #if defined(WINTOX_BHOP)
         Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client]);
 #elseif defined(WINTOX_SURF)
-        Timer_PrintToChatAll("{T}%N{N} finished the map in {G}%s{N}!", client, sz_time);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N}!", STYLE_NAMES_C[style], client, sz_time);
 #endif
     }
     else
