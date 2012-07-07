@@ -9,3 +9,5 @@ docs/COMMANDS*.txt
 *.xml
 css_run.bat
 *.log
+
+reports/.cache/
