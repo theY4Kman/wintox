@@ -169,6 +169,10 @@ public OnClientCookiesCached(client)
     GET_COOKIE(COOKIE_TIMER_ENABLED,g_TimerEnabled[client])
     GET_COOKIE(COOKIE_SIDE_STAGE_INFO_ENABLED,g_SideStageInfoEnabled[client])
     GET_COOKIE(COOKIE_POINTS_TO_CHAT_ENABLED,g_PointsToChatEnabled[client])
+    
+#if defined(WINTOX_BHOP)
+    GET_COOKIE(COOKIE_TIMER_SPEED_ENABLED,g_TimerSpeedEnabled[client])
+#endif
 
 #undef GET_COOKIE
 }

@@ -107,10 +107,16 @@ new g_TimerTopStyle[MAXPLAYERS];
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
+#if defined(WINTOX_BHOP)
+    new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
+#endif
 
 #define COOKIE_TIMER_ENABLED "WTX_TimerEnabled"
 #define COOKIE_SIDE_STAGE_INFO_ENABLED "WTX_SideStageInfoEnabled"
 #define COOKIE_POINTS_TO_CHAT_ENABLED "WTX_PointsToChatEnabled"
+#if defined(WINTOX_BHOP)
+    #define COOKIE_TIMER_SPEED_ENABLED "WTX_TimerSpeedEnabled"
+#endif
 
 
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
@@ -303,20 +309,22 @@ DisplayTimer(client, is_in_zone)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
             {
+                decl String:sz_speed[32];
+                sz_speed[0] = '\0';
+                if (g_TimerSpeedEnabled[client])
+                    Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
                 
                 PrintHintText(client, "\
                     %s\
                     Time: %s\n\
                     Style: %s\n\
                     %s%s\n\
-                    Jumps: %d\n\
-                    Speed: %.1f",
+                    Jumps: %d%s",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
                 stagename, plus_minus,
-                g_Jumps[client],
-                velocity);
+                g_Jumps[client], sz_speed);
             }
             else
                 PrintHintText(client, "\
@@ -409,18 +417,21 @@ DisplayTimer(client, is_in_zone)
         else if (g_RaceEndElapsed[client] == 0.0)
         {
 #if defined(WINTOX_BHOP)
+            decl String:sz_speed[48];
+            sz_speed[0] = '\0';
+            if (g_TimerSpeedEnabled[client])
+                Format(STR(sz_speed), "\nSpeed: %.1f (opp %.1f)", GetPlayerVelocity(client), GetPlayerVelocity(opponent));
+            
             PrintHintText(client, "\
                 [RACE]\n\
                 Time: %s\n\
                 Style: %s (opp %s)\n\
                 %s%s\n\
-                Jumps: %d (opp %d)\n\
-                Speed: %.1f (opp %.1f)",
+                Jumps: %d (opp %d)%s",
             sz_time,
             STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
             stagename, plus_minus,
-            g_Jumps[client], g_Jumps[opponent],
-            GetPlayerVelocity(client), GetPlayerVelocity(opponent));
+            g_Jumps[client], g_Jumps[opponent], sz_speed);
 
 #elseif defined(WINTOX_SURF)
             PrintHintText(client, "\
@@ -642,6 +653,9 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 #define TSET_MENU_MIDDLE "middle"
 #define TSET_MENU_SIDE "side"
 #define TSET_MENU_POINTS "points"
+#if defined(WINTOX_BHOP)
+    #define TSET_MENU_SPEED "speed"
+#endif
 
 Handle:BuildTimerSettingsMenu(client)
 {
@@ -659,6 +673,11 @@ Handle:BuildTimerSettingsMenu(client)
     
     Format(STR(buffer), "Points and +/- printed to chat: %s", g_PointsToChatEnabled[client] ? "On" : "Off");
     AddMenuItem(menu, TSET_MENU_POINTS, buffer);
+    
+#if defined(WINTOX_BHOP)
+    Format(STR(buffer), "Show speed in middle timer: %s", g_TimerSpeedEnabled[client] ? "On" : "Off");
+    AddMenuItem(menu, TSET_MENU_SPEED, buffer);
+#endif
     
     return menu;
 }
@@ -698,6 +717,14 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
             g_PointsToChatEnabled[param1] = !g_PointsToChatEnabled[param1];
             SET_COOKIE(COOKIE_POINTS_TO_CHAT_ENABLED,g_PointsToChatEnabled)
         }
+        
+#if defined(WINTOX_BHOP)
+        else if (StrEqual(info, TSET_MENU_SPEED))
+        {
+            g_TimerSpeedEnabled[param1] = !g_TimerSpeedEnabled[param1];
+            SET_COOKIE(COOKIE_TIMER_SPEED_ENABLED,g_TimerSpeedEnabled)
+        }
+#endif
 #undef SET_COOKIE
         
         // Cancel this menu without redisplaying previous submenu
