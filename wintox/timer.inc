@@ -580,6 +580,15 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     
     new Float:record = g_TrackRecords[client][track][style];
     
+    // Global top records
+    new Float:top_record = g_TrackWorldRecord[track][g_EndZone[track]][style];
+    new bool:is_top = false;
+    if (top_record == INVALID_ZONE_RECORD || total_time < top_record)
+    {
+        g_TrackWorldRecord[track][g_EndZone[track]][style] = total_time;
+        is_top = true;
+    }
+    
     // Gross points awww yeah
     if (track == MAIN_TRACK)
     {
@@ -600,11 +609,14 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         decl String:sz_time[32];
         SecondsToTimeString(total_time, STR(sz_time));
         
+        decl String:sz_rel_wr[128];
+        Format(STR(sz_rel_wr), "and was {OG}%s{N} than the world record", is_top ? "faster" : "slower");
+        
         Color_ChatSetSubject(client);
 #if defined(WINTOX_BHOP)
-        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client]);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps %s!", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client], sz_rel_wr);
 #elseif defined(WINTOX_SURF)
-        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N}!", STYLE_NAMES_C[style], client, sz_time);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} %s!", STYLE_NAMES_C[style], client, sz_time, sz_rel_wr);
 #endif
     }
     else
@@ -631,15 +643,6 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         Color_ChatSetSubject(client);
         Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished bonus %d%s in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, track, bonus_name, sz_time, g_Jumps[client]);
 #endif
-    }
-    
-    // Global top records
-    new Float:top_record = g_TrackWorldRecord[track][g_EndZone[track]][style];
-    new bool:is_top = false;
-    if (top_record == INVALID_ZONE_RECORD || total_time < top_record)
-    {
-        g_TrackWorldRecord[track][g_EndZone[track]][style] = total_time;
-        is_top = true;
     }
     
     // Player's best records
