@@ -553,7 +553,13 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         SecondsToTimeString(wr_pm, STR(sz_time), true);
         Format(STR(plus_minus), "%s Total ({G}%s{N})", plus_minus, sz_time);
         
-        Timer_PrintToChat(client, "Reached zone {G}%d{N} |%s", zone_id+1, plus_minus);
+        decl String:sz_zone[84];
+        if (IS_STR_EMPTY(g_ZoneNames[track][zone_id]))
+            Format(STR(sz_zone), "zone {G}%d{N}", zone_id+1);
+        else
+            Format(STR(sz_zone), "{G}%s{N}", g_ZoneNames[track][zone_id]);
+        
+        Timer_PrintToChat(client, "Reached %s |%s", sz_zone, plus_minus);
     }
     
     new Float:top_zone_record = g_BestZoneRecords[track][zone_id][style];
