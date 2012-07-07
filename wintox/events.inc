@@ -162,7 +162,7 @@ public OnClientCookiesCached(client)
         { \
             decl String:sz_cookie[8]; \
             GetClientCookie(client, cookie, STR(sz_cookie)); \
-            %2 = bool:StringToInt(sz_cookie); \
+            %2 = IS_STR_EMPTY(sz_cookie) ? true : bool:StringToInt(sz_cookie); \
         } \
     }
 
