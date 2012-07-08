@@ -329,12 +329,10 @@ DisplayTimer(client, is_in_zone)
             else
                 PrintHintText(client, "\
                     Final time: %s\n\
-                    Style: %s\
-                    %s%s\n\
+                    Style: %s\n\
                     Jumps: %d",
                 sz_time,
                 STYLE_NAMES_C[style],
-                IS_STR_EMPTY(g_ZoneNames[track][zone]) ? "" : "\nFinal stage: ", g_ZoneNames[track][zone],
                 g_Jumps[client]);
 
 #elseif defined(WINTOX_SURF)
@@ -355,11 +353,9 @@ DisplayTimer(client, is_in_zone)
             else
                 PrintHintText(client, "\
                     Final time: %s\n\
-                    Style: %s\
-                    %s%s",
+                    Style: %s",
                 sz_time,
-                STYLE_NAMES_C[style],
-                IS_STR_EMPTY(g_ZoneNames[track][zone]) ? "" : "\nFinal stage: ", g_ZoneNames[track][zone]);
+                STYLE_NAMES_C[style]);
 
 #endif
 
