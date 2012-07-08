@@ -1248,15 +1248,24 @@ WipeTrackCache(track)
     {
         for (new j=0; j<POINTS_LENGTH; j++)
         {
-            g_ZonesCache[track][i][j][0] = 0.0;
-            g_ZonesCache[track][i][j][1] = 0.0;
-            g_ZonesCache[track][i][j][2] = 0.0;
+            new Float:value = 0.0;
+            if (j < ZONE_META_POINTS)
+                value = Float:0;
+            
+            g_ZonesCache[track][i][j][0] = value;
+            g_ZonesCache[track][i][j][1] = value;
+            g_ZonesCache[track][i][j][2] = value;
         }
         
         g_ZoneIDs[track][i] = -1;
         g_ZoneNames[track][i][0] = '\0';
         g_TrackPaths[track][i] = 0;
     }
+    
+    g_ZonesCount[track] = 0;
+    g_EndZone[track] = 0;
+    
+    WipeTrackPath(track);
 }
 
 WipeTrackPath(track)
@@ -1663,14 +1672,6 @@ Zone_ClearTrack(client, track)
 Zone_ClearAllZones(client)
 {
     WipeZoneCache();
-    
-    for (new track=0; track<MAX_TRACKS; track++)
-    {
-        g_ZonesCount[track] = 0;
-        g_EndZone[track] = 0;
-        
-        WipeTrackPath(track);
-    }
     
     SetZoneMenuTitle();
     BuildTrackMenu();
