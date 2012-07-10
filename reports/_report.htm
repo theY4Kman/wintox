@@ -11,6 +11,10 @@
       ul.stories li {
         margin-bottom: 10px;
       }
+      li.bug { list-style-image: url(https://www.pivotaltracker.com/images/v7/application/stories_view/icons/bug.png); }
+      li.feature { list-style-image: url(https://www.pivotaltracker.com/images/v7/application/stories_view/icons/feature.png); }
+      li.chore { list-style-image: url(https://www.pivotaltracker.com/images/v7/application/stories_view/icons/chore.png); }
+      li.release { list-style-image: url(https://www.pivotaltracker.com/images/v7/application/stories_view/icons/release.png); }
       .dates {
         color: grey;
         font-size: 0.8em;
@@ -47,8 +51,7 @@
       <h2>{{ title }}</h2>
       <ul class="stories" style="list-style-type: none;">
         {%- for story in stories[block] %}
-        <li>
-          <img class="type" src="https://www.pivotaltracker.com/images/v7/application/stories_view/icons/{{ story.story_type }}.png" alt="{{ story.story_type|capitalize }}" />
+        <li class="{{ story.story_type }}">
           <div class="text">
             <div>
               {%- for label in story.labels %}

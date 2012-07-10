@@ -2,3 +2,5 @@ To compile the Wintox family of plug-ins, you will need Berni and Chanz' smlib, 
 It will need to be placed inside the sourcemod/scripting/include/ directory.
 
 Also needed is the SDKHooks extension, by Tsunami, available here: http://forums.alliedmods.net/showthread.php?t=106748
+
+Lastly, because the SourcePawn compiler has a small maximum line length (1023 characters), the large SQL queries of Wintox cause it to crash. To remedy this, spcomp_longlines.exe was compiled, allowing for a maximum line length of 4095 characters. It is necessary to compile Wintox with this modified compiler, until the fix is released officially (bug here: https://bugs.alliedmods.net/show_bug.cgi?id=5347).
