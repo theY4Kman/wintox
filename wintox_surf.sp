@@ -24,7 +24,7 @@ public Plugin:myinfo =
 #endif
     author = "Zach \"theY4Kman\" Kanzler",
     description = "Surf timer and functionality.",
-    version = WINTOX_SURF_VERSION,
+    version = WINTOX_VERSION,
     url = "http://intoxgaming.com/"
 };
 

@@ -24,7 +24,7 @@ public Plugin:myinfo =
 #endif
     author = "Zach \"theY4Kman\" Kanzler",
     description = "Bunnyhop timer and functionality.",
-    version = WINTOX_BHOP_VERSION,
+    version = WINTOX_VERSION,
     url = "http://intoxgaming.com/"
 };
 
