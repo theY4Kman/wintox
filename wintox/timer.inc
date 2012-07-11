@@ -549,10 +549,13 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
             Format(STR(plus_minus), " Zone ({G}%s{N}) |", sz_time);
         }
         
-        new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone_id][style];
-        
-        SecondsToTimeString(wr_pm, STR(sz_time), true);
-        Format(STR(plus_minus), "%s Total ({G}%s{N})", plus_minus, sz_time);
+        if (g_TrackWorldRecord[track][zone_id][style] != INVALID_TRACK_RECORD)
+        {
+            new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone_id][style];
+            
+            SecondsToTimeString(wr_pm, STR(sz_time), true);
+            Format(STR(plus_minus), "%s Total ({G}%s{N})", plus_minus, sz_time);
+        }
         
         decl String:sz_zone[84];
         if (IS_STR_EMPTY(g_ZoneNames[track][zone_id]))
@@ -560,7 +563,7 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         else
             Format(STR(sz_zone), "{G}%s{N}", g_ZoneNames[track][zone_id]);
         
-        Timer_PrintToChat(client, "Reached %s |%s", sz_zone, plus_minus);
+        Timer_PrintToChat(client, "Reached %s%s%s", sz_zone, IS_STR_EMPTY(plus_minus) ? "" : " |", plus_minus);
     }
     
     new Float:top_zone_record = g_BestZoneRecords[track][zone_id][style];
