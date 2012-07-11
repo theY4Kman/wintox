@@ -78,6 +78,7 @@ new Float:g_TrackRecords[MAXPLAYERS][MAX_TRACKS][MAX_STYLES];
 new g_PlayerPoints[MAXPLAYERS] = { INVALID_POINTS, ... };
 
 // The zone completion times of the fastest track run
+// The end zone time will be the TOTAL ELAPSED TIME OF THE RUN
 new Float:g_TrackWorldRecord[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 // The fastest zone completion times for each zone and style
 new Float:g_BestZoneRecords[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
@@ -133,12 +134,16 @@ Timer_Init()
         for (new track=0; track<MAX_TRACKS; track++)
             for (new style=0; style<MAX_STYLES; style++)
             {
-                for (new zone=1; zone<MAX_ZONES; zone++)
+                for (new zone=0; zone<MAX_ZONES; zone++)
                 {
                     g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
                     
+                    // Doesn't warrant a separate loop
                     if (client == 0)
+                    {
                         g_BestZoneRecords[track][zone][style] = INVALID_ZONE_RECORD;
+                        g_TrackWorldRecord[track][zone][style] = INVALID_TRACK_RECORD;
+                    }
                 }
                 
                 g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
@@ -578,11 +583,22 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     
     // Global top records
     new Float:top_record = g_TrackWorldRecord[track][g_EndZone[track]][style];
+    new bool:had_top = top_record != INVALID_TRACK_RECORD;
     new bool:is_top = false;
-    if (top_record == INVALID_ZONE_RECORD || total_time < top_record)
+    if (!had_top || total_time < top_record)
     {
         g_TrackWorldRecord[track][g_EndZone[track]][style] = total_time;
         is_top = true;
+    }
+    
+    // Player's best records
+    if (total_time < record || record == INVALID_TRACK_RECORD)
+    {
+        win_SQL_UpsertTrackRecord(client, track, style, total_time, is_top);
+        g_TrackRecords[client][track][style] = total_time;
+        
+        if (is_top)
+            SetTrackWorldRecordCache(client, track, style);
     }
     
     // Gross points awww yeah
@@ -606,13 +622,19 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         SecondsToTimeString(total_time, STR(sz_time));
         
         decl String:sz_rel_wr[128];
-        Format(STR(sz_rel_wr), "and was {OG}%s{N} than the world record", is_top ? "faster" : "slower");
+        if (had_top)
+        {
+            SecondsToTimeString(total_time - top_record, STR(sz_rel_wr), true, true, "G");
+            Format(STR(sz_rel_wr), "and was %s {OG}%s{N} than the world record%c", sz_rel_wr, is_top ? "faster" : "slower", is_top ? '!' : '.');
+        }
+        else
+            Format(STR(sz_rel_wr), "and set the world record!");
         
         Color_ChatSetSubject(client);
 #if defined(WINTOX_BHOP)
-        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps %s!", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client], sz_rel_wr);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} with {G}%d{N} jumps %s", STYLE_NAMES_C[style], client, sz_time, g_Jumps[client], sz_rel_wr);
 #elseif defined(WINTOX_SURF)
-        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} %s!", STYLE_NAMES_C[style], client, sz_time, sz_rel_wr);
+        Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished the map in {G}%s{N} %s", STYLE_NAMES_C[style], client, sz_time, sz_rel_wr);
 #endif
     }
     else
@@ -639,13 +661,6 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         Color_ChatSetSubject(client);
         Timer_PrintToChatAll("{OG}%s{N} | {T}%N{N} finished bonus %d%s in {G}%s{N} with {G}%d{N} jumps!", STYLE_NAMES_C[style], client, track, bonus_name, sz_time, g_Jumps[client]);
 #endif
-    }
-    
-    // Player's best records
-    if (total_time < record || record == INVALID_TRACK_RECORD)
-    {
-        win_SQL_UpsertTrackRecord(client, track, style, total_time, is_top);
-        g_TrackRecords[client][track][style] = total_time;
     }
 }
 
@@ -1252,7 +1267,7 @@ StyleNameToIndex(const String:stylename[])
     return 0;
 }
 
-SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
+stock SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
 {
     time = FloatAbs(time);
     
@@ -1261,7 +1276,7 @@ SecondsToTime(Float:time, &hours, &minutes, &Float:seconds)
     seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
 }
 
-SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
+stock SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false, bool:parens=false, const String:time_color[]="", const String:end_color[]="N")
 {
     decl String:sz_hours[8];
     decl hours, minutes, Float:seconds;
@@ -1271,10 +1286,21 @@ SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=false)
     if (hours != 0)
         Format(STR(sz_hours), "%02d:", hours);
     
-    Format(buffer, maxlength, "%s%s%02d:%06.3f", (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds);
+    decl String:time_color_code[8];
+    decl String:end_color_code[8];
+    time_color_code[0] = '\0';
+    end_color_code[0] = '\0';
+    
+    if (!IS_STR_EMPTY(time_color))
+    {
+        Format(STR(time_color_code), "{%s}", time_color);
+        Format(STR(end_color_code), "{%s}", end_color);
+    }
+    
+    Format(buffer, maxlength, "%s%s%s%s%02d:%06.3f%s%s", parens ? "(" : "", time_color_code, (time >= 0) ? (plus ? "+" : "") : "-", sz_hours, minutes, seconds, end_color_code, parens ? ")" : "");
 }
 
-GetClosestStyleForBestRecord(track, zone, style)
+stock GetClosestStyleForBestRecord(track, zone, style)
 {
     if (g_BestZoneRecords[track][zone][style] != 0.0)
         return style;
@@ -1284,6 +1310,15 @@ GetClosestStyleForBestRecord(track, zone, style)
             return i;
     
     return STYLE_NORMAL;
+}
+
+stock SetTrackWorldRecordCache(client, track, style)
+{
+    new end_zone = g_EndZone[track];
+    for (new i=0; i<end_zone; i++)
+        g_TrackWorldRecord[track][i][style] = g_ZoneRecords[client][track][i][style];
+    
+    g_TrackWorldRecord[track][end_zone][style] = g_TrackRecords[client][track][style];
 }
 
 
