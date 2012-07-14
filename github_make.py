@@ -84,11 +84,15 @@ class BuildDownloadProcess(object):
 
     def build_plugin(self):
         options = self.get_plugin_commandline(self.out.name)
-        try:
-            output = subprocess.check_output(options, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError, e:
+        proc = subprocess.Popen(options, stderr=subprocess.PIPE,
+                                stdout=subprocess.PIPE)
+        stdout,stderr = proc.communicate()
+
+        if proc.returncode > 0:
+            print stderr
             raise BuildError('%s exited with error code %d (cmd: `%s`)' %
-                             (self.compiler, e.returncode, ' '.join(options)))
+                             (self.compiler, proc.returncode,
+                              ' '.join(options)))
 
         return self.out
 
