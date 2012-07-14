@@ -182,7 +182,7 @@ Timer_Init()
     RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current stage record holder for the specified stage on the specified map (or the current map if none specified).");
 #endif
 
-#if defined(WINTOX_BHOP)
+#if defined(WINTOX_DEBUG)
     RegisterCommand("sm_set_track_wr", ConCommand_SetTrackWR, "sm_set_track_wr <track #> <style index> [zone #] <time in seconds> | Sets the value of g_TrackWorldRecord, for debugging purposes. If zone is omitted, it defaults to the end zone of the track, setting the total elapsed time of the record, instead of the zone time.", 0, ADMFLAG_ROOT);
     RegisterCommand("sm_list_styles", ConCommand_ListStyles, "sm_list_styles | Prints the names and indexes of the styles for the current gametype, to chat and console.", 0, ADMFLAG_ROOT);
 #endif
