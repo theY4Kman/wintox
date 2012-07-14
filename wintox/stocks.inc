@@ -25,6 +25,8 @@
 
 #define NOT_INVALID_HANDLE Handle:-1
 
+#define PLURAL(%1) ((%1) == 1 ? "" : "s")
+
 #define ENTER_REPLY(%1) new ReplySource:__old_reply_to = GetCmdReplySource(); \
     SetCmdReplySource((%1))
 #define EXIT_REPLY() SetCmdReplySource(__old_reply_to)

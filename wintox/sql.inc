@@ -700,6 +700,13 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordStagePartial,5) = {
                         ORDER BY time ASC;")
 };
 
+NEW_SQL_QUERY_PARAMS(GetTrackTotalTopRecords,1) = {
+    SQLITE_MYSQL("SELECT `track`, `type`, `time` \
+                        FROM `wintox_track_records` \
+                        WHERE fk_map = %d \
+                        GROUP BY type, track;")
+};
+
 // ===========================================================================
 //   Rank
 // ===========================================================================

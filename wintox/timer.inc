@@ -78,7 +78,7 @@ new Float:g_TrackRecords[MAXPLAYERS][MAX_TRACKS][MAX_STYLES];
 new g_PlayerPoints[MAXPLAYERS] = { INVALID_POINTS, ... };
 
 // The zone completion times of the fastest track run
-// The end zone time will be the TOTAL ELAPSED TIME OF THE RUN
+// Zone 0 will be the TOTAL ELAPSED TIME OF THE RUN
 new Float:g_TrackWorldRecord[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 // The fastest zone completion times for each zone and style
 new Float:g_BestZoneRecords[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
@@ -90,6 +90,8 @@ new Float:g_PauseStart[MAXPLAYERS] = { 0.0, ... };
 
 // Whether to display the timer +/-
 new bool:g_DisplayPlusMinus[MAXPLAYERS] = { false, ... };
+// The style to display for +/-
+new g_PlusMinusStyle[MAXPLAYERS] = { STYLE_NORMAL, ... };
 
 // Holds the state of wintox_display_plus_minus_time
 new Float:g_DisplayPlusMinusTime = 3.0;
@@ -179,6 +181,11 @@ Timer_Init()
     RegisterCommand("sm_wrb", ConCommand_WrB, "sm_wrb <bonus #> [<partial map name>] | Shows the current bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current stage record holder for the specified stage on the specified map (or the current map if none specified).");
 #endif
+
+#if defined(WINTOX_BHOP)
+    RegisterCommand("sm_set_track_wr", ConCommand_SetTrackWR, "sm_set_track_wr <track #> <style index> [zone #] <time in seconds> | Sets the value of g_TrackWorldRecord, for debugging purposes. If zone is omitted, it defaults to the end zone of the track, setting the total elapsed time of the record, instead of the zone time.", 0, ADMFLAG_ROOT);
+    RegisterCommand("sm_list_styles", ConCommand_ListStyles, "sm_list_styles | Prints the names and indexes of the styles for the current gametype, to chat and console.", 0, ADMFLAG_ROOT);
+#endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
     AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
@@ -216,12 +223,16 @@ Timer_DeinitPlayer(client)
     
     g_PlayerCurrentStyle[client] = 0;
     
+    g_DisplayPlusMinus[client] = false;
+    g_PlusMinusStyle[client] = STYLE_NORMAL;
+    
     g_TimerTopStart[client] = 0;
 }
 
 public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_name[], tier, bool:is_staged)
 {
     CacheBestZoneRecords();
+    CacheTrackTopRecords();
 }
 
 GetJumps(client)
@@ -290,20 +301,23 @@ DisplayTimer(client, is_in_zone)
             if (g_DisplayPlusMinus[client] && zone >= 1)
             {
                 new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
+                new pm_style = g_PlusMinusStyle[client];
                 
-                new closest_style = GetClosestStyleForBestRecord(track, zone, style);
-                if (g_BestZoneRecords[track][zone][closest_style] != 0.0)
+                if (g_BestZoneRecords[track][zone][pm_style] != INVALID_ZONE_RECORD)
                 {
-                    new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][style];
+                    new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][pm_style];
                     
                     SecondsToTimeString(zone_pm, STR(sz_time), true);
-                    Format(STR(plus_minus), " (%s)", sz_time);
+                    Format(STR(plus_minus), "\nZone (%s)", sz_time);
                 }
                 
-                new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][style];
-                
-                SecondsToTimeString(wr_pm, STR(sz_time), true);
-                Format(STR(plus_minus), "\nTotal (%s)", sz_time);
+                if (g_TrackWorldRecord[track][0][pm_style] != INVALID_TRACK_RECORD)
+                {
+                    new Float:wr_pm = zone_time - g_TrackWorldRecord[track][0][pm_style];
+                    
+                    SecondsToTimeString(wr_pm, STR(sz_time), true);
+                    Format(STR(plus_minus), "%s\nTotal (%s)", plus_minus, sz_time);
+                }
             }
             
             SecondsToTimeString(time, STR(sz_time));
@@ -479,6 +493,7 @@ Timer_DisplayPlusMinus(client)
         CloseHandle(g_DisablePlusMinusTimer[client]);
     
     g_DisplayPlusMinus[client] = true;
+    g_PlusMinusStyle[client] = g_PlayerCurrentStyle[client];
     g_DisablePlusMinusTimer[client] = CreateTimer(g_DisplayPlusMinusTime, Timer_Callback_DisableDisplayPlusMinus, client);
 }
 
@@ -540,21 +555,20 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         
         new Float:zone_time = g_StartTimes[client][zone_id] - g_StartTimes[client][zone_id-1];
         
-        new closest_style = GetClosestStyleForBestRecord(track, zone_id, style);
-        if (g_BestZoneRecords[track][zone_id][closest_style] != 0.0)
+        if (g_BestZoneRecords[track][zone_id][style] != INVALID_ZONE_RECORD)
         {
             new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone_id][style];
             
             SecondsToTimeString(zone_pm, STR(sz_time), true);
-            Format(STR(plus_minus), " Zone ({G}%s{N}) |", sz_time);
+            Format(STR(plus_minus), " Zone ({G}%s{N})", sz_time);
         }
         
-        if (g_TrackWorldRecord[track][zone_id][style] != INVALID_TRACK_RECORD)
+        if (g_TrackWorldRecord[track][0][style] != INVALID_TRACK_RECORD)
         {
-            new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone_id][style];
+            new Float:wr_pm = zone_time - g_TrackWorldRecord[track][0][style];
             
             SecondsToTimeString(wr_pm, STR(sz_time), true);
-            Format(STR(plus_minus), "%s Total ({G}%s{N})", plus_minus, sz_time);
+            Format(STR(plus_minus), "%s | Total ({G}%s{N})", plus_minus, sz_time);
         }
         
         decl String:sz_zone[84];
@@ -563,7 +577,7 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         else
             Format(STR(sz_zone), "{G}%s{N}", g_ZoneNames[track][zone_id]);
         
-        Timer_PrintToChat(client, "Reached %s%s%s", sz_zone, IS_STR_EMPTY(plus_minus) ? "" : " |", plus_minus);
+        Timer_PrintToChat(client, "{OG}%s{N} | Reached %s%s%s", STYLE_NAMES_C[style], sz_zone, IS_STR_EMPTY(plus_minus) ? "" : " |", plus_minus);
     }
     
     new Float:top_zone_record = g_BestZoneRecords[track][zone_id][style];
@@ -585,12 +599,12 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     new Float:record = g_TrackRecords[client][track][style];
     
     // Global top records
-    new Float:top_record = g_TrackWorldRecord[track][g_EndZone[track]][style];
+    new Float:top_record = g_TrackWorldRecord[track][0][style];
     new bool:had_top = top_record != INVALID_TRACK_RECORD;
     new bool:is_top = false;
     if (!had_top || total_time < top_record)
     {
-        g_TrackWorldRecord[track][g_EndZone[track]][style] = total_time;
+        g_TrackWorldRecord[track][0][style] = total_time;
         is_top = true;
     }
     
@@ -914,6 +928,76 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
 /* ========================================================================
                                  CONCOMMANDS
    ======================================================================== */
+
+#if defined(WINTOX_DEBUG)
+public Action:ConCommand_SetTrackWR(client, args)
+{
+    CHECK_ARGS_SPAN(3,4)
+    
+    decl track;
+    decl style;
+    decl zone;
+    decl Float:time;
+    
+    decl String:buffer[64];
+    GetCmdArg(1, STR(buffer));
+    if (StringToIntEx(buffer, track) == 0 || track < 0 || track >= MAX_TRACKS)
+    {
+        Timer_Reply(client, "Track index must be an integer between 0 and %d, inclusive", MAX_TRACKS-1);
+        return Plugin_Handled;
+    }
+    
+    GetCmdArg(2, STR(buffer));
+    if (StringToIntEx(buffer, style) == 0 || style < 0 || style >= MAX_STYLES)
+    {
+        Timer_Reply(client, "Style index must be an integer between 0 and %d, inclusive", MAX_STYLES-1);
+        return Plugin_Handled;
+    }
+    
+    new time_arg = 3;
+    if (args == 4)
+    {
+        time_arg = 4;
+        GetCmdArg(3, STR(buffer));
+        if (StringToIntEx(buffer, zone) == 0 || zone < 0 || zone >= MAX_ZONES)
+        {
+            Timer_Reply(client, "Zone index must be an integer between 0 and %d, inclusive", MAX_ZONES-1);
+            return Plugin_Handled;
+        }
+    }
+    else
+        zone = g_EndZone[track];
+    
+    GetCmdArg(time_arg, STR(buffer));
+    if (StringToFloatEx(buffer, time) == 0)
+    {
+        Timer_Reply(client, "Time must be a valid floating point number");
+        return Plugin_Handled;
+    }
+    
+    g_TrackWorldRecord[track][zone][style] = time;
+    Timer_Reply(client, "g_TrackWorldRecord[%d][%d][%d] = %f", track, zone, style, time);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_ListStyles(client, args)
+{
+    NO_ARGS()
+    
+    new String:plural[2];
+#if MAX_STYLES != 1
+    plural[0] = 's';
+#endif
+    
+    Timer_Reply(client,  "Printing %d style%s", MAX_STYLES, plural);
+    
+    for (new i=0; i<MAX_STYLES; i++)
+        Timer_Reply(client, "{G}%3d {OG}%-10s{N} (DB type \"{OG}%s{N}\")", i, STYLE_NAMES_C[i], STYLE_NAMES[i]);
+    
+    return Plugin_Handled;
+}
+#endif//WINTOX_DEBUG
 
 public Action:ConCommand_Timer(client, args)
 {
@@ -1305,11 +1389,11 @@ stock SecondsToTimeString(Float:time, String:buffer[], maxlength, bool:plus=fals
 
 stock GetClosestStyleForBestRecord(track, zone, style)
 {
-    if (g_BestZoneRecords[track][zone][style] != 0.0)
+    if (g_BestZoneRecords[track][zone][style] != INVALID_ZONE_RECORD)
         return style;
     
     for (new i=MAX_STYLES; i>=0; i--)
-        if (g_BestZoneRecords[track][zone][i] != 0.0)
+        if (g_BestZoneRecords[track][zone][i] != INVALID_ZONE_RECORD)
             return i;
     
     return STYLE_NORMAL;
@@ -1644,6 +1728,34 @@ public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:
         
         new style = StyleNameToIndex(sz_type);
         g_TrackRecords[client][track][style] = time;
+    }
+}
+
+CacheTrackTopRecords()
+{
+    SQLTH(GetTrackTotalTopRecords, INVALID_HANDLE, g_CurMapID);
+}
+
+public T_GetTrackTotalTopRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving track top records: %s", error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl String:sz_type[16];
+        decl Float:time;
+        
+        track = SQL_FetchInt(hndl, 0);
+        SQL_FetchString(hndl, 1, STR(sz_type));
+        time = SQL_FetchFloat(hndl, 2);
+        
+        new style = StyleNameToIndex(sz_type);
+        g_TrackWorldRecord[track][0][style] = time;
     }
 }
 
