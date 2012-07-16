@@ -876,7 +876,12 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
         
         SecondsToTimeString(time, STR(sz_time));
         
+#if defined(WINTOX_BHOP)
         Format(STR(records), "%s%d. %s - %s - Jumps: %d\n", records, start + i + 1, latest_name, sz_time, jumps);
+        
+#elseif defined(WINTOX_SURF)
+        Format(STR(records), "%s%d. %s - %s\n", records, start + i + 1, latest_name, sz_time);
+#endif
         
         i++;
     }
