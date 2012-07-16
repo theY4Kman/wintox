@@ -816,7 +816,7 @@ ShowTopStyle(client, style, const String:mapname[]="", start=0)
     }
     else
     {
-        SQLTH(GetTop, pack, esc_mapname, WINTOX_GAMETYPE, MAIN_TRACK, STYLE_NAMES[style], start);
+        SQLTH(GetTop, pack, WINTOX_GAMETYPE, esc_mapname, MAIN_TRACK, STYLE_NAMES[style], start);
     }
 }
 
