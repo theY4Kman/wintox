@@ -850,7 +850,7 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
     new rows = SQL_GetRowCount(hndl);
     if (rows == 0)
     {
-        Timer_Reply(client, "There are no top times! {G}Go make some{N}!");
+        Timer_Reply(client, "There are no top {OG}%s{N} times! {G}Go make some{N}!", STYLE_NAMES[style]);
         return;
     }
     
