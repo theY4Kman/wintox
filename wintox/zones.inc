@@ -25,7 +25,7 @@
 #define MIN_FLAG_HEIGHT 80.0
 #define TRACK_MENU_NEXT_INVALID -1
 
-#define ZONES_MENU_TITLE "Zones Menu (cur %d zone%s in %d track%s)"
+#define ZONES_MENU_TITLE "Map Edit Menu (cur %d zone%s in %d track%s)"
 #define EDIT_ZONE_MENU_TITLE "Editing zone %d, track %d (%s)"
 
 // An arbitrary, unique number to identify a particular text entry routine
@@ -109,6 +109,8 @@ new g_CurMapTier = 1;
 
 #define IS_TRACK_EMPTY(%1) (g_TrackPath[(%1)][0] == 0)
 
+#define MAPMODE_NAME(%1) ((%1) ? "staged" : "linear")
+
 // Create a static array cache for zones
 // Capacity: 64 zones, 30* points each
 // * The first point is used to store information about the zone, including
@@ -190,10 +192,6 @@ new g_TracksSynced = 0;
 new g_TotalZonesSynced = 0;
 
 
-//////////////////////////////////////////////////////////
-// These may be needed later (heh), and I hate warnings //
-//////////////////////////////////////////////////////////
-#pragma unused g_CurMapStaged
 
 Zones_Init()
 {
@@ -228,10 +226,11 @@ Zones_Init()
     RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC, "editzones");
     
 #if defined(WINTOX_DEBUG)
-    RegisterCommand("sm_curmapid", ConCommand_CurMapID, "sm_curmapid | Prints the database ID of the current map", 0, ADMFLAG_GENERIC, "wtxdebug");
+    RegisterCommand("sm_curmapid", ConCommand_CurMapID, "sm_curmapid | Prints the database ID of the current map", 0, ADMFLAG_ROOT, "wtxdebug");
 #endif
 
 #if defined(WINTOX_SURF)
+    RegisterCommand("sm_mapmode", ConCommand_MapMode, "sm_mapmode [<linear|staged>] | With no arguments, prints the current map mode (Linear or Staged). When passed either \"linear\" or \"staged\", sets the current map's mode", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_teleport", ConCommand_Teleport, "sm_teleport | Teleports you to the start of the current stage.");
     RegisterCommand("sm_tele", ConCommand_Teleport, "sm_tele | Teleports you to the start of the current stage (alias for sm_teleport).");
     RegisterCommand("sm_goback", ConCommand_GoBack, "sm_goback | Teleports you to the previous stage.");
@@ -256,10 +255,6 @@ Zones_Init()
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
     AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
-    
-    BuildTrackMenu();
-    for (new track=0; track<MAX_TRACKS; track++)
-        BuildZoneMenu();
 
     if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
         LogError("Couldn't precache model file(s)!");
@@ -342,6 +337,9 @@ public fwd_Zone_OnMapLoaded(map_id, const String:mapname[], const String:human_n
 {
     CacheTracks(0);
     CacheZones(0);
+    
+    // Rebuild map edit menu to reflect map changes
+    BuildMapEditMenu();
 }
 
 // TODO: refactor TextEntry to accept a Function argument
@@ -702,6 +700,35 @@ public Action:ConCommand_CurMapID(client, args)
 #endif
 
 #if defined(WINTOX_SURF)
+public Action:ConCommand_MapMode(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    if (args == 0)
+    {
+        Zone_Reply(client, "Current map mode is {G}%s{N}", MAPMODE_NAME(g_CurMapStaged));
+        return Plugin_Handled;
+    }
+    
+    decl bool:staged;
+    decl String:sz_mapmode[16];
+    GetCmdArg(1, STR(sz_mapmode));
+    
+    if (StrEqual(sz_mapmode, "linear"))
+        staged = false;
+    else if (StrEqual(sz_mapmode, "staged"))
+        staged = true;
+    else
+    {
+        Zone_Reply(client, "Expected \"{OG}linear{N}\" or \"{OG}staged{N}\" as an argument.");
+        return Plugin_Handled;
+    }
+    
+    Map_SetStaged(client, staged);
+    
+    return Plugin_Handled;
+}
+
 public Action:ConCommand_Teleport(client, args)
 {
     NO_ARGS()
@@ -760,13 +787,19 @@ public Action:ConCommand_GoBack(client, args)
 #define ZMENU_INFO_RELOAD_ZONES "reload"
 #define ZMENU_INFO_SYNC_ZONES "sync"
 #define ZMENU_INFO_MAP_TIER "maptier"
+#if defined(WINTOX_SURF)
+    #define ZMENU_INFO_MAP_STAGED "staged"
+#endif
 
-BuildZoneMenu()
+#define BuildZoneMenu BuildMapEditMenu
+BuildMapEditMenu()
 {
     if (g_ZoneMenu != INVALID_HANDLE)
         CloseHandle(g_ZoneMenu);
     
     g_ZoneMenu = CreateMenu(MenuHandler_RootZoneMenu);
+    
+    decl String:buffer[128];
     
     SetZoneMenuTitle();
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_NEW_ZONE, "Create or edit zone");
@@ -774,7 +807,14 @@ BuildZoneMenu()
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_CLEAR_ALL_ZONES, "Clear ALL zones");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_RELOAD_ZONES, "Reload zones from DB");
     AddMenuItem(g_ZoneMenu, ZMENU_INFO_SYNC_ZONES, "Sync zones to DB (slow)");
-    AddMenuItem(g_ZoneMenu, ZMENU_INFO_MAP_TIER, "Set map tier");
+    
+    Format(STR(buffer), "Set map tier (cur %d)", g_CurMapTier);
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_MAP_TIER, buffer);
+    
+#if defined(WINTOX_SURF)
+    Format(STR(buffer), "Set map mode (cur %s)", MAPMODE_NAME(g_CurMapStaged));
+    AddMenuItem(g_ZoneMenu, ZMENU_INFO_MAP_STAGED, buffer);
+#endif
 }
 
 BuildTrackMenu()
@@ -937,6 +977,25 @@ public MenuHandler_RootZoneMenu(Handle:menu, MenuAction:action, param1, param2)
             
             DisplaySubmenu(tier_menu, param1, MENU_TIME_FOREVER);
         }
+#if defined(WINTOX_SURF)
+        else if (StrEqual(info, ZMENU_INFO_MAP_STAGED))
+        {
+            new Handle:mode_menu = CreateMenu(MenuHandler_SetMapMode);
+            SetMenuExitButton(mode_menu, true);
+            SetMenuExitBackButton(mode_menu, true);
+            SetMenuTitle(mode_menu, "Set map mode");
+            
+            decl String:buffer[16];
+            
+            Format(STR(buffer), "Linear%s", !g_CurMapStaged ? " (cur)" : "");
+            AddMenuItem(mode_menu, "0", buffer);
+            
+            Format(STR(buffer), "Staged%s", g_CurMapStaged ? " (cur)" : "");
+            AddMenuItem(mode_menu, "1", buffer);
+            
+            DisplaySubmenu(mode_menu, param1, MENU_TIME_FOREVER);
+        }
+#endif//WINTOX_SURF
     }
     else if (action == MenuAction_Cancel)
         PrevSubmenu(param1);
@@ -1183,6 +1242,22 @@ public MenuHandler_SetMapTier(Handle:menu, MenuAction:action, param1, param2)
         HANDLE_CANCEL();
 }
 
+#if defined(WINTOX_SURF)
+public MenuHandler_SetMapMode(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[2];
+        GetMenuItem(menu, param2, STR(info));
+        Map_SetStaged(param1, info[0] == '1');
+        
+        PrevSubmenu(param1);
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+#endif//WINTOX_SURF
+
 
 /* ========================================================================
                         MAP MANIPULATION FUNCTIONS
@@ -1193,6 +1268,14 @@ Map_SetTier(client, tier)
     g_CurMapTier = tier;
     win_SQL_UpdateMapTier(client, tier);
 }
+
+#if defined(WINTOX_SURF)
+Map_SetStaged(client, bool:staged)
+{
+    g_CurMapStaged = staged;
+    win_SQL_UpdateMapStaged(client, staged);
+}
+#endif
 
 
 /* ========================================================================
@@ -2526,3 +2609,48 @@ public T_UpdateMapTier(Handle:owner, Handle:hndl, const String:error[], any:data
         EXIT_REPLY();
     }
 }
+
+#if defined(WINTOX_SURF)
+win_SQL_UpdateMapStaged(client, bool:staged)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, staged);
+    WritePackCell(pack, _:GetCmdReplySource());
+    ResetPack(pack);
+    
+    SQLTH(UpdateMapStaged, pack, staged, g_CurMapID);
+}
+
+public T_UpdateMapStaged(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    new client = ReadPackCell(pack);
+    new bool:staged = bool:ReadPackCell(pack);
+    new ReplySource:reply_to = ReplySource:ReadPackCell(pack);
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        decl String:error_msg[256];
+        Format(STR(error_msg), "Error setting map mode to \"%s\": %s", MAPMODE_NAME(staged), error);
+        
+        LogError("%s", error_msg);
+        if (client != -1)
+        {
+            ENTER_REPLY(reply_to);
+            Reply(client, "%s", error_msg);
+            EXIT_REPLY();
+        }
+        
+        return;
+    }
+    
+    if (client != -1)
+    {
+        ENTER_REPLY(reply_to);
+        Reply(client, "Successfully set map mode to {G}%s{N}!", MAPMODE_NAME(staged));
+        EXIT_REPLY();
+    }
+}
+#endif//WINTOX_SURF

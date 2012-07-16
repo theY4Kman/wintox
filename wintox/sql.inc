@@ -369,6 +369,11 @@ NEW_SQL_QUERY_PARAMS(GetMap,2) = {
 NEW_SQL_QUERY_PARAMS(UpdateMapTier,2) = {
     SQLITE_MYSQL("UPDATE wintox_maps SET tier = %d WHERE id = %d;")
 };
+#if defined(WINTOX_SURF)
+NEW_SQL_QUERY_PARAMS(UpdateMapStaged,2) = {
+    SQLITE_MYSQL("UPDATE wintox_maps SET is_staged = %d WHERE id = %d;")
+};
+#endif//WINTOX_SURF
 
 // ===========================================================================
 //   Player records

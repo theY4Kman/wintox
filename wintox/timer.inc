@@ -183,8 +183,8 @@ Timer_Init()
 #endif
 
 #if defined(WINTOX_DEBUG)
-    RegisterCommand("sm_set_track_wr", ConCommand_SetTrackWR, "sm_set_track_wr <track #> <style index> [zone #] <time in seconds> | Sets the value of g_TrackWorldRecord, for debugging purposes. If zone is omitted, it defaults to the end zone of the track, setting the total elapsed time of the record, instead of the zone time.", 0, ADMFLAG_ROOT);
-    RegisterCommand("sm_list_styles", ConCommand_ListStyles, "sm_list_styles | Prints the names and indexes of the styles for the current gametype, to chat and console.", 0, ADMFLAG_ROOT);
+    RegisterCommand("sm_set_track_wr", ConCommand_SetTrackWR, "sm_set_track_wr <track #> <style index> [zone #] <time in seconds> | Sets the value of g_TrackWorldRecord, for debugging purposes. If zone is omitted, it defaults to the end zone of the track, setting the total elapsed time of the record, instead of the zone time.", 0, ADMFLAG_ROOT, "wtxdebug");
+    RegisterCommand("sm_list_styles", ConCommand_ListStyles, "sm_list_styles | Prints the names and indexes of the styles for the current gametype, to chat and console.", 0, ADMFLAG_ROOT, "wtxdebug");
 #endif
     
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
@@ -322,9 +322,9 @@ DisplayTimer(client, is_in_zone)
             
             SecondsToTimeString(time, STR(sz_time));
             
-            new Float:velocity = GetPlayerVelocity(client);
-            
 #if defined(WINTOX_BHOP)
+            
+            new Float:velocity = GetPlayerVelocity(client);
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
             {
