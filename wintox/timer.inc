@@ -83,6 +83,10 @@ new Float:g_TrackWorldRecord[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 // The fastest zone completion times for each zone and style
 new Float:g_BestZoneRecords[MAX_TRACKS][MAX_ZONES][MAX_STYLES];
 
+// Stores state of wintox_allow_velocity_display, whether to allow players
+// to show/hide their speed in the middle/hint-text timer
+new bool:g_AllowVelocityDisplay = true;
+
 // Whether the player's timer has started
 new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
 // When the player paused their timer (0.0 for not paused)
@@ -106,20 +110,15 @@ new String:g_TimerTopMapName[MAXPLAYERS][64];
 // Stores the passed style for the !top menus
 new g_TimerTopStyle[MAXPLAYERS];
 
-// Show the timer display
 new bool:g_TimerEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_SideStageInfoEnabled[MAXPLAYERS] = { true, ... };
 new bool:g_PointsToChatEnabled[MAXPLAYERS] = { true, ... };
-#if defined(WINTOX_BHOP)
-    new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
-#endif
+new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
 
 #define COOKIE_TIMER_ENABLED "WTX_TimerEnabled"
 #define COOKIE_SIDE_STAGE_INFO_ENABLED "WTX_SideStageInfoEnabled"
 #define COOKIE_POINTS_TO_CHAT_ENABLED "WTX_PointsToChatEnabled"
-#if defined(WINTOX_BHOP)
-    #define COOKIE_TIMER_SPEED_ENABLED "WTX_TimerSpeedEnabled"
-#endif
+#define COOKIE_TIMER_SPEED_ENABLED "WTX_TimerSpeedEnabled"
 
 
 #define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
@@ -154,6 +153,10 @@ Timer_Init()
     new Handle:cvar_display_plus_minus_time = CreateConVar("wintox_display_plus_minus_time", "3.0", "The amount of time to display +/- times in the timer display", 0, true, 0.0);
     g_DisplayPlusMinusTime = GetConVarFloat(cvar_display_plus_minus_time);
     HookConVarChange(cvar_display_plus_minus_time, ConVar_DisplayPlusMinusTime);
+    
+    new Handle:cvar_allow_velocity_display = CreateConVar("wintox_allow_velocity_display", "1", "Whether to allow players the option to show/hide speed in their middle/hint-text timer.", 0, true, 0.0, true, 1.0);
+    g_AllowVelocityDisplay = GetConVarBool(cvar_allow_velocity_display);
+    HookConVarChange(cvar_allow_velocity_display, ConVar_AllowVelocityDisplay);
     
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
@@ -194,6 +197,7 @@ Timer_Init()
     RegClientCookie(COOKIE_TIMER_ENABLED, "Whether to display the middle (hint text) timer.", CookieAccess_Public);
     RegClientCookie(COOKIE_SIDE_STAGE_INFO_ENABLED, "Whether to display side stage info.", CookieAccess_Public);
     RegClientCookie(COOKIE_POINTS_TO_CHAT_ENABLED, "Whether to print points and +/- timers to chat.", CookieAccess_Public);
+    RegClientCookie(COOKIE_TIMER_SPEED_ENABLED, "Whether to display current speed in the middle (hint text) timer.", CookieAccess_Public);
 }
 
 Timer_DeinitPlayer(client)
@@ -233,6 +237,16 @@ public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_
 {
     CacheBestZoneRecords();
     CacheTrackTopRecords();
+}
+
+public ConVar_DisplayPlusMinusTime(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DisplayPlusMinusTime = GetConVarFloat(cvar);
+}
+
+public ConVar_AllowVelocityDisplay(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_AllowVelocityDisplay = GetConVarBool(cvar);
 }
 
 GetJumps(client)
@@ -322,16 +336,16 @@ DisplayTimer(client, is_in_zone)
             
             SecondsToTimeString(time, STR(sz_time));
             
-#if defined(WINTOX_BHOP)
-            
             new Float:velocity = GetPlayerVelocity(client);
+            decl String:sz_speed[32];
+            sz_speed[0] = '\0';
+            if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
+                Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
+            
+#if defined(WINTOX_BHOP)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0)
             {
-                decl String:sz_speed[32];
-                sz_speed[0] = '\0';
-                if (g_TimerSpeedEnabled[client])
-                    Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
                 
                 PrintHintText(client, "\
                     %s\
@@ -363,11 +377,11 @@ DisplayTimer(client, is_in_zone)
                     %s\
                     Time: %s\n\
                     Style: %s\n\
-                    %s%s",
+                    %s%s%s",
                 IS_PAUSED(client) ? "[PAUSED]\n" : "", 
                 sz_time,
                 STYLE_NAMES_C[style],
-                stagename, plus_minus);
+                stagename, plus_minus, sz_speed);
             }
             else
                 PrintHintText(client, "\
@@ -434,7 +448,7 @@ DisplayTimer(client, is_in_zone)
 #if defined(WINTOX_BHOP)
             decl String:sz_speed[48];
             sz_speed[0] = '\0';
-            if (g_TimerSpeedEnabled[client])
+            if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
                 Format(STR(sz_speed), "\nSpeed: %.1f (opp %.1f)", GetPlayerVelocity(client), GetPlayerVelocity(opponent));
             
             PrintHintText(client, "\
@@ -523,11 +537,6 @@ Timer_PlayerReachedEnd(client, track, style)
     Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
     Call_PushCell(style);
     Call_Finish();
-}
-
-public ConVar_DisplayPlusMinusTime(Handle:cvar, const String:oldVal[], const String:newVal[])
-{
-    g_DisplayPlusMinusTime = GetConVarFloat(cvar);
 }
 
 public Action:Timer_Callback_DisableDisplayPlusMinus(Handle:timer, any:data)
@@ -690,9 +699,7 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 #define TSET_MENU_MIDDLE "middle"
 #define TSET_MENU_SIDE "side"
 #define TSET_MENU_POINTS "points"
-#if defined(WINTOX_BHOP)
-    #define TSET_MENU_SPEED "speed"
-#endif
+#define TSET_MENU_SPEED "speed"
 
 Handle:BuildTimerSettingsMenu(client)
 {
@@ -711,10 +718,11 @@ Handle:BuildTimerSettingsMenu(client)
     Format(STR(buffer), "Points and +/- printed to chat: %s", g_PointsToChatEnabled[client] ? "On" : "Off");
     AddMenuItem(menu, TSET_MENU_POINTS, buffer);
     
-#if defined(WINTOX_BHOP)
-    Format(STR(buffer), "Show speed in middle timer: %s", g_TimerSpeedEnabled[client] ? "On" : "Off");
-    AddMenuItem(menu, TSET_MENU_SPEED, buffer);
-#endif
+    if (g_AllowVelocityDisplay)
+    {
+        Format(STR(buffer), "Show speed in middle timer: %s", g_TimerSpeedEnabled[client] ? "On" : "Off");
+        AddMenuItem(menu, TSET_MENU_SPEED, buffer);
+    }
     
     return menu;
 }
@@ -755,13 +763,11 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
             SET_COOKIE(COOKIE_POINTS_TO_CHAT_ENABLED,g_PointsToChatEnabled)
         }
         
-#if defined(WINTOX_BHOP)
-        else if (StrEqual(info, TSET_MENU_SPEED))
+        else if (g_AllowVelocityDisplay && StrEqual(info, TSET_MENU_SPEED))
         {
             g_TimerSpeedEnabled[param1] = !g_TimerSpeedEnabled[param1];
             SET_COOKIE(COOKIE_TIMER_SPEED_ENABLED,g_TimerSpeedEnabled)
         }
-#endif
 #undef SET_COOKIE
         
         // Cancel this menu without redisplaying previous submenu
