@@ -73,9 +73,12 @@ Race_Init()
     RegisterCommand("sm_rtop", ConCommand_Rtop, "sm_rtop [<start #>] | Displays a menu listing the top racers and their stats, optionally starting at <start #>");
     
 #if defined(WINTOX_DEBUG)
-    RegisterCommand("sm_forcechallenge", ConCommand_ForceChallenge, "sm_forcechallenge <player 1> <player 2> | Emulates <player 1> running !race and selecting <player 2>", 0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_forcechallenge", ConCommand_ForceChallenge, "sm_forcechallenge <player 1> <player 2> | Emulates <player 1> running !race and selecting <player 2>", 0, ADMFLAG_GENERIC, "wtxdebug");
 #endif
-    
+}
+
+Race_RegisterConVars()
+{
     new Handle:cvar_race_challenges_amount = CreateConVar("wintox_race_challenges_amount", "1", "The number of people a player can challenge to a race at once.");
     g_RaceChallengesAmount = GetConVarInt(cvar_race_challenges_amount);
     HookConVarChange(cvar_race_challenges_amount, ConVar_RaceChallengesAmount);

@@ -236,6 +236,18 @@ Zones_Init()
     RegisterCommand("sm_goback", ConCommand_GoBack, "sm_goback | Teleports you to the previous stage.");
 #endif
     
+    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
+    AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
+    AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
+
+    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
+        LogError("Couldn't precache model file(s)!");
+    
+    CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
+}
+
+Zone_RegisterConVars()
+{
     new Handle:draw_zones = CreateConVar("wintox_draw_zones", "0", "Whether or not to draw all zones (they will be drawn while editing zones, regardless)");
     g_DrawZones = GetConVarBool(draw_zones);
     HookConVarChange(draw_zones, ConVar_DrawZones);
@@ -251,15 +263,6 @@ Zones_Init()
     new Handle:zone_height_fudge = CreateConVar("wintox_zone_height_fudge", "20.0", "The amount, in map units, of leeway used when detecting if a player is at the right height for a zone.");
     g_ZoneHeightFudge = GetConVarFloat(zone_height_fudge);
     HookConVarChange(zone_height_fudge, ConVar_ZoneHeightFudge);
-    
-    AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
-    AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
-    AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
-
-    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
-        LogError("Couldn't precache model file(s)!");
-    
-    CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
 }
 
 Zone_DeinitPlayer(client)

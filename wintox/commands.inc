@@ -65,8 +65,6 @@ Commands_Init()
     
     RegisterCommand("sm_commands", Command_Commands, "sm_commands | Displays all the public commands");
     RegisterCommand("sm_admcommands", Command_AdmCommands, "sm_admcommands | Displays all the admin commands", 0, ADMFLAG_GENERIC);
-    
-    CreateConVar("wintox_version", WINTOX_VERSION, "Version of Wintox core", FCVAR_SPONLY|FCVAR_DONTRECORD|FCVAR_REPLICATED);
 }
 
 RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")

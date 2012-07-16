@@ -152,14 +152,6 @@ Timer_Init()
                 g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
             }
     
-    new Handle:cvar_display_plus_minus_time = CreateConVar("wintox_display_plus_minus_time", "3.0", "The amount of time to display +/- times in the timer display", 0, true, 0.0);
-    g_DisplayPlusMinusTime = GetConVarFloat(cvar_display_plus_minus_time);
-    HookConVarChange(cvar_display_plus_minus_time, ConVar_DisplayPlusMinusTime);
-    
-    new Handle:cvar_allow_velocity_display = CreateConVar("wintox_allow_velocity_display", "1", "Whether to allow players the option to show/hide speed in their middle/hint-text timer.", 0, true, 0.0, true, 1.0);
-    g_AllowVelocityDisplay = GetConVarBool(cvar_allow_velocity_display);
-    HookConVarChange(cvar_allow_velocity_display, ConVar_AllowVelocityDisplay);
-    
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
@@ -200,6 +192,17 @@ Timer_Init()
     RegClientCookie(COOKIE_SIDE_STAGE_INFO_ENABLED, "Whether to display side stage info.", CookieAccess_Public);
     RegClientCookie(COOKIE_POINTS_TO_CHAT_ENABLED, "Whether to print points and +/- timers to chat.", CookieAccess_Public);
     RegClientCookie(COOKIE_TIMER_SPEED_ENABLED, "Whether to display current speed in the middle (hint text) timer.", CookieAccess_Public);
+}
+
+Timer_RegisterConVars()
+{
+    new Handle:cvar_display_plus_minus_time = CreateConVar("wintox_display_plus_minus_time", "3.0", "The amount of time to display +/- times in the timer display", 0, true, 0.0);
+    g_DisplayPlusMinusTime = GetConVarFloat(cvar_display_plus_minus_time);
+    HookConVarChange(cvar_display_plus_minus_time, ConVar_DisplayPlusMinusTime);
+    
+    new Handle:cvar_allow_velocity_display = CreateConVar("wintox_allow_velocity_display", "1", "Whether to allow players the option to show/hide speed in their middle/hint-text timer.", 0, true, 0.0, true, 1.0);
+    g_AllowVelocityDisplay = GetConVarBool(cvar_allow_velocity_display);
+    HookConVarChange(cvar_allow_velocity_display, ConVar_AllowVelocityDisplay);
 }
 
 Timer_DeinitPlayer(client)
@@ -862,11 +865,15 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
         decl String:bsp_name[64];
         decl String:sz_time[32];
         decl Float:time;
+#if defined(WINTOX_BHOP)
         decl jumps;
+#endif
         
         SQL_FetchString(hndl, 1, STR(latest_name));
         time = SQL_FetchFloat(hndl, 2);
+#if defined(WINTOX_BHOP)
         jumps = SQL_FetchInt(hndl, 3);
+#endif
         
         if (i == 0)
         {

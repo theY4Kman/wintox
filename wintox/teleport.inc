@@ -29,8 +29,11 @@ new Handle:g_TeleMenu[MAXPLAYERS] = { INVALID_HANDLE, ... };
 
 Teleport_Init()
 {
+    decl String:buffer[96];
+    Format(STR(buffer), "sm_save | Saves your current location for use with !tele (maximum of %d saves).", MAX_TELEPORT_SAVES);
+    RegisterCommand("sm_save", ConCommand_Save, buffer);
+    
     RegisterCommand("sm_telemenu", ConCommand_TeleMenu, "sm_telemenu | Opens a menu providing easy access to the teleport commands.");
-    RegisterCommand("sm_save", ConCommand_Save, "sm_save | Saves your current location for use with !tele (maximum  of 3 saves).");
     RegisterCommand("sm_tele", ConCommand_Tele, "sm_tele | Teleports to the currently selected save location.");
     RegisterCommand("sm_next", ConCommand_Next, "sm_next | Selects the next saved location for use with !tele.");
     RegisterCommand("sm_previous", ConCommand_Previous, "sm_previous | Selects the previous saved location for use with !tele.");

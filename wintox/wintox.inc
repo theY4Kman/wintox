@@ -71,6 +71,7 @@ new bool:g_PlayerLowGrav[MAXPLAYERS] = false;
 #include "./wintox/zones"
 #include "./wintox/race"
 
+
 Wintox_Init()
 {
     LoadTranslations("common.phrases");
@@ -88,24 +89,6 @@ Wintox_Init()
     Zones_Init();
     Timer_Init();
     Race_Init();
-    
-    AutoExecConfig(true, "wintox");
-    
-    new Handle:timer_skip_ticks = CreateConVar("wintox_timer_display_skip_ticks", "8", "Amount of ticks to skip in between refreshing the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
-    g_TimerDisplaySkipTicks = GetConVarInt(timer_skip_ticks);
-    HookConVarChange(timer_skip_ticks, ConVar_TimerDisplaySkipTicks);
-    
-    new Handle:remove_dropped_weapons = CreateConVar("wintox_remove_dropped_weapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
-    g_RemoveDroppedWeapons = GetConVarBool(remove_dropped_weapons);
-    HookConVarChange(remove_dropped_weapons, ConVar_RemoveDroppedWeapons);
-    
-    new Handle:suppress_hint_text = CreateConVar("wintox_suppress_hint_text", "1", "Whether or not to actively suppress the hint text box if the user disables the timer display (if false, hint text boxes take a few seconds to disappear)", 0, true, 0.0, true, 1.0);
-    g_SuppressHintText = GetConVarBool(suppress_hint_text);
-    HookConVarChange(suppress_hint_text, ConVar_SuppressHintText);
-    
-    new Handle:max_prespeed_velocity = CreateConVar("wintox_max_prespeed_velocity", "378.0", "The maximum velocity allowed in a start zone.");
-    g_MaxPrespeedVelocity = GetConVarFloat(max_prespeed_velocity);
-    HookConVarChange(max_prespeed_velocity, ConVar_MaxPrespeedVelocity);
     
     RegisterCommand("sm_hide", ConCommand_Hide, "sm_hide | Toggle hiding all other players (useful for demos).");
     RegisterCommand("sm_show", ConCommand_Show, "sm_show | Show all other players (counteracts sm_hide).");
@@ -161,6 +144,33 @@ Wintox_Init()
 Wintox_Exit()
 {
     g_wintoxExiting = true;
+}
+
+Wintox_RegisterConVars()
+{
+    CreateConVar("wintox_gametype", "", "The game type of Wintox which should run on this server. This is to prevent the loading of multiple game types. Leave blank to disable.");
+    
+    new Handle:timer_skip_ticks = CreateConVar("wintox_timer_display_skip_ticks", "8", "Amount of ticks to skip in between refreshing the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
+    g_TimerDisplaySkipTicks = GetConVarInt(timer_skip_ticks);
+    HookConVarChange(timer_skip_ticks, ConVar_TimerDisplaySkipTicks);
+    
+    new Handle:remove_dropped_weapons = CreateConVar("wintox_remove_dropped_weapons", "1", "Whether or not to remove weapons that are dropped by players", 0, true, 0.0, true, 1.0);
+    g_RemoveDroppedWeapons = GetConVarBool(remove_dropped_weapons);
+    HookConVarChange(remove_dropped_weapons, ConVar_RemoveDroppedWeapons);
+    
+    new Handle:suppress_hint_text = CreateConVar("wintox_suppress_hint_text", "1", "Whether or not to actively suppress the hint text box if the user disables the timer display (if false, hint text boxes take a few seconds to disappear)", 0, true, 0.0, true, 1.0);
+    g_SuppressHintText = GetConVarBool(suppress_hint_text);
+    HookConVarChange(suppress_hint_text, ConVar_SuppressHintText);
+    
+    new Handle:max_prespeed_velocity = CreateConVar("wintox_max_prespeed_velocity", "378.0", "The maximum velocity allowed in a start zone.");
+    g_MaxPrespeedVelocity = GetConVarFloat(max_prespeed_velocity);
+    HookConVarChange(max_prespeed_velocity, ConVar_MaxPrespeedVelocity);
+    
+    Timer_RegisterConVars();
+    Zone_RegisterConVars();
+    Menus_RegisterConVars();
+    Race_RegisterConVars();
+    win_SQL_RegisterConVars();
 }
 
 Wintox_DeinitPlayer(client)

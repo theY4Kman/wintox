@@ -39,6 +39,10 @@ enum Submenu
 
 Menus_Init()
 {
+}
+
+Menus_RegisterConVars()
+{
     new Handle:menu_item_sound = CreateConVar("wintox_menu_item_sound", "buttons/button14.wav", "The sound to play when a player selects an item in a panel (such as !rtop or !top, but not !zonemenu or !race)");
     GetConVarString(menu_item_sound, STR(g_MenuItemSound));
     HookConVarChange(menu_item_sound, ConVar_MenuItemSound);

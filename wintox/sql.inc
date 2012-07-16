@@ -1031,8 +1031,11 @@ NEW_SQL_QUERY_PARAMS(UpsertTopRecord,4) = {
 };
 
 
-// SQL helper functions
 win_SQL_Init()
+{
+}
+
+win_SQL_RegisterConVars()
 {
     g_cv_DBConfig = CreateConVar("wintox_dbconfig", "default", "The database.cfg configuration to use with Wintox");
 }
