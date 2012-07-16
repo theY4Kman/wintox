@@ -69,6 +69,8 @@ new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 new g_Jumps[MAXPLAYERS];
 // The current playing style of the player
 new g_PlayerCurrentStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
+// Whether the player has entered the start zone (since joining or timer reset)
+new g_PlayerEnteredStart[MAXPLAYERS] = { false, ... };
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
@@ -224,8 +226,10 @@ Timer_DeinitPlayer(client)
     g_TimerEnabled[client] = true;
     g_SideStageInfoEnabled[client] = true;
     g_PointsToChatEnabled[client] = true;
+    g_TimerSpeedEnabled[client] = true;
     
     g_PlayerCurrentStyle[client] = 0;
+    g_PlayerEnteredStart[client] = false;
     
     g_DisplayPlusMinus[client] = false;
     g_PlusMinusStyle[client] = STYLE_NORMAL;
@@ -1306,6 +1310,7 @@ ResetTimer(client)
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_PlayerCurrentPath[client] = INVALID_PATH;
     g_PlayerCurrentStyle[client] = MAX_STYLES-1;
+    g_PlayerEnteredStart[client] = false;
     g_IsTiming[client] = false;
     g_Jumps[client] = false;
 }

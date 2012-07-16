@@ -274,7 +274,7 @@ public OnGameFrame()
             new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
             for (new i=start_zone, _t=-1; _t<1 && ((i=_t ? start_zone : end_zone) || 1); _t++)
             {
-                if (PointInZone(origin, track, i))
+                if ((g_PlayerEnteredStart[client] || i == 0) && PointInZone(origin, track, i))
                 {
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
@@ -286,6 +286,8 @@ public OnGameFrame()
                     
                     if (i == 0)
                     {
+                        g_PlayerEnteredStart[client] = true;
+                        
                         // Anti-pre-speed
                         decl Float:velocity[3];
                         Entity_GetAbsVelocity(client, velocity);
