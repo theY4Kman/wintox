@@ -150,6 +150,10 @@ Wintox_RegisterConVars()
 {
     CreateConVar("wintox_gametype", "", "The game type of Wintox which should run on this server. This is to prevent the loading of multiple game types. Leave blank to disable.");
     
+    new Handle:debug_level = CreateConVar("wintox_debug_level", "0", "The level of debug messages to print. The higher the number, the more is printed. -1 = none (not recommended), 0 = error, 1 = warning, 2 = info, 3 = debug, 4 = CRAAAZY debug", 0, true, -1.0, true, 4.0);
+    g_DebugLevel = GetConVarInt(debug_level);
+    HookConVarChange(debug_level, ConVar_DebugLevel);
+    
     new Handle:timer_skip_ticks = CreateConVar("wintox_timer_display_skip_ticks", "8", "Amount of ticks to skip in between refreshing the timer display (the higher the number, the slower the refresh rate)", 0, true, 1.0);
     g_TimerDisplaySkipTicks = GetConVarInt(timer_skip_ticks);
     HookConVarChange(timer_skip_ticks, ConVar_TimerDisplaySkipTicks);
@@ -195,6 +199,11 @@ public Action:Timer_TestTempEnts(Handle:timer)
     g_wintoxTempEnts = true;
     
     return Plugin_Continue;
+}
+
+public ConVar_DebugLevel(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+    g_DebugLevel = GetConVarInt(cvar);
 }
 
 public ConVar_TimerDisplaySkipTicks(Handle:cvar, const String:oldVal[], const String:newVal[])

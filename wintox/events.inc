@@ -90,6 +90,13 @@ public OnConfigsExecuted()
 
 public OnMapStart()
 {
+    // Wipe the cache, so we don't accidentally use zone data from the last map
+    WipeZoneCache();
+
+    // Precache the laser every map change
+    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
+        LogError("Couldn't precache model file(s)!");
+    
     // Grab the map name and database that shit
     decl String:mapname[256];
     GetCurrentMap(STR(mapname));
@@ -354,6 +361,8 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
         strcopy(STR(g_CurMapHumanName), human_name);
         g_CurMapTier = tier;
         g_CurMapStaged = is_staged;
+        
+        DEBUG("Loaded map info for %s (ID %d, human \"%s\", tier %d, %sstaged)", mapname, map_id, human_name, tier, is_staged ? "" : "not ")
         
         // Fire the wintox_map_loaded forward
         Call_StartForward(g_fwdMapLoaded);

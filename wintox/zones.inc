@@ -85,6 +85,8 @@ new g_CurMapTier = 1;
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
 #define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
+#define TRACK_EMPTY(%1) (g_ZonesCount[(%1)] > 0)
+
 // Default amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
 #define ZONE_HEIGHT_FUDGE 20.0
 
@@ -239,9 +241,6 @@ Zones_Init()
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
     AddToForward(g_fwdPointsSyncFinished, INVALID_HANDLE, fwd_Zone_OnPointsSyncFinished);
     AddToForward(g_fwdTextEntryComplete, INVALID_HANDLE, fwd_Zone_OnTextEntryComplete);
-
-    if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))
-        LogError("Couldn't precache model file(s)!");
     
     CreateTimer(0.1, Timer_DrawZones, INVALID_HANDLE, TIMER_REPEAT);
 }
@@ -2009,6 +2008,8 @@ public Action:Timer_DrawZones(Handle:timer)
     if (!g_wintoxTempEnts)
         return;
     
+    // TODO: show the zones/flags for the player being observed
+    
     for (new client=1; client<MaxClients; client++)
     {
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
@@ -2033,7 +2034,7 @@ public Action:Timer_DrawZones(Handle:timer)
             
             if (g_DrawBonusFlags)
                 for (new track=1; track<MAX_TRACKS; track++)
-                    if (g_ZonesCount[track] > 0 && cur_track != track)
+                    if (!TRACK_EMPTY(track) && cur_track != track)
                         DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
         }
         
@@ -2041,7 +2042,10 @@ public Action:Timer_DrawZones(Handle:timer)
         {
             for (new track=0; track<MAX_TRACKS; track++)
             {
-                for (new i=0; i<MAX_ZONES; i++)
+                if (TRACK_EMPTY(track))
+                    continue;
+                
+                for (new i=0; i<g_EndZone[track]; i++)
                 {
                     if (g_DrawFlags)
                         DrawFlag(i, client, FLAG_COLOR(i), track);

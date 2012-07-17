@@ -12,6 +12,24 @@
 #include <smlib>
 #include "./wintox/game"
 
+new g_DebugLevel = 0;
+
+#define DEBUG_ERROR 0
+#define DEBUG_WARN 1
+#define DEBUG_INFO 2
+#define DEBUG_DEBUG 3
+#define DEBUG_CRAZYDEBUG 4
+#define MAX_DEBUG_LEVELS 5
+
+new String:DEBUG_NAMES[][] = {
+    "ERROR",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "CRAZYDBG"
+};
+
+
 #define MIN(%1,%2) ((%1) < (%2) ? (%1) : (%2))
 #define MAX(%1,%2) ((%1) > (%2) ? (%1) : (%2))
 
@@ -117,4 +135,29 @@ stock Float:GetPlayerVelocity(client)
     Entity_GetAbsVelocity(client, velocity);
     
     return GetVectorLength(velocity);
+}
+
+#if defined(WINTOX_DEBUG)
+    #define ERROR(%1,%2) { DebugPrintLevel(DEBUG_ERROR, (%1), %2); }
+    #define WARN(%1,%2) { DebugPrintLevel(DEBUG_WARN, (%1), %2); }
+    #define INFO(%1,%2) { DebugPrintLevel(DEBUG_INFO, (%1), %2); }
+    #define DEBUG(%1,%2) { DebugPrintLevel(DEBUG_DEBUG, (%1), %2); }
+    #define CRAZYDBG(%1,%2) { DebugPrintLevel(DEBUG_CRAZYDEBUG, (%1), %2); }
+#else
+    #define ERROR(%1,%2) { }
+    #define WARN(%1,%2) { }
+    #define INFO(%1,%2) { }
+    #define DEBUG(%1,%2) { }
+    #define CRAZYDBG(%1,%2) { }
+#endif
+
+stock DebugPrintLevel(level, const String:format[], any:...)
+{
+    if (g_DebugLevel < level)
+        return;
+    
+    decl String:buffer[1024];
+    VFormat(STR(buffer), format, 3);
+    
+    LogMessage("[%s] %s", DEBUG_NAMES[level], buffer);
 }
