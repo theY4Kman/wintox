@@ -175,8 +175,10 @@ Timer_Init()
 #endif
 
 #if defined(WINTOX_SURF)
-    RegisterCommand("sm_wrb", ConCommand_WrB, "sm_wrb <bonus #> [<partial map name>] | Shows the current bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
-    RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current stage record holder for the specified stage on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrb", ConCommand_WrB, "sm_wrb <bonus #> [<partial map name>] | Shows the current normal bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrbsw", ConCommand_WrBSW, "sm_wrbsw <bonus #> [<partial map name>] | Shows the current sideways bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current normal stage record holder for the specified stage on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_wrssw", ConCommand_WrSSW, "sm_wrssw <stage #> [<partial map name>] | Shows the current sideways stage record holder for the specified stage on the specified map (or the current map if none specified).");
 #endif
 
 #if defined(WINTOX_DEBUG)
@@ -1272,36 +1274,88 @@ public Action:ConCommand_Pc(client, args)
 #if defined(WINTOX_SURF)
 public Action:ConCommand_WrB(client, args)
 {
-    CHECK_ARGS_SPAN(1,2)
+    return Handle_ConCommand_WrB_WrBSW(client, args, STYLE_NORMAL);
+}
+
+public Action:ConCommand_WrBSW(client, args)
+{
+    return Handle_ConCommand_WrB_WrBSW(client, args, STYLE_SIDEWAYS);
+}
+
+Action:Handle_ConCommand_WrB_WrBSW(client, args, style)
+{
+    CHECK_ARGS_LOWER(1)
     
     decl String:sz_bonus[12];
-    decl String:partial[64];
+    decl String:partial[96];
     decl bonus;
     
     GetCmdArg(1, STR(sz_bonus));
-    if (StringToIntEx(sz_bonus, bonus) == 0)
+    new bytes = StringToIntEx(sz_bonus, bonus);
+    if (bytes == 0 || bonus < 1 || bonus >= MAX_TRACKS)
     {
-        Timer_Reply(client, "\"%s\" is an invalid bonus index.", sz_bonus);
+        Timer_Reply(client, "\"{G}%s{N}\" is an invalid bonus index.", sz_bonus);
         return Plugin_Handled;
     }
     
     partial[0] = '\0';
     if (args >= 2)
-        GetCmdArg(2, STR(partial));
+    {
+        GetCmdArgString(STR(partial));
+        strcopy(STR(partial), partial[bytes + 1]);
+    }
     
-    win_SQL_GetWorldRecord(client, INVALID_TRACK, STYLE_NORMAL, partial);
+    if (IS_STR_EMPTY(partial) && TRACK_EMPTY(bonus))
+    {
+            Timer_Reply(client, "{OG}Bonus {G}%d{N} doesn't exist.", bonus);
+            return Plugin_Handled;
+    }
+    
+    win_SQL_GetWorldRecord(client, bonus, style, partial);
     
     return Plugin_Handled;
 }
 
 public Action:ConCommand_WrS(client, args)
 {
-    CHECK_ARGS_SPAN(1,2)
+    return Handle_ConCommand_WrS_WrSSW(client, args, STYLE_NORMAL);
+}
+
+public Action:ConCommand_WrSSW(client, args)
+{
+    return Handle_ConCommand_WrS_WrSSW(client, args, STYLE_SIDEWAYS);
+}
+
+Action:Handle_ConCommand_WrS_WrSSW(client, args, style)
+{
+    CHECK_ARGS_LOWER(1)
     
-    decl String:partial[64];
-    GetCmdArgString(STR(partial));
+    decl String:sz_stage[12];
+    decl String:partial[96];
+    decl stage;
     
-    win_SQL_GetPlayerCountryRank(client, partial);
+    GetCmdArg(1, STR(sz_stage));
+    new bytes = StringToIntEx(sz_stage, stage);
+    if (bytes == 0 || stage <= 0)
+    {
+        Timer_Reply(client, "\"{G}%s{N}\" is an invalid stage number.", sz_stage);
+        return Plugin_Handled;
+    }
+    
+    partial[0] = '\0';
+    if (args >= 2)
+    {
+        GetCmdArgString(STR(partial));
+        strcopy(STR(partial), partial[bytes + 1]);
+    }
+    
+    if (IS_STR_EMPTY(partial) && g_ZonesCount[MAIN_TRACK] <= stage)
+    {
+        Timer_Reply(client, "{OG}Stage {G}%d{N} doesn't exist.", stage);
+        return Plugin_Handled;
+    }
+    
+    win_SQL_GetWorldRecord(client, MAIN_TRACK, style, partial, stage - 1);
     
     return Plugin_Handled;
 }
@@ -1835,7 +1889,7 @@ win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
         }
         else
         {
-            SQLTH_H(GetWorldRecordStage, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+            SQLTH_H(GetWorldRecordStage, T_GetWorldRecord, pack, \
                 g_CurMapID, track, zone, STYLE_NAMES[style]);
         }
     }
@@ -1851,7 +1905,7 @@ win_SQL_GetWorldRecord(client, track=MAIN_TRACK, style=STYLE_NORMAL,
         }
         else
         {
-            SQLTH_H(GetWorldRecordPartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
+            SQLTH_H(GetWorldRecordStagePartial, T_GetWorldRecord, pack, WINTOX_GAMETYPE, \
                 esc_mapname, track, zone, STYLE_NAMES[style]);
         }
     }
@@ -1896,20 +1950,32 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
         return;
     }
     
-    if (!SQL_FetchRow(hndl))
+    new bool:has_result = SQL_FetchRow(hndl);
+    if (!has_result || SQL_IsFieldNull(hndl, 0))
     {
         ENTER_REPLY(reply_to);
         
 #if defined(WINTOX_SURF)
         if (track > 0)
-            Timer_Reply(client, "There are no {OG}Bonus %d{N} world records for \"{OG}%s{N}\"", \
-                track, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+            Timer_Reply(client, "{OG}%s{N} | There are no {OG}Bonus %d{N} world records for \"{OG}%s{N}\"", \
+                STYLE_NAMES_C[style], track, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
         else if (zone != INVALID_ZONE)
-            Timer_Reply(client, "There are no {OG}Stage %d{N} world records for \"{OG}%s{N}\"", \
-                zone+1, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        {
+            decl String:sz_stage[64];
+            sz_stage[0] = '\0';
+            
+            if (has_result)
+                SQL_FetchString(hndl, 2, STR(sz_stage));
+            
+            if (IS_STR_EMPTY(sz_stage))
+                Format(STR(sz_stage), "Stage %d", zone + 1);
+            
+            Timer_Reply(client, "{OG}%s{N} | There are no {OG}%s{N} world records for \"{OG}%s{N}\"", \
+                STYLE_NAMES_C[style], sz_stage, IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+        }
         else
-            Timer_Reply(client, "There are no world records for \"{OG}%s{N}\"", \
-                IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
+            Timer_Reply(client, "{OG}%s{N} | There are no world records for \"{OG}%s{N}\"", \
+                STYLE_NAMES_C[style], IS_STR_EMPTY(mapname) ? g_CurMapName : mapname);
         
 #else
         Timer_Reply(client, "There are no {OG}%s{N} world records for \"{OG}%s{N}\"", \
@@ -1938,14 +2004,22 @@ public T_GetWorldRecord(Handle:owner, Handle:hndl, const String:error[], any:dat
         
 #elseif defined(WINTOX_SURF)
     if (track > 0)
-        Timer_Reply(client, "World record holder for {OG}Bonus %d{N} is {G}%s{N} with a time of {G}%s{N}", \
-            latest_name, track, sz_time);
+        Timer_Reply(client, "{OG}%s{N} | World record holder for {OG}Bonus %d{N} is {G}%s{N} with a time of {G}%s{N}", \
+            STYLE_NAMES_C[style], track, latest_name, sz_time);
     else if (zone != INVALID_ZONE)
-        Timer_Reply(client, "World record holder for {OG}Stage %d{N} is {G}%s{N} with a time of {G}%s{N}", \
-            latest_name, zone+1, sz_time);
+    {
+        decl String:sz_stage[64];
+        SQL_FetchString(hndl, 2, STR(sz_stage));
+        
+        if (IS_STR_EMPTY(sz_stage))
+            Format(STR(sz_stage), "Stage %d", zone + 1);
+        
+        Timer_Reply(client, "{OG}%s{N} | World record holder for {OG}%s{N} is {G}%s{N} with a time of {G}%s{N}", \
+            STYLE_NAMES_C[style], sz_stage, latest_name, sz_time);
+    }
     else
-        Timer_Reply(client, "World record holder is {G}%s{N} with a time of {G}%s{N}", \
-            latest_name, sz_time);
+        Timer_Reply(client, "{OG}%s{N} | World record holder is {G}%s{N} with a time of {G}%s{N}", \
+            STYLE_NAMES_C[style], latest_name, sz_time);
 #endif
 }
 

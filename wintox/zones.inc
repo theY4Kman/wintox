@@ -85,7 +85,7 @@ new g_CurMapTier = 1;
 #define FLAG_ROTATE_STEP 0.0981747704   // PI / 32
 #define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
-#define TRACK_EMPTY(%1) (g_ZonesCount[(%1)] > 0)
+#define TRACK_EMPTY(%1) (g_ZonesCount[(%1)] == 0)
 
 // Default amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
 #define ZONE_HEIGHT_FUDGE 20.0
@@ -231,6 +231,7 @@ Zones_Init()
     
 #if defined(WINTOX_DEBUG)
     RegisterCommand("sm_curmapid", ConCommand_CurMapID, "sm_curmapid | Prints the database ID of the current map", 0, ADMFLAG_ROOT, "wtxdebug");
+    RegisterCommand("sm_zonecount", ConCommand_ZoneCount, "sm_zonecount [<track>] | Prints the value of g_ZonesCount[track]. If track is not specified, defaults to the your current track.", 0, ADMFLAG_ROOT, "wtxdebug");
 #endif
 
 #if defined(WINTOX_SURF)
@@ -698,8 +699,30 @@ public Action:ConCommand_CurMapID(client, args)
     NO_ARGS()
     RESET_REPLY()
     
-    Reply(client, "Current map ID: %d", g_CurMapID);
+    Zone_Reply(client, "Current map ID: %d", g_CurMapID);
     
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_ZoneCount(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    RESET_REPLY()
+    
+    new track = MAIN_TRACK;
+    if (args == 1)
+    {
+        decl String:sz_track[8];
+        GetCmdArg(1, STR(sz_track));
+        
+        if (StringToIntEx(sz_track, track) == 0)
+        {
+            Zone_Reply(client, "Track must be an integer (got \"%s\")", sz_track);
+            return Plugin_Handled;
+        }
+    }
+    
+    Zone_Reply(client, "g_ZonesCount[{G}%d{N}] = {G}%d{N}", track, g_ZonesCount[track]);
     return Plugin_Handled;
 }
 #endif
@@ -2027,6 +2050,7 @@ public Action:Timer_DrawZones(Handle:timer)
             DrawFlag(0, client, FLAG_COLOR_START, cur_track);
             
             // Draw current and next zone flags
+            // TODO: update to use paths
             for (new i=cur_zone; i<=cur_zone+1; i++)
                 if (i != 0 && !IS_END_ZONE_T(cur_track,i))
                     DrawFlag(i, client, FLAG_COLOR_ZONE, cur_track);
@@ -2034,12 +2058,12 @@ public Action:Timer_DrawZones(Handle:timer)
             // Draw end flag
             if (g_EndZone[cur_track] != 0)
                 DrawFlag(g_EndZone[cur_track], client, FLAG_COLOR_END, cur_track);
-            
-            if (g_DrawBonusFlags)
-                for (new track=1; track<MAX_TRACKS; track++)
-                    if (!TRACK_EMPTY(track) && cur_track != track)
-                        DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
         }
+            
+        if (g_DrawBonusFlags)
+            for (new track=1; track<MAX_TRACKS; track++)
+                if (!TRACK_EMPTY(track) && cur_track != track)
+                    DrawFlag(0, client, FLAG_COLOR_BONUS_START, track);
         
         if (g_DrawZones || g_DrawFlags)
         {

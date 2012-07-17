@@ -684,25 +684,27 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordPartial,4) = {
     SQLITE_MYSQL("SELECT wp.latest_name, time, jumps FROM wintox_track_records \
                          JOIN wintox_players AS wp ON wp.id = fk_player \
                          JOIN wintox_maps AS wm ON wm.id = fk_map \
-                         WHERE gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
+                         WHERE wm.gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND type = '%s' \
                          ORDER BY time ASC \
                          LIMIT 1;")
 };
 
 NEW_SQL_QUERY_PARAMS(GetWorldRecordStage,4) = {
-    SQLITE_MYSQL("SELECT latest_name, time FROM `wintox_zone_records` \
+    SQLITE_MYSQL("SELECT latest_name, time, wz.name FROM `wintox_zone_records` \
                         JOIN `wintox_players` AS wp ON wp.id = fk_player \
-                        JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
+                        RIGHT JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
                         WHERE wz.fk_map = %d AND track = %d AND number = %d AND type = '%s' \
-                        ORDER BY time ASC;")
+                        ORDER BY time ASC \
+                        LIMIT 1;")
 };
 NEW_SQL_QUERY_PARAMS(GetWorldRecordStagePartial,5) = {
-    SQLITE_MYSQL("SELECT latest_name, time FROM `wintox_zone_records` \
+    SQLITE_MYSQL("SELECT latest_name, time, wz.name FROM `wintox_zone_records` AS wzr \
                         JOIN `wintox_players` AS wp ON wp.id = fk_player \
-                        JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
-                        JOIN `wintox_maps` AS wm ON wm.id = fk_map \
-                        WHERE gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND number = %d AND type = '%s' \
-                        ORDER BY time ASC;")
+                        Right JOIN `wintox_zones` AS wz ON wz.id = fk_zone \
+                        JOIN `wintox_maps` AS wm ON wm.id = wz.fk_map \
+                        WHERE wm.gametype = '%s' AND wm.bsp_name LIKE '%%%s%%' AND track = %d AND number = %d AND type = '%s' \
+                        ORDER BY time ASC \
+                        LIMIT 1;")
 };
 
 NEW_SQL_QUERY_PARAMS(GetTrackTotalTopRecords,1) = {
