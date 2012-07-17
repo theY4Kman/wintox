@@ -220,7 +220,7 @@ public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:ang
             g_PlayerCurrentStyle[client] = STYLE_SIDEWAYS;
 
 #elseif defined(WINTOX_SURF)
-        if (g_PlayerCurrentStyle[client] >= STYLE_SIDEWAYS && (buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT))
+        if (!g_PlayerCurrentlyInZone[client] && g_PlayerCurrentStyle[client] >= STYLE_SIDEWAYS && (buttons & IN_MOVELEFT || buttons & IN_MOVERIGHT))
             g_PlayerCurrentStyle[client] = STYLE_NORMAL;
         
 #endif

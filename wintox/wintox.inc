@@ -295,6 +295,8 @@ public OnGameFrame()
             {
                 if ((g_PlayerEnteredStart[client] || i == 0) && PointInZone(origin, track, i))
                 {
+                    g_PlayerCurrentlyInZone[client] = true;
+                    
                     if (!PLAYER_IN_ZONE(client,i) && i != 0)
                     {
                         if (!IsRacing(client))
@@ -337,7 +339,11 @@ public OnGameFrame()
                     // Start the timer
                     StartTimer(client);
                     g_IsTiming[client] = true;
+                    
+                    g_PlayerCurrentlyInZone[client] = true;
                 }
+                else
+                    g_PlayerCurrentlyInZone[client] = false;
             }
         }
         

@@ -146,6 +146,8 @@ new g_PlayerCurrentZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 new g_PlayerCurrentTrack[MAXPLAYERS] = { MAIN_TRACK, ... };
 // The index into the track path the player is currently on
 new g_PlayerCurrentPath[MAXPLAYERS] = { INVALID_PATH, ... };
+// Whether the player's origin is currently within the zone set in g_PlayerCurrentZone
+new g_PlayerCurrentlyInZone[MAXPLAYERS] = { false, ... };
 
 // Which zone the player is currently editing
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
@@ -269,6 +271,7 @@ Zone_DeinitPlayer(client)
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentPath[client] = INVALID_PATH;
+    g_PlayerCurrentlyInZone[client] = false;
     
     g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
     g_TrackMenuSelected[client] = INVALID_TRACK;
