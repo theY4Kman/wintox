@@ -1030,6 +1030,16 @@ NEW_SQL_QUERY_PARAMS(UpsertTopRecord,4) = {
             fk_record = VALUES(fk_record);"
 };
 
+NEW_SQL_QUERY_PARAMS(GetTopRecordsZoneRecords,1) = {
+    SQLITE_MYSQL( \
+        "SELECT wz.`track`, wz.`number`, wzr.`type`, wzr.`time` \
+            FROM `wintox_top_records` AS wtopr \
+            JOIN `wintox_track_records` AS wtr ON wtr.`id` = wtopr.`fk_record` \
+            LEFT JOIN `wintox_zone_records` AS wzr ON wzr.`fk_player` = wtr.`fk_player` AND wzr.`type` = wtr.`type` \
+            JOIN `wintox_zones` AS wz ON wz.`id` = wzr.`fk_zone` \
+            WHERE wzr.fk_map = %d;")
+};
+
 
 win_SQL_Init()
 {

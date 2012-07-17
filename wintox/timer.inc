@@ -244,6 +244,7 @@ public fwd_Timer_OnMapLoaded(map_id, const String:mapname[], const String:human_
 {
     CacheBestZoneRecords();
     CacheTrackTopRecords();
+    CacheTrackTopRecordsZoneRecords();
 }
 
 public ConVar_DisplayPlusMinusTime(Handle:cvar, const String:oldVal[], const String:newVal[])
@@ -332,9 +333,9 @@ DisplayTimer(client, is_in_zone)
                     Format(STR(plus_minus), "\nZone (%s)", sz_time);
                 }
                 
-                if (g_TrackWorldRecord[track][0][pm_style] != INVALID_TRACK_RECORD)
+                if (g_TrackWorldRecord[track][zone][pm_style] != INVALID_TRACK_RECORD)
                 {
-                    new Float:wr_pm = zone_time - g_TrackWorldRecord[track][0][pm_style];
+                    new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][pm_style];
                     
                     SecondsToTimeString(wr_pm, STR(sz_time), true);
                     Format(STR(plus_minus), "%s\nTotal (%s)", plus_minus, sz_time);
@@ -579,9 +580,9 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
             Format(STR(plus_minus), " Zone ({G}%s{N})", sz_time);
         }
         
-        if (g_TrackWorldRecord[track][0][style] != INVALID_TRACK_RECORD)
+        if (g_TrackWorldRecord[track][zone_id][style] != INVALID_TRACK_RECORD)
         {
-            new Float:wr_pm = zone_time - g_TrackWorldRecord[track][0][style];
+            new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone_id][style];
             
             SecondsToTimeString(wr_pm, STR(sz_time), true);
             Format(STR(plus_minus), "%s | Total ({G}%s{N})", plus_minus, sz_time);
@@ -1425,10 +1426,10 @@ stock GetClosestStyleForBestRecord(track, zone, style)
 stock SetTrackWorldRecordCache(client, track, style)
 {
     new end_zone = g_EndZone[track];
-    for (new i=0; i<end_zone; i++)
+    for (new i=1; i<end_zone; i++)
         g_TrackWorldRecord[track][i][style] = g_ZoneRecords[client][track][i][style];
     
-    g_TrackWorldRecord[track][end_zone][style] = g_TrackRecords[client][track][style];
+    g_TrackWorldRecord[track][0][style] = g_TrackRecords[client][track][style];
 }
 
 
@@ -1779,6 +1780,36 @@ public T_GetTrackTotalTopRecords(Handle:owner, Handle:hndl, const String:error[]
         
         new style = StyleNameToIndex(sz_type);
         g_TrackWorldRecord[track][0][style] = time;
+    }
+}
+
+CacheTrackTopRecordsZoneRecords()
+{
+    SQLTH(GetTopRecordsZoneRecords, INVALID_HANDLE, g_CurMapID);
+}
+
+public T_GetTopRecordsZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving top records' zone records: %s", error);
+        return;
+    }
+    
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl zone_id;
+        decl String:sz_type[16];
+        decl Float:time;
+        
+        track = SQL_FetchInt(hndl, 0);
+        zone_id = SQL_FetchInt(hndl, 1);
+        SQL_FetchString(hndl, 2, STR(sz_type));
+        time = SQL_FetchFloat(hndl, 3);
+        
+        new style = StyleNameToIndex(sz_type);
+        g_TrackWorldRecord[track][zone_id][style] = time;
     }
 }
 
