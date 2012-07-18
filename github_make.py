@@ -166,14 +166,14 @@ def main(argv=None):
     
     github = Github(login='theY4Kman', password=password)
 
-    for debug in (True, False):
-        for gametype in ('surf', 'bhop'):
-            def run():
-                build = BuildDownloadProcess(gametype, debug=debug, github=github,
-                                             user='theY4Kman', repo='wintox')
-                build.run(output=False, job=True)
-
-            thread = Thread(target=run)
+    for gametype in ['surf', 'bhop']:
+        for debug in [True, False]:
+            build = BuildDownloadProcess(gametype, debug=debug, github=github,
+                                         user='theY4Kman', repo='wintox')
+            thread = Thread(target=build.run, kwargs={
+                'output': False,
+                'job': True
+            })
             thread.start()
 
 
