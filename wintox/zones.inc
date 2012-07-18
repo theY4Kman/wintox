@@ -702,6 +702,7 @@ public Action:ConCommand_MapTier(client, args)
 public Action:ConCommand_SR(client, args)
 {
     NO_ARGS()
+    NO_FAKECLIENTS()
     
     DisplayMapInfo(client);
     

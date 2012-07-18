@@ -55,7 +55,6 @@ new Handle:g_AdminCommands = INVALID_HANDLE;
 new Handle:g_CommandDescriptions = INVALID_HANDLE;
 
 new Handle:g_PubCmdsMenu = INVALID_HANDLE;
-new Handle:g_AdmCmdsMenu = INVALID_HANDLE;
 
 Commands_Init()
 {
@@ -65,6 +64,7 @@ Commands_Init()
     
     RegisterCommand("sm_commands", Command_Commands, "sm_commands | Displays all the public commands");
     RegisterCommand("sm_admcommands", Command_AdmCommands, "sm_admcommands | Displays all the admin commands", 0, ADMFLAG_GENERIC);
+    RegisterCommand("sm_cmd", Command_Cmd, "sm_cmd <command> | Prints the usage of specified command.");
 }
 
 RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]="", flags=0, adminflags=0, const String:group[]="")
@@ -88,19 +88,24 @@ RegisterCommand(const String:cmd[], ConCmd:callback, const String:description[]=
     }
 }
 
-/**
- * Inside a concommand callback, uses ReplyToCommand to display the command
- * description to the client.
- */
-ReplyWithDescription(client)
+ReplyWithCmdDescription(client, const String:cmd[])
 {
     decl String:buffer[512];
     
-    GetCmdArg(0, STR(buffer));
-    String_ToLower(buffer, STR(buffer));
-    GetTrieString(g_CommandDescriptions, buffer, STR(buffer));
+    StringToLower(cmd, STR(buffer));
+    if (!GetTrieString(g_CommandDescriptions, buffer, STR(buffer)))
+    {
+        Reply(client, "Command {OG}%s{N} doesn't exist, or isn't a part of Wintox.", buffer);
+        return;
+    }
     
-    // If our description has a pipe, let's give it some flare
+    if (!CheckCommandAccess(client, buffer, 0))
+    {
+        Reply(client, "You do not have access to {OG}%s{N}.", buffer);
+        return;
+    }
+    
+    // If our description has a pipe, let's give it some flair
     new pipe = FindCharInString(buffer, '|');
     if (pipe != -1)
     {
@@ -109,6 +114,18 @@ ReplyWithDescription(client)
     }
     
     Reply(client, buffer);
+}
+
+/**
+ * Inside a concommand callback, uses ReplyToCommand to display the command
+ * description to the client.
+ */
+ReplyWithDescription(client)
+{
+    decl String:buffer[64];
+    GetCmdArg(0, STR(buffer));
+    
+    ReplyWithCmdDescription(client, buffer);
 }
 
 public Action:Command_Commands(client, args)
@@ -126,6 +143,29 @@ public Action:Command_AdmCommands(client, args)
     NO_FAKECLIENTS()
     
     DisplayCommands(client, false);
+    return Plugin_Handled;
+}
+
+public Action:Command_Cmd(client, args)
+{
+    EXACT_ARGS(1)
+    
+    decl String:sz_cmd[64];
+    GetCmdArg(1, STR(sz_cmd));
+    
+    if (sz_cmd[0] == '/' || sz_cmd[0] == '!')
+        strcopy(STR(sz_cmd), sz_cmd[1]);
+    
+    if (strncmp("sm_", sz_cmd, 3) != 0)
+        Format(STR(sz_cmd), "sm_%s", sz_cmd);
+    
+    if (!Convar_IsValidName(sz_cmd))
+    {
+        Reply(client, "\"{OG}%s{N}\" is an invalid command.", sz_cmd);
+        return Plugin_Handled;
+    }
+    
+    ReplyWithCmdDescription(client, sz_cmd);
     return Plugin_Handled;
 }
 
@@ -164,15 +204,14 @@ DisplayCommands(client, bool:pub=true)
             if (g_PubCmdsMenu == INVALID_HANDLE)
                 g_PubCmdsMenu = BuildCommandsMenu(client, commands, title);
             menu = g_PubCmdsMenu;
+            DisplaySubmenu(menu, client, MENU_TIME_FOREVER, false);
         }
         else
         {
-            if (g_AdmCmdsMenu == INVALID_HANDLE)
-                g_AdmCmdsMenu = BuildCommandsMenu(client, commands, title, true);
-            menu = g_AdmCmdsMenu;
+            menu = BuildCommandsMenu(client, commands, title, true);
+            DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
         }
         
-        DisplaySubmenu(menu, client, MENU_TIME_FOREVER, false);
     }
 }
 
