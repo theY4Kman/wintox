@@ -284,7 +284,9 @@ public OnGameFrame()
                     {
                         ResetTimer(client);
                         g_PlayerCurrentTrack[client] = track;
-                        Timer_PrintToChat(client, "Your timer has been reset by passing through the start zone.");
+                        
+                        if (g_PlayerEnteredStart[client])
+                            Timer_PrintToChat(client, "Your timer has been reset by passing through the start zone.");
                     }
                     
                     break;
