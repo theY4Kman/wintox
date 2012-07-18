@@ -113,6 +113,7 @@ new g_CurMapTier = 1;
 #define IS_TRACK_EMPTY(%1) (g_TrackPath[(%1)][0] == 0)
 
 #define MAPMODE_NAME(%1) ((%1) ? "staged" : "linear")
+#define MAPMODE_NAME_C(%1) ((%1) ? "Staged" : "Linear")
 
 // Create a static array cache for zones
 // Capacity: 64 zones, 30* points each
@@ -243,6 +244,7 @@ Zones_Init()
     RegisterCommand("sm_teleport", ConCommand_Teleport, "sm_teleport | Teleports you to the start of the current stage.");
     RegisterCommand("sm_tele", ConCommand_Teleport, "sm_tele | Teleports you to the start of the current stage (alias for sm_teleport).");
     RegisterCommand("sm_goback", ConCommand_GoBack, "sm_goback | Teleports you to the previous stage.");
+    RegisterCommand("sm_sr", ConCommand_SR, "sm_sr | Displays a menu listing information about the current map.");
 #endif
     
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Zone_OnMapLoaded);
@@ -822,7 +824,16 @@ public Action:ConCommand_GoBack(client, args)
     
     return Plugin_Handled;
 }
-#endif
+
+public Action:ConCommand_SR(client, args)
+{
+    NO_ARGS()
+    
+    DisplayMapInfo(client);
+    
+    return Plugin_Handled;
+}
+#endif//WINTOX_SURF
 
 
 
@@ -1309,7 +1320,7 @@ public MenuHandler_SetMapMode(Handle:menu, MenuAction:action, param1, param2)
 
 
 /* ========================================================================
-                        MAP MANIPULATION FUNCTIONS
+                          MAP-RELATED FUNCTIONS
    ======================================================================== */
 
 Map_SetTier(client, tier)
@@ -1325,6 +1336,64 @@ Map_SetStaged(client, bool:staged)
     win_SQL_UpdateMapStaged(client, staged);
 }
 #endif
+
+DisplayMapInfo(client)
+{
+    static String:title_border[sizeof(g_CurMapName)] = "===============================================================================================================================================================================================================================================================";
+    
+    if (client == 0)
+    {
+        new name_len = strlen(g_CurMapName);
+        name_len = MAX(name_len, 8);
+        
+        decl String:border_fmt[8];
+        Format(STR(border_fmt), "%%.%ds", name_len);
+        
+        PrintToServer("%s", g_CurMapName);
+        PrintToServer(border_fmt, title_border);
+        
+        if (!IS_STR_EMPTY(g_CurMapHumanName))
+            PrintToServer("Nickname: %s", g_CurMapHumanName);
+        
+        PrintToServer("Tier: %d", g_CurMapTier);
+        PrintToServer("Mode: %s", MAPMODE_NAME(g_CurMapStaged));
+        PrintToServer("# of Stages: %d", g_ZonesCount[MAIN_TRACK]);
+        PrintToServer("# of Bonuses: %d", g_TracksCount - 1);
+        
+        return;
+    }
+    
+    new Handle:map_info_menu = CreateMenu(MenuHandler_MapInfo);
+    SetMenuTitle(map_info_menu, "%s", g_CurMapName);
+    
+    decl String:buffer[256];
+    if (!IS_STR_EMPTY(g_CurMapHumanName))
+    {
+        Format(STR(buffer), "Nickname: %s", g_CurMapHumanName);
+        AddMenuItem(map_info_menu, "", buffer);
+    }
+    
+    Format(STR(buffer), "Tier: %d", g_CurMapTier);
+    AddMenuItem(map_info_menu, "", buffer);
+    
+    Format(STR(buffer), "Mode: %s", MAPMODE_NAME(g_CurMapStaged));
+    AddMenuItem(map_info_menu, "", buffer);
+    
+    Format(STR(buffer), "# of Stages: %d", g_ZonesCount[MAIN_TRACK]);
+    AddMenuItem(map_info_menu, "", buffer);
+    
+    Format(STR(buffer), "# of Bonuses: %d", g_TracksCount - 1);
+    AddMenuItem(map_info_menu, "", buffer);
+    
+    DisplaySubmenu(map_info_menu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_MapInfo(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
 
 
 /* ========================================================================
