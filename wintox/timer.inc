@@ -1847,10 +1847,14 @@ public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:d
 
 CacheTrackRecords(client)
 {
-    decl String:query[128];
+    if (g_PlayerIDs[client] == -1)
+    {
+        LogError("Attempted to retrieve the track records of player %L with bad DB ID %d.",
+            client, g_PlayerIDs[client]);
+        return;
+    }
     
-    Format(STR(query), SQL_QUERY[GetTrackRecords], g_CurMapID, client);
-    SQLT(query, T_CacheTrackRecords, client);
+    SQLTH_H(GetTrackRecords, T_CacheTrackRecords, client, g_CurMapID, g_PlayerIDs[client]);
 }
 
 public T_CacheTrackRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
