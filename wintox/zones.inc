@@ -54,7 +54,6 @@ new g_CurMapTier = 1;
 #define ZONE_POINT[%1][%2] (g_ZonesCache[MAIN_TRACK][(%1)][(%2)])
 #define ZONE_POINTS[%1] (_:g_ZonesCache[MAIN_TRACK][(%1)][0][0])
 #define ZONE_HEIGHT[%1] (_:g_ZonesCache[MAIN_TRACK][(%1)][0][1])
-#define ZONE_EDITING[%1] (bool:g_ZonesCache[MAIN_TRACK][(%1)][0][2])
 #define ZONE_POINT_EMPTY(%1,%2) (g_ZonesCache[MAIN_TRACK][%1][%2][0] == 0.0 && g_ZonesCache[MAIN_TRACK][%1][%2][1] == 0.0 && g_ZonesCache[MAIN_TRACK][%1][%2][2] == 0.0)
 #define ZONE_EMPTY(%1) (ZONE_POINTS[%1] == 0 || ZONE_POINT_EMPTY(%1,ZONE_FIRST_POINT))
 
@@ -62,7 +61,6 @@ new g_CurMapTier = 1;
 #define ZONE_POINT_T[%1][%2][%3] g_ZonesCache[(%1)][(%2)][(%3)]
 #define ZONE_POINTS_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][0])
 #define ZONE_HEIGHT_T[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][1])
-#define ZONE_EDITING_T[%1][%2] (bool:g_ZonesCache[(%1)][(%2)][0][2])
 #define ZONE_POINT_EMPTY_T(%1,%2,%3) (g_ZonesCache[(%1)][(%2)][(%3)][0] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][1] == 0.0 && g_ZonesCache[(%1)][(%2)][(%3)][2] == 0.0)
 #define ZONE_EMPTY_T(%1,%2) (ZONE_POINTS_T[%1][%2] == 0 || ZONE_POINT_EMPTY_T(%1,%2,ZONE_FIRST_POINT))
 
@@ -87,6 +85,9 @@ new g_CurMapTier = 1;
 #define FLAG_ROTATE_INITIAL 1.57079633 // PI / 2
 
 #define TRACK_EMPTY(%1) (g_ZonesCount[(%1)] == 0)
+
+#define ZONE_FLAGS[%1][%2] (_:g_ZonesCache[(%1)][(%2)][0][2])
+#define ZONE_FLAGS_LIMITVELOCITY (1<<0)
 
 // Default amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
 #define ZONE_HEIGHT_FUDGE 20.0
@@ -221,6 +222,7 @@ Zones_Init()
     RegisterCommand("sm_newzonepoint", ConCommand_NewZonePoint, "sm_newzonepoint | Create a new point in the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_zoneheight", ConCommand_ZoneHeight, "sm_zoneheight <height> | Sets the height of the zone currently being edited in map units.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_setflag", ConCommand_SetFlag, "sm_setflag | Set the location of the flag for the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_limitvelocity", ConCommand_LimitVelocity, "sm_limitvelocity | Toggle velocity limiting within the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_setname", ConCommand_SetName, "sm_setname | Set the name of the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_removelastpoint", ConCommand_RemoveLastPoint, "sm_removelastpoint | Remove the last point of the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_clearallpoints", ConCommand_ClearAllPoints, "sm_clearallpoints | Clear all the points of the zone currently being edited.", 0, ADMFLAG_GENERIC, "editzones");
@@ -282,11 +284,6 @@ Zone_DeinitPlayer(client)
     
     g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;
     g_TrackMenuSelected[client] = INVALID_TRACK;
-    
-    new editing = g_ClientEditZone[client];
-    new editing_track = g_ClientEditTrack[client];
-    if (editing != INVALID_ZONE)
-        ZONE_EDITING_T[editing_track][editing] = false;
     
     g_ClientEditZone[client] = INVALID_ZONE;
     g_ClientEditTrack[client] = INVALID_TRACK;
@@ -486,6 +483,16 @@ public Action:ConCommand_SetName(client, args)
     GetCmdArg(1, STR(name));
     
     Zone_SetName(client, name);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_LimitVelocity(client, args)
+{
+    NO_ARGS()
+    RESET_REPLY()
+    
+    Zone_ToggleVelocityLimiting(client);
     
     return Plugin_Handled;
 }
@@ -907,12 +914,14 @@ BuildTrackMenu()
 #define ZMENU_EDIT_FINISH "finish"
 #define ZMENU_EDIT_SET_FLAG "flag"
 #define ZMENU_EDIT_SET_NAME "name"
+#define ZMENU_EDIT_VELOCITY "velocity"
 
 Handle:BuildEditZoneMenu(client, zone_id, track)
 {
     decl String:buffer[64];
     
     new Handle:zone_menu = CreateMenu(MenuHandler_EditZone);
+    SetMenuPagination(zone_menu, MENU_NO_PAGINATION);
     SetMenuExitButton(zone_menu, true);
     SetMenuExitBackButton(zone_menu, true);
     
@@ -926,6 +935,10 @@ Handle:BuildEditZoneMenu(client, zone_id, track)
     AddMenuItem(zone_menu, ZMENU_EDIT_CLEAR_ALL, "Clear all points");
     AddMenuItem(zone_menu, ZMENU_EDIT_SET_FLAG, "Set flag location");
     AddMenuItem(zone_menu, ZMENU_EDIT_SET_NAME, "Set name (in chat)");
+    
+    Format(STR(buffer), "Turn velocity limit %s", HAS_FLAG(ZONE_FLAGS[track][zone_id], ZONE_FLAGS_LIMITVELOCITY) ? "off" : "on");
+    AddMenuItem(zone_menu, ZMENU_EDIT_VELOCITY, buffer);
+    
     AddMenuItem(zone_menu, ZMENU_EDIT_FINISH, "Finish and sync DB");
     
     return zone_menu;
@@ -1266,6 +1279,12 @@ public MenuHandler_EditZone(Handle:menu, MenuAction:action, param1, param2)
                 BeginTextEntry(param1, reason, TEXT_ENTRY_ZONE_NAME, false);
             }
         }
+        else if (StrEqual(info, ZMENU_EDIT_VELOCITY))
+        {
+            Zone_ToggleVelocityLimiting(param1);
+            ResetClientZoneEditMenu(param1);
+            return;
+        }
         else if (StrEqual(info, ZMENU_EDIT_FINISH))
         {
             Zone_FinishZone(param1);
@@ -1433,7 +1452,7 @@ stock PrintZone(zone_id, track=MAIN_TRACK)
     {
         if (i == 0)
             LogMessage("POINT %d = { %11d %11d %11d }", i,
-                ZONE_POINTS_T[track][zone_id], ZONE_HEIGHT_T[track][zone_id], ZONE_EDITING_T[track][zone_id]);
+                ZONE_POINTS_T[track][zone_id], ZONE_HEIGHT_T[track][zone_id], ZONE_FLAGS[track][zone_id]);
         else
             LogMessage("POINT %d = { %11.6f %11.6f %11.6f }", i,
                 ZONE_POINT_T[track][zone_id][i][0], ZONE_POINT_T[track][zone_id][i][1], ZONE_POINT_T[track][zone_id][i][2]);
@@ -1580,14 +1599,14 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
         zone_id = GetNextNewZone(track);
         if (zone_id >= MAX_ZONES)
         {
-            Reply(client, "You've hit the maximum number of zones ({T}%d{N}).", MAX_ZONES);
+            Zone_Reply(client, "You've hit the maximum number of zones ({T}%d{N}).", MAX_ZONES);
             return;
         }
     }
     
     if (zone_id >= MAX_ZONES || zone_id < 0)
     {
-        Reply(client, "That zone index ({T}%d{N}) is invalid.", zone_id);
+        Zone_Reply(client, "That zone index ({T}%d{N}) is invalid.", zone_id);
         return;
     }
     
@@ -1597,7 +1616,6 @@ Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
     g_ClientEditZone[client] = zone_id;
     g_ClientEditTrack[client] = track;
     ZONE_HEIGHT_T[track][zone_id] = DEFAULT_ZONE_HEIGHT;
-    ZONE_EDITING_T[track][zone_id] = true;
     
     if (IS_STR_EMPTY(g_ZoneNames[track][zone_id]))
     {
@@ -1620,16 +1638,16 @@ Zone_NewZonePoint(client)
     new point = ZONE_POINTS_T[track][zone_id] + ZONE_META_POINTS;
     if (point >= POINTS_LENGTH)
     {
-        Reply(client, "You've hit the maximum number of zone points ({T}%d{N}).", MAX_POINTS);
+        Zone_Reply(client, "You've hit the maximum number of zone points ({T}%d{N}).", MAX_POINTS);
         return;
     }
     
     GetClientAbsOrigin(client, g_ZonesCache[track][zone_id][point]);
     ZONE_POINTS_T[track][zone_id]++;
     
-    Reply(client, "New zone {T}%d{N} (track {T}%d{N}) point at ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})", zone_id, track,
-        ZONE_POINT_T[track][zone_id][point][0],
-        ZONE_POINT_T[track][zone_id][point][1],
+    Zone_Reply(client, "New zone {T}%d{N} (track {T}%d{N}) point at ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})", zone_id, track, \
+        ZONE_POINT_T[track][zone_id][point][0], \
+        ZONE_POINT_T[track][zone_id][point][1], \
         ZONE_POINT_T[track][zone_id][point][2]);
 }
 
@@ -1642,16 +1660,16 @@ Zone_BeginBox(client)
     
     if (IS_EDITING_BOX(client))
     {
-        Reply(client, "You already have a box started. Use {G}sm_endbox{N} to complete it.");
+        Zone_Reply(client, "You already have a box started. Use {G}sm_endbox{N} to complete it.");
         return;
     }
     
     GetClientAbsOrigin(client, g_ClientEditBox[client]);
     
-    Reply(client, "Began zone {T}%d{N} (track {T}%d{N}) box at ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})",
-        zone_id, track,
-        g_ClientEditBox[0],
-        g_ClientEditBox[1],
+    Zone_Reply(client, "Began zone {T}%d{N} (track {T}%d{N}) box at ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})", \
+        zone_id, track, \
+        g_ClientEditBox[0], \
+        g_ClientEditBox[1], \
         g_ClientEditBox[2]);
 }
 
@@ -1664,7 +1682,7 @@ Zone_EndBox(client)
     
     if (!IS_EDITING_BOX(client))
     {
-        Reply(client, "You're not currently creating a box. Use {G}sm_beginbox{N} to start.");
+        Zone_Reply(client, "You're not currently creating a box. Use {G}sm_beginbox{N} to start.");
         return;
     }
     
@@ -1731,7 +1749,7 @@ Zone_EndBox(client)
     g_ClientEditBox[client][1] = 0.0;
     g_ClientEditBox[client][2] = 0.0;
     
-    Reply(client, "Completed zone {T}%d{N} (track {T}%d{N}) box.", zone_id, track);
+    Zone_Reply(client, "Completed zone {T}%d{N} (track {T}%d{N}) box.", zone_id, track);
 }
 
 Zone_ZoneHeight(client, height)
@@ -1743,7 +1761,7 @@ Zone_ZoneHeight(client, height)
     
     ZONE_HEIGHT_T[track][zone_id] = height;
     
-    Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) max height at {OG}%d{N} map units.", zone_id, track, height);
+    Zone_Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) max height at {OG}%d{N} map units.", zone_id, track, height);
 }
 
 Zone_SetFlag(client)
@@ -1755,7 +1773,7 @@ Zone_SetFlag(client)
     
     GetClientAbsOrigin(client, g_ZonesCache[track][zone_id][ZONE_FLAG_POINT]);
     
-    Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) flag at point ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})", zone_id, track,
+    Zone_Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) flag at point ({OG}%f{N}, {OG}%f{N}, {OG}%f{N})", zone_id, track, \
         ZONE_FLAG_T[track][zone_id][0], ZONE_FLAG_T[track][zone_id][1], ZONE_FLAG_T[track][zone_id][2]);
 }
 
@@ -1768,7 +1786,23 @@ Zone_SetName(client, const String:name[])
     
     strcopy(g_ZoneNames[track][zone_id], sizeof(g_ZoneNames[][]), name);
     
-    Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) name to \"{OG}%s{N}\"", zone_id, track, g_ZoneNames[track][zone_id]);
+    Zone_Reply(client, "Set zone {T}%d{N} (track {T}%d{N}) name to \"{OG}%s{N}\"", zone_id, track, g_ZoneNames[track][zone_id]);
+}
+
+Zone_ToggleVelocityLimiting(client)
+{
+    new zone_id = g_ClientEditZone[client];
+    new track = g_ClientEditTrack[client];
+    if (zone_id == INVALID_ZONE)
+        NOT_EDITING_RETURN()
+    
+    new bool:had_flag = HAS_FLAG(ZONE_FLAGS[track][zone_id], ZONE_FLAGS_LIMITVELOCITY);
+    if (had_flag)
+        SET_REMOVE_FLAG(ZONE_FLAGS[track][zone_id], ZONE_FLAGS_LIMITVELOCITY);
+    else
+        SET_ADD_FLAG(ZONE_FLAGS[track][zone_id], ZONE_FLAGS_LIMITVELOCITY);
+    
+    Zone_Reply(client, "Toggled velocity limiting for zone {T}%d{N} (track {T}%d{N}) {G}%s{N}", zone_id, track, had_flag ? "Off" : "On");
 }
 
 Zone_RemoveLastPoint(client)
@@ -1781,7 +1815,7 @@ Zone_RemoveLastPoint(client)
     new point = (ZONE_POINTS_T[track][zone_id] - 1) + ZONE_META_POINTS;
     if (point == 0)
     {
-        Reply(client, "There are {OG}no points{N} to remove.");
+        Zone_Reply(client, "There are {OG}no points{N} to remove.");
         return;
     }
     
@@ -1807,7 +1841,7 @@ Zone_ClearAllPoints(client)
     
     ZONE_POINTS_T[track][zone_id] = 0;
     
-    Reply(client, "Cleared all points in zone {T}%d{N} (track {T}%d{N}).", zone_id, track);
+    Zone_Reply(client, "Cleared all points in zone {T}%d{N} (track {T}%d{N}).", zone_id, track);
 }
 
 Zone_FinishZone(client)
@@ -1817,7 +1851,6 @@ Zone_FinishZone(client)
     if (zone_id == INVALID_ZONE)
         NOT_EDITING_RETURN()
     
-    ZONE_EDITING_T[track][zone_id] = false;
     g_ClientEditZone[client] = INVALID_ZONE;
     g_ClientEditTrack[client] = INVALID_TRACK;
     
@@ -1853,7 +1886,7 @@ Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
     
     win_SQL_DeleteZone(zone_id, track);
     
-    Reply(client, "Removed zone {T}%d{N} (track {T}%d{N}).", zone_id, track);
+    Zone_Reply(client, "Removed zone {T}%d{N} (track {T}%d{N}).", zone_id, track);
 }
 
 Zone_ClearTrack(client, track)
@@ -1872,7 +1905,7 @@ Zone_ClearTrack(client, track)
     win_SQL_ClearTrackZonePoints(track);
     win_SQL_ClearTrackZones(track);
     
-    Reply(client, "Cleared track {T}%d{N}! I feel lighter already.", track);
+    Zone_Reply(client, "Cleared track {T}%d{N}! I feel lighter already.", track);
 }
 
 Zone_ClearAllZones(client)
@@ -1885,7 +1918,7 @@ Zone_ClearAllZones(client)
     win_SQL_ClearAllZonePoints();
     win_SQL_ClearAllZones();
     
-    Reply(client, "{T}Cleared all zones{N}! Phew, that's a load off.");
+    Zone_Reply(client, "{T}Cleared all zones{N}! Phew, that's a load off.");
 }
 
 // Inserts/updates all the zones in the cache to the database
@@ -1893,14 +1926,14 @@ Zone_SyncToDB(client)
 {
     if (g_ZoneCacheInProgress)
     {
-        Reply(client, "There is a {OG}zone reload{N} in progress. If a sync occurs during a reload, data loss can occur.");
-        Reply(client, "Please wait till the zone reload completes.");
+        Zone_Reply(client, "There is a {OG}zone reload{N} in progress. If a sync occurs during a reload, data loss can occur.");
+        Zone_Reply(client, "Please wait till the zone reload completes.");
         return;
     }
     
     if (g_ZoneSyncInProgress)
     {
-        Reply(client, "There is already a {OG}zone sync{N} in progress. Please wait till it completes.");
+        Zone_Reply(client, "There is already a {OG}zone sync{N} in progress. Please wait till it completes.");
         return;
     }
     
@@ -1947,7 +1980,7 @@ Zone_SyncToDB(client)
     if (g_TotalZonesSynced == 0)
     {
         g_ZoneSyncInProgress = false;
-        Reply(client, "There are no zones to sync! Use {T}sm_newzone{N} or {T}/zonemenu{N} to create some.");
+        Zone_Reply(client, "There are no zones to sync! Use {T}sm_newzone{N} or {T}/zonemenu{N} to create some.");
     }
 }
 
@@ -1961,7 +1994,7 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, track, points)
         if (g_ZoneSyncNotifyClient != -1)
         {
             new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
-            Reply(g_ZoneSyncNotifyClient, "Successfully synced {T}%d{N} zone%s (in {T}%d{N} track%s) to the database!", g_TotalZonesSynced, g_TotalZonesSynced == 1 ? "" : "s", g_TracksSynced, g_TracksSynced == 1 ? "" : "s");
+            Zone_Reply(g_ZoneSyncNotifyClient, "Successfully synced {T}%d{N} zone%s (in {T}%d{N} track%s) to the database!", g_TotalZonesSynced, g_TotalZonesSynced == 1 ? "" : "s", g_TracksSynced, g_TracksSynced == 1 ? "" : "s");
             SetCmdReplySource(prev);
             
             g_ZoneSyncNotifyClient = -1;
@@ -1970,7 +2003,7 @@ public fwd_Zone_OnPointsSyncFinished(zone_id, track, points)
     else if (g_ZoneSyncNotifyClient != -1)
     {
         new ReplySource:prev = SetCmdReplySource(g_ZoneSyncReplySource);
-        Reply(g_ZoneSyncNotifyClient, "Synced zone {T}%d{N} (id {OG}%d{N}) of {T}%d{N}, track {T}%d{N} (id {OG}%d{N}) of {T}%d{N}...", zone_id+1, zone_id, g_ZonesSynced[track], track+1, track, g_TracksSynced);
+        Zone_Reply(g_ZoneSyncNotifyClient, "Synced zone {T}%d{N} (id {OG}%d{N}) of {T}%d{N}, track {T}%d{N} (id {OG}%d{N}) of {T}%d{N}...", zone_id+1, zone_id, g_ZonesSynced[track], track+1, track, g_TracksSynced);
         SetCmdReplySource(prev);
     }
 }
@@ -1980,14 +2013,14 @@ Zone_ReloadFromDB(client)
 {
     if (g_ZoneCacheInProgress)
     {
-        Reply(client, "There is already a {OG}zone reload{N} in progress. Please wait till it completes");
+        Zone_Reply(client, "There is already a {OG}zone reload{N} in progress. Please wait till it completes");
         return;
     }
     
     if (g_ZoneSyncInProgress)
     {
-        Reply(client, "There is a {OG}zone sync{N} in progress. If a reload occurs during a sync, data loss can occur.");
-        Reply(client, "Please wait till the zone sync completes.");
+        Zone_Reply(client, "There is a {OG}zone sync{N} in progress. If a reload occurs during a sync, data loss can occur.");
+        Zone_Reply(client, "Please wait till the zone sync completes.");
         return;
     }
     

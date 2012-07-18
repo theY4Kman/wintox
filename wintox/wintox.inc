@@ -327,9 +327,10 @@ public OnGameFrame()
                         }
                     }
                     
-                    if (zone == 0)
+                    if (zone == 0 || HAS_FLAG(ZONE_FLAGS[track][zone], ZONE_FLAGS_LIMITVELOCITY))
                     {
-                        g_PlayerEnteredStart[client] = true;
+                        if (zone == 0)
+                            g_PlayerEnteredStart[client] = true;
                         
                         // Anti-pre-speed
                         decl Float:velocity[3];

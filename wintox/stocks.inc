@@ -49,6 +49,12 @@ new String:DEBUG_NAMES[][] = {
     SetCmdReplySource((%1))
 #define EXIT_REPLY() SetCmdReplySource(__old_reply_to)
 
+#define HAS_FLAG(%1,%2) (((%1) & (%2)) == (%2))
+#define REMOVE_FLAG(%1,%2) ((%1) & ~(%2))
+#define SET_REMOVE_FLAG(%1,%2) (%1) = REMOVE_FLAG(%1,%2)
+#define ADD_FLAG(%1,%2) ((%1) | (%2))
+#define SET_ADD_FLAG(%1,%2) (%1) = ADD_FLAG(%1,%2)
+
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
