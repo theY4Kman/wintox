@@ -58,9 +58,11 @@
               {%- endfor  %}
               <span class="story_name">{{ story.name }}</span>
             </div>
+            {%- if story.current_state != 'accepted' %}
             <div class="dates">
               last updated {{ story.updated_at }} &mdash; created at {{ story.created_at }} &mdash; id {{ story.id }}
             </div>
+            {%- endif %}
           </div>
           <div class="clearfix" style="clear: both;"></div>
         </li>

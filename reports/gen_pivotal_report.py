@@ -40,6 +40,14 @@ def correct_times(block):
     return block
 
 
+def filter_story(story):
+    if 'code' in story.get('labels', ()):
+        return False
+    if story.get('story_type') == 'release':
+        return False
+    return True
+
+
 def main(argv):
     if PIVOTAL_TOKEN_ENV_VAR not in os.environ:
         raise KeyError('%s not in environment' % PIVOTAL_TOKEN_ENV_VAR)
@@ -58,8 +66,15 @@ def main(argv):
         raise CouldNotFindWintoxError('Could not find Wintox in projects list.')
 
     all_stories = client.stories.all(wintox)['stories']
+    all_stories = filter(filter_story, all_stories)
+
     # Creates a dict of { state: [story, story2, ...] }
-    stories = dict([(name, list(stories)) for name,stories in groupby(all_stories, lambda story: story['current_state'])])
+    stories = {}
+    for name,stories_group in groupby(all_stories, lambda story: story['current_state'].strip()):
+        if name not in stories:
+            stories[name] = list(stories_group)
+        else:
+            stories[name] += list(stories_group)
 
     blocks = {}
     for group,statuses in PIVOTAL_STATUS_GROUPS.iteritems():
