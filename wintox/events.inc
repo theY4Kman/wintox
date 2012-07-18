@@ -92,6 +92,10 @@ public OnMapStart()
 {
     // Wipe the cache, so we don't accidentally use zone data from the last map
     WipeZoneCache();
+    
+    // Clear all player variables at map start
+    for (new client=1; client<MaxClients; client++)
+        ResetPlayerVariables(client);
 
     // Precache the laser every map change
     if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))

@@ -570,7 +570,7 @@ NEW_SQL_QUERY_PARAMS(UpsertTrackRecord,6) = {
             date_set = VALUES(date_set);"
 };
 NEW_SQL_QUERY_PARAMS(GetTrackRecords,2) = {
-    SQLITE_MYSQL("SELECT track, type, time,jumps FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d")
+    SQLITE_MYSQL("SELECT track, type, time, jumps FROM wintox_track_records WHERE fk_map = %d AND fk_player = %d;")
 };
 NEW_SQL_QUERY_PARAMS(GetTop,4) = {
     SQLITE_MYSQL("SELECT wzm2.bsp_name, wzp.latest_name, time, jumps FROM wintox_track_records \

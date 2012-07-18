@@ -12,6 +12,8 @@
 #pragma tabsize 4
 #pragma semicolon 1
 
+#define TIMER_MAX_PLACES 3
+
 // Include this first, so our declarations can use game-specific defines
 #include "./wintox/game"
 
@@ -289,35 +291,41 @@ public OnGameFrame()
                 }
             }
             
-            new start_zone = g_PlayerCurrentPath[client] == INVALID_PATH ? 0 : g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client]];
-            new end_zone = g_TrackPaths[g_PlayerCurrentTrack[client]][g_PlayerCurrentPath[client] + 1];
-            for (new i=start_zone, _t=-1; _t<1 && ((i=_t ? start_zone : end_zone) || 1); _t++)
+            decl zones_to_check[2];
+            zones_to_check[0] = GetPlayerCurrentZone(client, 0);
+            zones_to_check[1] = GetPlayerNextZone(client);
+            
+            for (new i=0; i<sizeof(zones_to_check); i++)
             {
-                if ((g_PlayerEnteredStart[client] || i == 0) && PointInZone(origin, track, i))
+                new zone = zones_to_check[i];
+                if (zone == INVALID_ZONE)
+                    continue;
+                
+                if ((g_PlayerEnteredStart[client] || zone == 0) && PointInZone(origin, track, zone))
                 {
                     new bool:was_in_zone = g_PlayerCurrentlyInZone[client];
                     g_PlayerCurrentlyInZone[client] = true;
                     
-                    if (i != 0)
+                    if (zone != 0)
                     {
-                        if (!PLAYER_IN_ZONE(client,i))
+                        if (!PLAYER_IN_ZONE(client, zone))
                         {
                             if (!IsRacing(client))
-                                Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
+                                Timer_PlayerReachedZone(client, track, zone, g_PlayerCurrentStyle[client]);
                             else
-                                Race_PlayerReachedZone(client, track, i);
+                                Race_PlayerReachedZone(client, track, zone);
                         }
                         
                         // Reset the timer if the player goes back to their starting stage
-                        else if (g_CurMapStaged && !IS_END_ZONE_T(track, i) && ZONE_TIME[client][i] != 0.0 && !was_in_zone)
+                        else if (g_CurMapStaged && !IS_END_ZONE_T(track, zone) && ZONE_TIME[client][zone] != 0.0 && !was_in_zone)
                         {
-                            g_PlayerCurrentZone[client] = i;
-                            ZONE_TIME[client][i] = 0.0;
+                            g_PlayerCurrentZone[client] = zone;
+                            ZONE_TIME[client][zone] = 0.0;
                             Timer_PrintToChat(client, "Your timer has been reset by passing through a stage.");
                         }
                     }
                     
-                    if (i == 0)
+                    if (zone == 0)
                     {
                         g_PlayerEnteredStart[client] = true;
                         
@@ -334,7 +342,7 @@ public OnGameFrame()
                     }
                     
                     // Yeah, you go, player! YOU ROCK!
-                    if (IS_END_ZONE_T(track,i) && (g_IsTiming[client] || IsRacing(client)))
+                    if (IS_END_ZONE_T(track, zone) && (g_IsTiming[client] || IsRacing(client)))
                     {
                         if (!IsRacing(client))
                             Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
@@ -343,7 +351,7 @@ public OnGameFrame()
                     }
                     
                     is_in_zone = true;
-                    g_PlayerCurrentZone[client] = i;
+                    g_PlayerCurrentZone[client] = zone;
                     break;
                 }
                 else

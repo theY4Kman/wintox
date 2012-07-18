@@ -126,7 +126,6 @@ new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
 #define COOKIE_TIMER_SPEED_ENABLED "WTX_TimerSpeedEnabled"
 
 
-#define StartTimer(%1) g_StartTimes[(%1)][0] = GetEngineTime()
 #define TIMER_STARTED(%1) (g_StartTimes[(%1)][0] != 0.0)
 #define ZONE_TIME[%1][%2] g_StartTimes[(%1)][(%2)]
 
@@ -242,7 +241,8 @@ Timer_DeinitPlayer(client)
     g_PointsToChatEnabled[client] = true;
     g_TimerSpeedEnabled[client] = true;
     
-    g_PlayerCurrentStyle[client] = 0;
+    g_PlayerCurrentPath[client] = INVALID_PATH;
+    g_PlayerCurrentStyle[client] = STYLE_NORMAL;
     g_PlayerEnteredStart[client] = false;
     
     g_DisplayPlusMinus[client] = false;
@@ -285,8 +285,8 @@ StopTiming(client)
 
 DisplayTimer(client, is_in_zone)
 {
-    new track = g_PlayerCurrentTrack[client];
-    new zone = g_PlayerCurrentZone[client];
+    new track = GetPlayerCurrentTrack(client);
+    new zone = GetPlayerCurrentZone(client);
     new style = g_PlayerCurrentStyle[client];
     
     decl String:stagename[72];
@@ -312,7 +312,7 @@ DisplayTimer(client, is_in_zone)
             PrintHintText(client, "[Disable low gravity to begin timing]");
 #endif
         
-        else if (g_PlayerCurrentZone[client] == INVALID_ZONE)
+        else if (zone == INVALID_ZONE)
             PrintHintText(client, "[Enter the start zone]");
         
         else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
@@ -457,7 +457,7 @@ DisplayTimer(client, is_in_zone)
         if (g_DisplayPlusMinus[client] && zone >= 1)
         {
             decl Float:opponent_pm;
-            if (zone < g_PlayerCurrentZone[opponent])
+            if (zone < GetPlayerCurrentZone(opponent))
             {
                 new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
                 new Float:opponent_time = g_StartTimes[opponent][zone] - g_StartTimes[opponent][zone-1];
@@ -465,7 +465,7 @@ DisplayTimer(client, is_in_zone)
                 opponent_pm = zone_time - opponent_time;
             }
             else
-                opponent_pm = MAX(g_StartTimes[opponent][MAX(g_PlayerCurrentZone[opponent], 0)], g_RaceStart[opponent]) - g_StartTimes[client][zone];
+                opponent_pm = MAX(g_StartTimes[opponent][GetPlayerCurrentZone(client, 0)], g_RaceStart[opponent]) - g_StartTimes[client][zone];
             
             SecondsToTimeString(opponent_pm, STR(sz_time), true);
             Format(STR(plus_minus), "\n Opponent (%s)", sz_time);
@@ -565,11 +565,13 @@ Timer_PlayerReachedZone(client, track, zone, style)
     
     Timer_DisplayPlusMinus(client);
     
+    new prev_zone = GetPlayerLastZone(client, 0);
+    
     Call_StartForward(g_fwdPlayerReachedZone);
     Call_PushCell(client);
     Call_PushCell(track);
     Call_PushCell(zone);
-    Call_PushFloat(g_StartTimes[client][zone] - g_StartTimes[client][zone-1]);
+    Call_PushFloat(g_StartTimes[client][zone] - g_StartTimes[client][prev_zone]);
     Call_PushCell(style);
     Call_Finish();
 }
@@ -689,18 +691,20 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     // Global top records
     new Float:top_record = g_TrackWorldRecord[track][0][style];
     new bool:had_top = top_record != INVALID_TRACK_RECORD;
-    new bool:is_top = false;
-    if (!had_top || total_time < top_record)
-    {
+    new top_cmp = FloatComparePlaces(total_time, top_record);
+    new bool:is_top = !had_top || total_time < top_record;
+    
+    // Though we want to show the times as being the same if they're
+    // equal up to MAX_TIMER_PLACES, we only save the time if it's
+    // actually faster past MAX_TIMER_PLACES.
+    if (is_top)
         g_TrackWorldRecord[track][0][style] = total_time;
-        is_top = true;
-    }
     
     // Player's best records
-    if (total_time < record || record == INVALID_TRACK_RECORD)
+    if (record == INVALID_TRACK_RECORD || total_time < record)
     {
-        win_SQL_UpsertTrackRecord(client, track, style, total_time, is_top);
         g_TrackRecords[client][track][style] = total_time;
+        win_SQL_UpsertTrackRecord(client, track, style, total_time, is_top);
         
         if (is_top)
             SetTrackWorldRecordCache(client, track, style);
@@ -729,11 +733,16 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         decl String:sz_rel_wr[128];
         if (had_top)
         {
-            SecondsToTimeString(total_time - top_record, STR(sz_rel_wr), true, true, "G");
-            Format(STR(sz_rel_wr), "and was %s {OG}%s{N} than the world record%c", sz_rel_wr, is_top ? "faster" : "slower", is_top ? '!' : '.');
+            if (top_cmp != 0)
+            {
+                SecondsToTimeString(total_time - top_record, STR(sz_rel_wr), true, true, "G");
+                Format(STR(sz_rel_wr), "and was %s {OG}%s{N} than the world record%c", sz_rel_wr, is_top ? "faster" : "slower", is_top ? '!' : '.');
+            }
+            else
+                strcopy(STR(sz_rel_wr), "and {OG}matched{N} the world record!");
         }
         else
-            Format(STR(sz_rel_wr), "and set the world record!");
+            strcopy(STR(sz_rel_wr), "and {OG}set{N} the world record!");
         
         Color_ChatSetSubject(client);
 #if defined(WINTOX_BHOP)
@@ -1719,7 +1728,7 @@ public T_UpsertTrackRecord(Handle:owner, Handle:hndl, const String:error[], any:
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error updating player %L track record points: %s", client, error);
+        LogError("Error updating player %L track %d record: %s", client, track, error);
         return;
     }
     
@@ -2281,4 +2290,102 @@ public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], a
     Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N} | BC: {G}%d{N} | BR: {G}%d{N}", \
         latest_name, sz_country, rank, grosspoints, maps_completed, map_records, bonuses_completed, bonus_wr);
 #endif
+}
+
+
+/* ========================================================================
+                          TIMER UTILITY FUNCTIONS
+   ======================================================================== */
+
+stock GetPlayerCurrentTrack(client, if_invalid=INVALID_TRACK)
+{
+    new track = g_PlayerCurrentTrack[client];
+    if (track == INVALID_TRACK)
+        return if_invalid;
+    
+    return track;
+}
+
+stock GetPlayerCurrentPathIndex(client, if_invalid=INVALID_PATH)
+{
+    new path = g_PlayerCurrentPath[client];
+    if (path == INVALID_PATH)
+        return if_invalid;
+    
+    return path;
+}
+
+/**
+ * Returns the zone index in the player's current path, at offset indices away
+ *
+ * @param   client      The client index of the player
+ * @param   offset      The number of indices to jump in the player's path
+ * @param   if_invalid  The value to return if the zone is invalid
+ * @return  A zone index if there is a valid zone at offset places away in the
+ *              player's current path; otherwise, returns `if_invalid`.
+ */
+stock GetPlayerOffsetZone(client, offset, if_invalid=INVALID_ZONE, &save_path)
+{
+    new track = GetPlayerCurrentTrack(client);
+    if (track == INVALID_TRACK || track < 0 || track >= MAX_TRACKS)
+        return if_invalid;
+    
+    new path = GetPlayerCurrentPathIndex(client);
+    if (path == INVALID_PATH)
+    {
+        save_path = 0;
+        return 0;
+    }
+    
+    new offset_path = path + offset;
+    if (offset_path < 0 || offset_path >= MAX_PATH_LENGTH)
+        return if_invalid;
+    
+    new zone = g_TrackPaths[track][offset_path];
+    if (zone == INVALID_ZONE)
+        return if_invalid;
+    
+    save_path = offset_path;
+    
+    return zone;
+}
+
+stock GetPlayerCurrentZone(client, if_invalid=INVALID_ZONE)
+{
+    decl save_path;
+    return GetPlayerOffsetZone(client, 0, if_invalid, save_path);
+}
+
+stock GetPlayerNextZone(client, if_invalid=INVALID_ZONE)
+{
+    decl save_path;
+    return GetPlayerOffsetZone(client, 1, if_invalid, save_path);
+}
+
+stock GetPlayerLastZone(client, if_invalid=INVALID_ZONE)
+{
+    decl save_path;
+    return GetPlayerOffsetZone(client, -1, if_invalid, save_path);
+}
+
+stock GetPlayerLastZone_Path(client, if_invalid=INVALID_ZONE, &save_path)
+{
+    return GetPlayerOffsetZone(client, -1, if_invalid, save_path);
+}
+
+stock bool:IsZoneEndZone(track, zone)
+{
+    if (track < 0 || track >= MAX_TRACKS)
+        return false;
+    
+    if (zone < 0 || zone >= MAX_ZONES)
+        return false;
+    
+    return g_EndZone[track] == zone;
+}
+
+stock StartTimer(client)
+{
+    g_StartTimes[client][0] = GetEngineTime();
+    g_PlayerCurrentPath[client] = 0;
 }

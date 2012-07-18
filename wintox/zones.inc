@@ -47,6 +47,7 @@ new g_CurMapTier = 1;
 #define MAX_ZONES 64
 #define MAX_POINTS 30
 #define POINTS_LENGTH (MAX_POINTS + ZONE_META_POINTS)
+#define MAX_PATH_LENGTH MAX_ZONES
 
 #define MAIN_TRACK 0
 
@@ -133,7 +134,7 @@ new g_ZonesCount[MAX_TRACKS];
 new g_EndZone[MAX_TRACKS];
 
 // Stores the zone indexes in proper order for each track, beginning at the first zone
-// (not the start zone), so 0 is an invalid/empty zone
+// (not the start zone), so g_TrackPaths[][0] will always be 0
 new g_TrackPaths[MAX_TRACKS][MAX_ZONES];
 // The tier of each track (used for giving points on bonus track completion)
 new g_TrackTier[MAX_TRACKS] = { 1, ... };
@@ -202,12 +203,13 @@ new g_TotalZonesSynced = 0;
 Zones_Init()
 {
     // Initialize g_ZoneIDs, because I can't initialize a multi-dimensional array at declaration >:(
-    for (new i=0; i<MAX_TRACKS; i++)
+    for (new track=0; track<MAX_TRACKS; track++)
     {
-        for (new j=0; j<MAX_ZONES; j++)
+        for (new zone=0; zone<MAX_ZONES; zone++)
         {
-            g_ZoneIDs[i][j] = -1;
-            g_FlagRotation[i][j] = j * FLAG_ROTATE_INITIAL;
+            g_TrackPaths[track][zone] = INVALID_ZONE;
+            g_ZoneIDs[track][zone] = -1;
+            g_FlagRotation[track][zone] = zone * FLAG_ROTATE_INITIAL;
         }
     }
     
@@ -769,8 +771,8 @@ public Action:ConCommand_Teleport(client, args)
         return Plugin_Handled;
     }
     
-    new zone = MAX(g_PlayerCurrentZone[client], 0);
-    new track = g_PlayerCurrentTrack[client];
+    new track = GetPlayerCurrentTrack(client, MAIN_TRACK);
+    new zone = GetPlayerCurrentZone(client, 0);
     ZoneTeleport(client, zone, track);
     
     if (zone > 0)
@@ -798,12 +800,9 @@ public Action:ConCommand_GoBack(client, args)
         return Plugin_Handled;
     }
     
-    new track = g_PlayerCurrentTrack[client];
-    new path = g_PlayerCurrentPath[client] - 1;
-    new zone = 0;
-    if (path >= 0)
-        zone = g_TrackPaths[track][path];
-    
+    new path = 0;
+    new track = GetPlayerCurrentTrack(client, MAIN_TRACK);
+    new zone = GetPlayerLastZone_Path(client, 0, path);
     ZoneTeleport(client, zone, track);
 
     if (zone > 0)
@@ -818,8 +817,8 @@ public Action:ConCommand_GoBack(client, args)
         Tele_Reply(client, "Teleported to the start zone, resetting your timer.");
     }
     
-    // Set their current path to the correct current one
-    g_PlayerCurrentPath[client] = MAX(path, 0);
+    // Set our path to its new, correct value
+    g_PlayerCurrentPath[client] = path;
     
     return Plugin_Handled;
 }
@@ -1490,12 +1489,12 @@ SetZoneFlagCenter(zone_id, track=MAIN_TRACK)
 FindTrackPath(track)
 {
     new next_path = 0;
-    for (new zone=1; zone<MAX_ZONES; zone++)
+    for (new zone=0; zone<MAX_ZONES; zone++)
         if (!ZONE_EMPTY_T(track, zone))
             g_TrackPaths[track][next_path++] = zone;
     
     // Stick an empty delimiter on the end, for good measure
-    g_TrackPaths[track][next_path] = 0;
+    g_TrackPaths[track][next_path] = INVALID_ZONE;
 }
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)

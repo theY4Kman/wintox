@@ -124,6 +124,23 @@ stock Float:FloatMod(Float:value, Float:divisor)
     return value - RoundToFloor(value / divisor) * divisor;
 }
 
+stock Float:FloatRoundPlaces(Float:f, places=TIMER_MAX_PLACES)
+{
+    new Float:frac = FloatFraction(f);
+    new base = RoundToFloor(f);
+    
+    new places_val = places * 10;
+    new Float:new_frac = float(RoundToFloor(frac * places_val)) / places_val;
+    
+    return float(base) + new_frac;
+}
+
+stock FloatComparePlaces(Float:fOne, Float:fTwo, places=TIMER_MAX_PLACES)
+{
+    new Float:res = FloatRoundPlaces(fOne - fTwo, places);
+    return FloatCompare(res, 0.0);
+}
+
 stock IsOnPlayingTeam(client)
 {
     return IS_PLAYING_TEAM(GetClientTeam(client));
