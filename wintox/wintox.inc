@@ -295,14 +295,26 @@ public OnGameFrame()
             {
                 if ((g_PlayerEnteredStart[client] || i == 0) && PointInZone(origin, track, i))
                 {
+                    new bool:was_in_zone = g_PlayerCurrentlyInZone[client];
                     g_PlayerCurrentlyInZone[client] = true;
                     
-                    if (!PLAYER_IN_ZONE(client,i) && i != 0)
+                    if (i != 0)
                     {
-                        if (!IsRacing(client))
-                            Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
-                        else
-                            Race_PlayerReachedZone(client, track, i);
+                        if (!PLAYER_IN_ZONE(client,i))
+                        {
+                            if (!IsRacing(client))
+                                Timer_PlayerReachedZone(client, track, i, g_PlayerCurrentStyle[client]);
+                            else
+                                Race_PlayerReachedZone(client, track, i);
+                        }
+                        
+                        // Reset the timer if the player goes back to their starting stage
+                        else if (g_CurMapStaged && !IS_END_ZONE_T(track, i) && ZONE_TIME[client][i] != 0.0 && !was_in_zone)
+                        {
+                            g_PlayerCurrentZone[client] = i;
+                            ZONE_TIME[client][i] = 0.0;
+                            Timer_PrintToChat(client, "Your timer has been reset by passing through a stage.");
+                        }
                     }
                     
                     if (i == 0)
@@ -334,16 +346,22 @@ public OnGameFrame()
                     g_PlayerCurrentZone[client] = i;
                     break;
                 }
-                else if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0 && !IsRacing(client))
-                {
-                    // Start the timer
-                    StartTimer(client);
-                    g_IsTiming[client] = true;
-                    
-                    g_PlayerCurrentlyInZone[client] = true;
-                }
                 else
+                {
+                    if (!IsRacing(client))
+                    {
+                        if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0 && !IsRacing(client))
+                        {
+                            // Start the timer
+                            StartTimer(client);
+                            g_IsTiming[client] = true;
+                        }
+                        else if (g_CurMapStaged && g_PlayerCurrentZone[client] > 0 && ZONE_TIME[client][g_PlayerCurrentZone[client]] == 0.0)
+                            ZONE_TIME[client][g_PlayerCurrentZone[client]] = GetEngineTime();
+                    }
+                    
                     g_PlayerCurrentlyInZone[client] = false;
+                }
             }
         }
         

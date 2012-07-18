@@ -147,7 +147,9 @@ new g_PlayerCurrentTrack[MAXPLAYERS] = { MAIN_TRACK, ... };
 // The index into the track path the player is currently on
 new g_PlayerCurrentPath[MAXPLAYERS] = { INVALID_PATH, ... };
 // Whether the player's origin is currently within the zone set in g_PlayerCurrentZone
-new g_PlayerCurrentlyInZone[MAXPLAYERS] = { false, ... };
+new bool:g_PlayerCurrentlyInZone[MAXPLAYERS] = { false, ... };
+// Whether the player has entered the start zone (since joining or timer reset)
+new bool:g_PlayerEnteredStart[MAXPLAYERS] = { false, ... };
 
 // Which zone the player is currently editing
 new g_ClientEditZone[MAXPLAYERS] = { INVALID_ZONE, ... };
@@ -767,8 +769,21 @@ public Action:ConCommand_Teleport(client, args)
         return Plugin_Handled;
     }
     
-    ZoneTeleport(client, MAX(g_PlayerCurrentZone[client], 0), g_PlayerCurrentTrack[client]);
-    Tele_Reply(client, "Teleported to the start of the current stage.");
+    new zone = MAX(g_PlayerCurrentZone[client], 0);
+    new track = g_PlayerCurrentTrack[client];
+    ZoneTeleport(client, zone, track);
+    
+    if (zone > 0)
+    {
+        g_PlayerCurrentZone[client] = zone;
+        Tele_Reply(client, "Teleported to the start of the current stage.");
+    }
+    else
+    {
+        ResetTimer(client);
+        g_PlayerCurrentZone[client] = -1;
+        Tele_Reply(client, "Teleported to the start zone, resetting your timer.");
+    }
     
     return Plugin_Handled;
 }
@@ -789,15 +804,22 @@ public Action:ConCommand_GoBack(client, args)
     if (path >= 0)
         zone = g_TrackPaths[track][path];
     
-    if (zone != g_PlayerCurrentZone[client])
+    ZoneTeleport(client, zone, track);
+
+    if (zone > 0)
     {
-        ZoneTeleport(client, zone, track);
-        Tele_Reply(client, "Teleported to the previous stage.");
-        
-        // Set their current path and zone to the correct current one
         g_PlayerCurrentZone[client] = zone;
-        g_PlayerCurrentPath[client] = MAX(path, 0);
+        Tele_Reply(client, "Teleported to the previous stage.");
     }
+    else
+    {
+        ResetTimer(client);
+        g_PlayerCurrentZone[client] = -1;
+        Tele_Reply(client, "Teleported to the start zone, resetting your timer.");
+    }
+    
+    // Set their current path to the correct current one
+    g_PlayerCurrentPath[client] = MAX(path, 0);
     
     return Plugin_Handled;
 }
