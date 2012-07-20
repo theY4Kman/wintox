@@ -20,12 +20,13 @@ IF /i "%~1" == "bhop" (
     IF /i "%~1" == "surf" (
         SET gametype=surf
     ) ELSE (
-        echo Unknown gametype. Possible options are "bhop" or "surf"
+        echo Unknown gametype or command. Possible options are "bhop" or "surf"
         EXIT /b 2
     )
 )
 SHIFT
 
+SET /A increment=1
 SET /A debug=0
 SET list=
 
@@ -33,6 +34,7 @@ SET list=
 IF NOT "%~1" == "" (
     IF "%~1" == "-debug" SET /A debug=1
     IF "%~1" == "-l" SET list="-l"
+    IF "%~1" == "-noinc" SET /A increment=0
     
     SHIFT
     GOTO :loop_args
@@ -48,6 +50,7 @@ FOR /f "skip=2 tokens=3,4 delims= " %%d IN (%build_file%) DO (
 )
 
 REM Compile the plug-in and copy it to the server plug-ins dir and our build dir
+SET /a build=%b%+1
 IF %debug%==1 (
     echo ######## Commencing debug build #%build%...
 ) ELSE (
@@ -61,19 +64,22 @@ IF NOT %ERRORLEVEL% == 0 EXIT /b %ERRORLEVEL% ELSE GOTO success_build
 :success_build
 echo ######## Successfully built %gametype%
 
-copy /Y wintox_%gametype%.smx ..\..\plugins > NUL
-copy /Y wintox_%gametype%.smx build\addons\sourcemod\plugins > NUL
-copy /Y wintox_%gametype%.sp build\addons\sourcemod\scripting\wintox > NUL
-copy /Y wintox build\addons\sourcemod\scripting\wintox\wintox > NUL
-copy /Y include build\addons\sourcemod\scripting\ > NUL
+copy /Y wintox_%gametype%.smx ..\..\plugins > NUL 2> NUL
+copy /Y wintox_%gametype%.smx build\addons\sourcemod\plugins > NUL 2> NUL
+copy /Y wintox_%gametype%.sp build\addons\sourcemod\scripting\wintox > NUL 2> NUL
+copy /Y wintox build\addons\sourcemod\scripting\wintox\wintox > NUL 2> NUL
+copy /Y include build\addons\sourcemod\scripting\ > NUL 2> NUL
 
 REM Open version_build.inc, increment the build number, rewrite version_build.inc
-echo ######## Incrementing next build number...
-SET /a build=%b%+1
-echo // The build number is automatically rewritten every build. > %build_file%
-echo #if !defined(WINTOX_VERSION) >> %build_file%
-echo     #define WINTOX_VERSION "%v:~1% %build%" >> %build_file%
-echo #endif >> %build_file%
+IF %increment%==1 (
+    echo ######## Incrementing next build number...
+    IF %increment%==1 ( echo // This file is automatically rewritten every build. > %build_file% )
+    IF %increment%==1 ( echo #if !defined(WINTOX_VERSION) >> %build_file% )
+    IF %increment%==1 ( echo     #define WINTOX_VERSION "%v:~1% %build%" >> %build_file% )
+    IF %increment%==1 ( echo #endif >> %build_file% )
+) ELSE (
+    echo ######## NOT incrementing next build number...
+)
 
 echo ######## Reloading plug-in server-side...
 FOR /f "tokens=1 delims=:" %%d IN ('ping %computername% -4 -n 1 ^| find /i "reply"') DO (
