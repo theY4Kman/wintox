@@ -205,6 +205,8 @@ Timer_Init()
     AddToForward(g_fwdPlayerReachedZone, INVALID_HANDLE, fwd_Timer_OnPlayerReachedZone);
     AddToForward(g_fwdPlayerReachedEnd, INVALID_HANDLE, fwd_Timer_OnPlayerReachedEnd);
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Timer_OnMapLoaded);
+    AddToForward(g_fwdPlayerSwitchedTracks, INVALID_HANDLE, fwd_Timer_OnPlayerSwitchedTracks);
+    AddToForward(g_fwdPlayerEnteredStartZone, INVALID_HANDLE, fwd_Timer_OnPlayerEnteredStartZone);
     
     RegClientCookie(COOKIE_TIMER_ENABLED, "Whether to display the middle (hint text) timer.", CookieAccess_Public);
     RegClientCookie(COOKIE_SIDE_STAGE_INFO_ENABLED, "Whether to display side stage info.", CookieAccess_Public);
@@ -251,6 +253,8 @@ Timer_DeinitPlayer(client)
     g_PointsToChatEnabled[client] = true;
     g_TimerSpeedEnabled[client] = true;
     
+    g_PlayerCurrentZone[client] = INVALID_ZONE;
+    g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentPath[client] = INVALID_PATH;
     g_PlayerCurrentStyle[client] = STYLE_NORMAL;
     g_PlayerEnteredStart[client] = false;
@@ -293,8 +297,9 @@ StopTiming(client)
     g_IsTiming[client] = false;
 }
 
-DisplayTimer(client, is_in_zone)
+DisplayTimer(client)
 {
+    new bool:is_in_zone = g_PlayerCurrentlyInZone[client];
     new track = GetPlayerCurrentTrack(client);
     new zone = GetPlayerCurrentZone(client);
     new style = g_PlayerCurrentStyle[client];
@@ -322,13 +327,13 @@ DisplayTimer(client, is_in_zone)
             PrintHintText(client, "[Disable low gravity to begin timing]");
 #endif
         
-        else if (zone == INVALID_ZONE)
+        else if (!HasPlayerInitiatedTiming(client))
             PrintHintText(client, "[Enter the start zone]");
         
-        else if (is_in_zone && PLAYER_IN_ZONE(client,0) && !TIMER_STARTED(client))
+        else if (is_in_zone && GetPlayerCurrentZone(client) == 0 && !TIMER_STARTED(client))
             PrintHintText(client, "[Leave the start zone]");
         
-        else if (TIMER_STARTED(client))
+        else if (HasPlayerInitiatedTiming(client))
         {
             decl Float:time;
             if (g_CurMapStaged && IS_END_ZONE_T(track, zone) && g_TrackRecords[client][track][style] != INVALID_TRACK_RECORD)
@@ -577,13 +582,31 @@ Timer_DisplayPlusMinus(client)
     g_DisablePlusMinusTimer[client] = CreateTimer(g_DisplayPlusMinusTime, Timer_Callback_DisableDisplayPlusMinus, client);
 }
 
-Timer_PlayerReachedZone(client, track, zone, style)
+Timer_PlayerReachedZone(client, track, zone)
 {
     ZoneTime(client, zone);
-    g_PlayerCurrentPath[client]++;
+    
+    // The player has entered a zone not next in their path; don't count this
+    // as "reaching" the zone (i.e., recording elapsed time and chat notifying)
+    if (g_CurMapStaged && !IsZoneConsecutiveInPlayerPath(client, zone))
+    {
+        new last_zone = GetPlayerCurrentZone(client);
+        // This has to be called after IsZoneConsecutiveInPlayerPath
+        SetPlayerCurrentZone(client, zone, track);
+        
+        // TODO: disable main map timer
+        decl String:stagename[64];
+        GetStageName(track, zone, STR(stagename));
+        
+        Timer_PrintToChat(client, "You've skipped%s to {G}%s{N}. Map completion time will not be recorded. Use {OG}/restart{N} to record.", last_zone > zone ? " back" : "", stagename);
+        return;
+    }
+    
+    SetPlayerCurrentZone(client, zone, track);
     
     Timer_DisplayPlusMinus(client);
     
+    new style = g_PlayerCurrentStyle[client];
     new prev_zone = GetPlayerLastZone(client, 0);
     
     Call_StartForward(g_fwdPlayerReachedZone);
@@ -595,8 +618,9 @@ Timer_PlayerReachedZone(client, track, zone, style)
     Call_Finish();
 }
 
-Timer_PlayerReachedEnd(client, track, style)
+Timer_PlayerReachedEnd(client, track)
 {
+    new style = g_PlayerCurrentStyle[client];
     g_IsTiming[client] = false;
     
     Call_StartForward(g_fwdPlayerReachedEnd);
@@ -613,6 +637,55 @@ public Action:Timer_Callback_DisableDisplayPlusMinus(Handle:timer, any:data)
     g_DisablePlusMinusTimer[data] = INVALID_HANDLE;
     
     return Plugin_Stop;
+}
+
+// Called when the player enters the start zone of their current track
+public fwd_Timer_OnPlayerEnteredStartZone(client, track, zone)
+{
+    /* This callback resets the player's timer if they've re-entered the
+     * start zone of their current track
+     */
+    
+    decl cur_zone;
+    decl bool:did_reset;
+    
+    g_PlayerEnteredStart[client] = true;
+    
+    if (IsRacing(client))
+        return;
+    
+    if (!IsPlayerTiming(client) && !HasPlayerReachedEnd(client))
+        return;
+    
+    cur_zone = GetPlayerCurrentZone(client);
+    if (cur_zone < 0)
+        return;
+    
+    did_reset = HasPlayerInitiatedTiming(client);
+    
+    ResetTimer(client);
+    g_PlayerCurrentTrack[client] = track;
+    
+    if (did_reset)
+        Timer_PrintToChat(client, "Your timer has been {OG}reset{N} by entering the {OG}start zone{N}.");
+}
+
+public fwd_Timer_OnPlayerSwitchedTracks(client, old_track, track)
+{
+    ResetTimer(client);
+    g_PlayerCurrentTrack[client] = track;
+    
+    if (track == 0)
+        Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
+    else
+    {
+        decl String:bonus_name[96];
+        bonus_name[0] = '\0';
+        if (!IS_STR_EMPTY(g_TrackNames[track]))
+            Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
+        
+        Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", track, bonus_name);
+    }
 }
 
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
@@ -1283,7 +1356,7 @@ public Action:ConCommand_Pause(client, args)
 {
     NO_ARGS()
     
-    if (!g_IsTiming[client])
+    if (!IsPlayerTiming(client))
     {
         Timer_Reply(client, "The timer is not running. There's no need to pause.");
         return Plugin_Handled;
@@ -1321,10 +1394,11 @@ public Action:ConCommand_Cp(client, args)
     
     Color_ChatSetSubject(target);
     
-    if (g_IsTiming[target] || IS_FINISHED(target))
+    new bool:is_timing = IsPlayerTiming(client);
+    if (is_timing || IS_FINISHED(target))
     {
         decl Float:relative_from;
-        if (g_IsTiming[target])
+        if (is_timing)
             relative_from = GetEngineTime();
         else
             relative_from = g_StartTimes[target][g_EndZone[g_PlayerCurrentTrack[target]]];
@@ -1334,7 +1408,7 @@ public Action:ConCommand_Cp(client, args)
         new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
         new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
         
-        Timer_PrintToChat(client, g_IsTiming[target] ? "{OG}%s{N} | {T}%N{N} is {R}%02d:%02d:%07.4f{N} into the map with {R}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+        Timer_PrintToChat(client, is_timing ? "{OG}%s{N} | {T}%N{N} is {R}%02d:%02d:%07.4f{N} into the map with {R}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
     }
     else
         Timer_PrintToChat(client, "{T}%N{N} is not currently being timed.", target);
@@ -1594,7 +1668,7 @@ PauseTimer(client)
 // Unpauses the timer, correcting zone times for pause time elapsed
 UnpauseTimer(client)
 {
-    if (g_IsTiming[client])
+    if (IsPlayerTiming(client))
     {
         new Float:pause_time_elapsed = GetEngineTime() - g_PauseStart[client];
         for (new i=0; i<=g_PlayerCurrentZone[client]; i++)
@@ -2502,6 +2576,17 @@ stock GetPlayerLastZone_Path(client, if_invalid=INVALID_ZONE, &save_path)
     return GetPlayerOffsetZone(client, -1, if_invalid, save_path);
 }
 
+// Sets the player's current zone and path
+// If track is INVALID_TRACK, the client's current track is used
+stock SetPlayerCurrentZone(client, zone, track=INVALID_TRACK)
+{
+    if (track == INVALID_TRACK)
+        track = GetPlayerCurrentTrack(client);
+    
+    g_PlayerCurrentZone[client] = zone;
+    g_PlayerCurrentPath[client] = GetPathOfZone(track, zone);
+}
+
 stock bool:IsZoneEndZone(track, zone)
 {
     if (track < 0 || track >= MAX_TRACKS)
@@ -2517,4 +2602,32 @@ stock StartTimer(client)
 {
     g_StartTimes[client][0] = GetEngineTime();
     g_PlayerCurrentPath[client] = 0;
+}
+
+// Returns whether the client's time is currently being recorded (for any purpose)
+stock IsPlayerTiming(client)
+{
+    return g_IsTiming[client];
+}
+
+// Returns whether the client reached the end zone in their latest run
+stock HasPlayerReachedEnd(client)
+{
+    return IS_END_ZONE_T(GetPlayerCurrentTrack(client), GetPlayerCurrentZone(client));
+}
+
+/* Returns whether the client has initiated timing, or the intent to time
+ * (usually by entering a start zone, but possibly by entering a stage on a
+ *  staged map)
+ */
+stock HasPlayerInitiatedTiming(client)
+{
+    // Deliberate direct access from g_PlayerCurrentZone,
+    // as GetPlayerCurrentZone uses paths, so it returns INVALID_ZONE only on error
+    return g_PlayerCurrentZone[client] != INVALID_ZONE;
+}
+
+stock bool:IsZoneConsecutiveInPlayerPath(client, zone)
+{
+    return GetPlayerNextZone(client) == zone;
 }

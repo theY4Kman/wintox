@@ -161,17 +161,17 @@ stock Float:GetPlayerVelocity(client)
 }
 
 #if defined(WINTOX_DEBUG)
-    #define ERROR(%1,%2) { DebugPrintLevel(DEBUG_ERROR, (%1), %2); }
-    #define WARN(%1,%2) { DebugPrintLevel(DEBUG_WARN, (%1), %2); }
-    #define INFO(%1,%2) { DebugPrintLevel(DEBUG_INFO, (%1), %2); }
-    #define DEBUG(%1,%2) { DebugPrintLevel(DEBUG_DEBUG, (%1), %2); }
-    #define CRAZYDBG(%1,%2) { DebugPrintLevel(DEBUG_CRAZYDEBUG, (%1), %2); }
+    #define ERROR(%1) { DebugPrintLevel(DEBUG_ERROR, (1); }
+    #define WARN(%1) { DebugPrintLevel(DEBUG_WARN, %1); }
+    #define INFO(%1) { DebugPrintLevel(DEBUG_INFO, %1); }
+    #define DEBUG(%1) { DebugPrintLevel(DEBUG_DEBUG, %1); }
+    #define CRAZYDBG(%1) { DebugPrintLevel(DEBUG_CRAZYDEBUG, %1); }
 #else
-    #define ERROR(%1,%2) { }
-    #define WARN(%1,%2) { }
-    #define INFO(%1,%2) { }
-    #define DEBUG(%1,%2) { }
-    #define CRAZYDBG(%1,%2) { }
+    #define ERROR(%1) { }
+    #define WARN(%1) { }
+    #define INFO(%1) { }
+    #define DEBUG(%1) { }
+    #define CRAZYDBG(%1) { }
 #endif
 
 stock DebugPrintLevel(level, const String:format[], any:...)

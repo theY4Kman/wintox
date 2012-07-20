@@ -92,8 +92,6 @@ new g_CurMapTier = 1;
 // Default amount of leeway in zone heights, just for good measure. In-game zone creation ain't perfect.
 #define ZONE_HEIGHT_FUDGE 20.0
 
-#define PLAYER_IN_ZONE(%1,%2) (g_PlayerCurrentZone[(%1)] == (%2))
-
 #define CREATE_ZONE_TRACK_PACK() \
     new Handle:pack = CreateDataPack(); \
     WritePackCell(pack, track); \
@@ -111,7 +109,7 @@ new g_CurMapTier = 1;
         return; \
     }
 
-#define IS_TRACK_EMPTY(%1) (g_TrackPath[(%1)][0] == 0)
+#define IS_TRACK_EMPTY(%1) (g_TrackPaths[(%1)][0] == INVALID_ZONE)
 
 #define MAPMODE_NAME(%1) ((%1) ? "staged" : "linear")
 #define MAPMODE_NAME_C(%1) ((%1) ? "Staged" : "Linear")
@@ -136,7 +134,7 @@ new g_ZonesCount[MAX_TRACKS];
 new g_EndZone[MAX_TRACKS];
 
 // Stores the zone indexes in proper order for each track, beginning at the first zone
-// (not the start zone), so g_TrackPaths[][0] will always be 0
+// (not the start zone), so g_TrackPaths[non_empty_track][0] will always be 0
 new g_TrackPaths[MAX_TRACKS][MAX_ZONES];
 // The tier of each track (used for giving points on bonus track completion)
 new g_TrackTier[MAX_TRACKS] = { 1, ... };
@@ -151,6 +149,8 @@ new g_PlayerCurrentTrack[MAXPLAYERS] = { MAIN_TRACK, ... };
 new g_PlayerCurrentPath[MAXPLAYERS] = { INVALID_PATH, ... };
 // Whether the player's origin is currently within the zone set in g_PlayerCurrentZone
 new bool:g_PlayerCurrentlyInZone[MAXPLAYERS] = { false, ... };
+// Whether the player was in a zone last frame
+new bool:g_PlayerWasInZone[MAXPLAYERS] = { false, ... };
 // Whether the player has entered the start zone (since joining or timer reset)
 new bool:g_PlayerEnteredStart[MAXPLAYERS] = { false, ... };
 
@@ -280,6 +280,8 @@ Zone_DeinitPlayer(client)
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentPath[client] = INVALID_PATH;
+    
+    g_PlayerWasInZone[client] = false;
     g_PlayerCurrentlyInZone[client] = false;
     
     g_TrackMenuNext[client] = TRACK_MENU_NEXT_INVALID;

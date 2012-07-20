@@ -21,6 +21,8 @@ new Handle:g_fwdPointsSyncFinished = INVALID_HANDLE;
 new Handle:g_fwdPlayerReachedEnd = INVALID_HANDLE;
 new Handle:g_fwdPlayerReachedZone = INVALID_HANDLE;
 new Handle:g_fwdTextEntryComplete = INVALID_HANDLE;
+new Handle:g_fwdPlayerSwitchedTracks = INVALID_HANDLE;
+new Handle:g_fwdPlayerEnteredStartZone = INVALID_HANDLE;
 
 #include "./wintox/sql"
 #include "./wintox/stocks"
@@ -49,6 +51,14 @@ Events_Init()
     // Called when a player has completed their text entry
     // public(client, const String:text[], any:data)
     g_fwdTextEntryComplete = CreateForward(ET_Ignore, Param_Cell, Param_String, Param_Any);
+    
+    // Called when a player is detected in the start zone of a different track
+    // public(client, old_track, new_track)
+    g_fwdPlayerSwitchedTracks = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+    
+    // Called when a player enters the start zone of their current track
+    // public(client, track, zone)
+    g_fwdPlayerEnteredStartZone = CreateForward(ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
     
 #if defined(WINTOX_BHOP)
     HookEvent("player_jump", Event_PlayerJump);

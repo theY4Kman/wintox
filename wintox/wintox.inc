@@ -236,6 +236,200 @@ public ConVar_MaxPrespeedVelocity(Handle:cvar, const String:oldVal[], const Stri
     g_MaxPrespeedVelocity = GetConVarFloat(cvar);
 }
 
+CheckPlayerInTrackStarts(client)
+{
+    decl Float:origin[3];
+    GetClientAbsOrigin(client, origin);
+    new track = GetPlayerCurrentTrack(client);
+    
+    for (new check_track=0; check_track<MAX_TRACKS; check_track++)
+    {
+        if (IS_TRACK_EMPTY(check_track))
+            continue;
+        
+        if (!PointInZone(origin, check_track, 0))
+            continue;
+        
+        // They've switched tracks
+        if (check_track != track)
+        {
+            Call_StartForward(g_fwdPlayerSwitchedTracks);
+            Call_PushCell(client);
+            Call_PushCell(track);
+            Call_PushCell(check_track);
+            Call_Finish();
+        }
+        else
+        {
+            Call_StartForward(g_fwdPlayerEnteredStartZone);
+            Call_PushCell(client);
+            Call_PushCell(track);
+            Call_PushCell(0);
+            Call_Finish();
+        }
+        
+        return;
+    }
+}
+
+LimitVelocityInZone(client, track, zone)
+{
+    if (zone != 0 && !HAS_FLAG(ZONE_FLAGS[track][zone], ZONE_FLAGS_LIMITVELOCITY))
+        return;
+    
+    // Anti-pre-speed
+    decl Float:velocity[3];
+    Entity_GetAbsVelocity(client, velocity);
+    
+    if (GetVectorLength(velocity) > g_MaxPrespeedVelocity)
+    {
+        NormalizeVector(velocity, velocity);
+        ScaleVector(velocity, g_MaxPrespeedVelocity);
+        Entity_SetAbsVelocity(client, velocity);
+    }
+}
+
+// Fills an array with the zones to be checked for the player to be in
+// Returns the number of zones to check
+GetZonesToCheck(client, track, zones[MAX_ZONES])
+{
+#if defined(WINTOX_SURF)
+#pragma unused client
+    new i = 0;
+    for (new zone=0; zone<g_EndZone[track]; zone++)
+        if (!ZONE_EMPTY_T(track, zone))
+            zones[i++] = zone;
+    
+    return i;
+    
+#else
+    zones[0] = GetPlayerCurrentZone(client);
+    zones[1] = GetPlayerNextZone(client);
+    return 2;
+    
+#endif
+}
+
+// Returns true if a player can be checked for being in the zone
+bool:CanPlayerEnterZone(client, track, zone)
+{
+    // On staged maps, the player can enter ANY stage in the main track
+    if (g_CurMapStaged && track == MAIN_TRACK)
+        return true;
+    
+    // On linear maps, only the current and next zone are checked, so they can 
+    // enter either of those as long as they're timing
+    return HasPlayerInitiatedTiming(client) || zone == 0;
+}
+
+// The player is inside their current zone
+PlayerInCurrentZone(client, track, zone)
+{
+    /* At the moment, the only thing this function tries to do is reset
+     * the player's timer if they're on a staged map
+     */
+    
+    if (!g_CurMapStaged)
+        return;
+    
+    // We only care about them being in their current zone if it's because
+    // they just stepped into it
+    if (g_PlayerWasInZone[client])
+        return;
+    
+    // No reason to reset their timer in end zone... where would they go?
+    if (IS_END_ZONE_T(track, zone))
+        return;
+    
+    SetPlayerCurrentZone(client, zone);
+    ZONE_TIME[client][zone] = 0.0;
+    
+    decl String:stagename[64];
+    GetStageName(track, zone, STR(stagename));
+    Timer_PrintToChat(client, "Your timer has been {OG}reset{N} by re-entering {OG}%s{N}.", stagename);
+}
+
+// Handles a player being inside a zone
+PlayerInZone(client, track, zone)
+{
+    if (zone > 0)
+    {
+        if (GetPlayerCurrentZone(client) != zone)
+        {
+            if (!IsRacing(client))
+                Timer_PlayerReachedZone(client, track, zone);
+            else
+                Race_PlayerReachedZone(client, track, zone);
+        }
+        
+        // Reset the timer if the player goes back to their starting stage
+        else
+            PlayerInCurrentZone(client, track, zone);
+    }
+    
+    LimitVelocityInZone(client, track, zone);
+    
+    // Yeah, you go, player! YOU ROCK!
+    if (IS_END_ZONE_T(track, zone))
+    {
+        if (IsRacing(client))
+            Timer_PlayerReachedEnd(client, track);
+        else if (IsPlayerTiming(client))
+            Race_PlayerReachedEnd(client, track);
+    }
+}
+
+// Called when a player wasn't found to be in a zone
+PlayerNotInZone(client)
+{
+    // Racing handles its own shit, like a boss
+    if (IsRacing(client))
+        return;
+    
+    // We only care about a player not being in a zone when it's because they're 
+    // stepping out of one
+    if (!g_PlayerWasInZone[client])
+        return;
+    
+    // This function modifies the timer; if the client doesn't care about
+    // timing, there's no need to continue
+    if (!HasPlayerInitiatedTiming(client))
+        return;
+    
+    new zone = GetPlayerCurrentZone(client);
+    g_IsTiming[client] = true;
+    
+    // Starting the timer because the player left the start zone
+    if (zone == 0 && g_StartTimes[client][0] == 0.0)
+        StartTimer(client);
+    
+    // Starting the timer because the player left a stage on a staged map
+    else if (g_CurMapStaged && ZONE_TIME[client][zone] == 0.0)
+        ZoneTime(client, zone);
+}
+
+// Checks if the player is in any of the `zones`
+// Returns the zone they're in, or INVALID_ZONE if none
+CheckPlayerInZones(client, track, zones[MAX_ZONES], num_zones)
+{
+    decl Float:origin[3];
+    GetClientAbsOrigin(client, origin);
+    
+    for (new i=0, zone=zones[0]; i<num_zones; i++, zone=zones[i])
+    {
+        if (zone == INVALID_ZONE)
+            continue;
+        
+        if (!CanPlayerEnterZone(client, track, zone))
+            continue;
+        
+        if (PointInZone(origin, track, zone))
+            return zone;
+    }
+    
+    return INVALID_ZONE;
+}
+
 public OnGameFrame()
 {
     g_CurrentTick++;
@@ -248,139 +442,40 @@ public OnGameFrame()
         if (!IS_PLAYING_TEAM(GetClientTeam(client)))
             continue;
         
-        decl Float:origin[3];
-        new bool:is_in_zone = false;
-        
-        GetClientAbsOrigin(client, origin);
-        
-        new track = g_PlayerCurrentTrack[client];
+        CheckPlayerInTrackStarts(client);
+        new track = GetPlayerCurrentTrack(client);
         
         if (!IS_PAUSED(client) && PlayerCanTime(client))
         {
-            for (new check_track=0; check_track<MAX_TRACKS; check_track++)
-            {
-                if (PointInZone(origin, check_track, 0))
-                {
-                    // They've switched tracks
-                    if (check_track != track)
-                    {
-                        ResetTimer(client);
-                        g_PlayerCurrentTrack[client] = check_track;
-                        track = check_track;
-                        
-                        if (check_track == 0)
-                            Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
-                        else
-                        {
-                            decl String:bonus_name[96];
-                            bonus_name[0] = '\0';
-                            if (!IS_STR_EMPTY(g_TrackNames[track]))
-                                Format(STR(bonus_name), " ({OG}%s{N})", g_TrackNames[track]);
-                            
-                            Timer_PrintToChat(client, "You've switched to {G}bonus track %d{N}%s. Your timer has been reset.", check_track, bonus_name);
-                        }
-                    }
-                    else if (((g_PlayerCurrentZone[client] >= 0 && g_IsTiming[client]) || (IS_END_ZONE_T(track,g_PlayerCurrentZone[client])) && g_PlayerCurrentZone[client] > 0) && !IsRacing(client))
-                    {
-                        ResetTimer(client);
-                        g_PlayerCurrentTrack[client] = track;
-                        
-                        if (g_PlayerEnteredStart[client])
-                            Timer_PrintToChat(client, "Your timer has been reset by passing through the start zone.");
-                    }
-                    
-                    break;
-                }
-            }
+            decl zones_to_check[MAX_ZONES];
+            decl num_zones;
+            decl zone_found;
             
-            decl zones_to_check[2];
-            zones_to_check[0] = GetPlayerCurrentZone(client, 0);
-            zones_to_check[1] = GetPlayerNextZone(client);
+            g_PlayerWasInZone[client] = g_PlayerCurrentlyInZone[client];
             
-            for (new i=0; i<sizeof(zones_to_check); i++)
+            num_zones = GetZonesToCheck(client, track, zones_to_check);
+            zone_found = CheckPlayerInZones(client, track, zones_to_check, num_zones);
+            
+            if (zone_found != INVALID_ZONE)
             {
-                new zone = zones_to_check[i];
-                if (zone == INVALID_ZONE)
-                    continue;
+                PlayerInZone(client, track, zone_found);
                 
-                if ((g_PlayerEnteredStart[client] || zone == 0) && PointInZone(origin, track, zone))
-                {
-                    new bool:was_in_zone = g_PlayerCurrentlyInZone[client];
-                    g_PlayerCurrentlyInZone[client] = true;
-                    
-                    if (zone != 0)
-                    {
-                        if (!PLAYER_IN_ZONE(client, zone))
-                        {
-                            if (!IsRacing(client))
-                                Timer_PlayerReachedZone(client, track, zone, g_PlayerCurrentStyle[client]);
-                            else
-                                Race_PlayerReachedZone(client, track, zone);
-                        }
-                        
-                        // Reset the timer if the player goes back to their starting stage
-                        else if (g_CurMapStaged && !IS_END_ZONE_T(track, zone) && ZONE_TIME[client][zone] != 0.0 && !was_in_zone)
-                        {
-                            g_PlayerCurrentZone[client] = zone;
-                            ZONE_TIME[client][zone] = 0.0;
-                            Timer_PrintToChat(client, "Your timer has been reset by passing through a stage.");
-                        }
-                    }
-                    
-                    if (zone == 0 || HAS_FLAG(ZONE_FLAGS[track][zone], ZONE_FLAGS_LIMITVELOCITY))
-                    {
-                        if (zone == 0)
-                            g_PlayerEnteredStart[client] = true;
-                        
-                        // Anti-pre-speed
-                        decl Float:velocity[3];
-                        Entity_GetAbsVelocity(client, velocity);
-                        
-                        if (GetVectorLength(velocity) > g_MaxPrespeedVelocity)
-                        {
-                            NormalizeVector(velocity, velocity);
-                            ScaleVector(velocity, g_MaxPrespeedVelocity);
-                            Entity_SetAbsVelocity(client, velocity);
-                        }
-                    }
-                    
-                    // Yeah, you go, player! YOU ROCK!
-                    if (IS_END_ZONE_T(track, zone) && (g_IsTiming[client] || IsRacing(client)))
-                    {
-                        if (!IsRacing(client))
-                            Timer_PlayerReachedEnd(client, track, g_PlayerCurrentStyle[client]);
-                        else
-                            Race_PlayerReachedEnd(client, track);
-                    }
-                    
-                    is_in_zone = true;
-                    g_PlayerCurrentZone[client] = zone;
-                    break;
-                }
-                else
-                {
-                    if (!IsRacing(client))
-                    {
-                        if (g_PlayerCurrentZone[client] == 0 && g_StartTimes[client][0] == 0.0 && !IsRacing(client))
-                        {
-                            // Start the timer
-                            StartTimer(client);
-                            g_IsTiming[client] = true;
-                        }
-                        else if (g_CurMapStaged && g_PlayerCurrentZone[client] > 0 && ZONE_TIME[client][g_PlayerCurrentZone[client]] == 0.0)
-                            ZONE_TIME[client][g_PlayerCurrentZone[client]] = GetEngineTime();
-                    }
-                    
-                    g_PlayerCurrentlyInZone[client] = false;
-                }
+                g_PlayerCurrentlyInZone[client] = true;
+                SetPlayerCurrentZone(client, zone_found, track);
             }
+            else
+            {
+                g_PlayerCurrentlyInZone[client] = false;
+                PlayerNotInZone(client);
+            }
+            
         }
         
         // Display the timer hint text every other frame
         if (g_CurrentTick % g_TimerDisplaySkipTicks == 0)
         {
             if (g_TimerEnabled[client])
-                DisplayTimer(client, is_in_zone);
+                DisplayTimer(client);
             
             // Actively hide the hint text
             else if (g_SuppressHintText)
