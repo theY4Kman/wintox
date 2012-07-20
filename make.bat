@@ -73,10 +73,7 @@ copy /Y include build\addons\sourcemod\scripting\ > NUL 2> NUL
 REM Open version_build.inc, increment the build number, rewrite version_build.inc
 IF %increment%==1 (
     echo ######## Incrementing next build number...
-    IF %increment%==1 ( echo // This file is automatically rewritten every build. > %build_file% )
-    IF %increment%==1 ( echo #if !defined(WINTOX_VERSION) >> %build_file% )
-    IF %increment%==1 ( echo     #define WINTOX_VERSION "%v:~1% %build%" >> %build_file% )
-    IF %increment%==1 ( echo #endif >> %build_file% )
+    CALL :write_increment
 ) ELSE (
     echo ######## NOT incrementing next build number...
 )
@@ -92,3 +89,14 @@ pushd build
 ..\7za a -y -tzip wintox.zip addons > NUL
 if %ERRORLEVEL% == 0 echo ######## Successfully compressed plugin into build\wintox.zip
 popd
+
+GOTO end
+
+:write_increment
+echo // This file is automatically rewritten every build. > %build_file%
+echo #if !defined(WINTOX_VERSION) >> %build_file%
+echo     #define WINTOX_VERSION "%v:~1% %build%" >> %build_file%
+echo #endif >> %build_file%
+GOTO :EOF
+
+:end
