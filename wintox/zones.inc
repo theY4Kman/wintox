@@ -1590,6 +1590,29 @@ FindTrackPath(track)
     g_TrackPaths[track][next_path] = INVALID_ZONE;
 }
 
+// Gets a name for a zone that can be printed to a player
+GetStageName(track, zone, String:buffer[], maxlength)
+{
+    if (IS_STR_EMPTY(g_ZoneNames[track][zone]))
+    {
+        if (zone == 0)
+            strcopy(buffer, maxlength, "Start");
+        else
+            FormatEx(buffer, maxlength, "Stage %d", zone + 1);
+    }
+    else
+        strcopy(buffer, maxlength, g_ZoneNames[track][zone]);
+}
+
+GetPathOfZone(track, zone)
+{
+    for (new i=0; i<g_EndZone[track]; i++)
+        if (g_TrackPaths[track][i] == zone)
+            return i;
+    
+    return INVALID_PATH;
+}
+
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)
 {
     ResetTimer(client);
@@ -1865,6 +1888,9 @@ Zone_FinishZone(client)
     SetZoneMenuTitle();
     BuildTrackMenu();
     
+    if (track == MAIN_TRACK)
+        RebuildPracticeMenu();
+    
     win_SQL_UpsertZone(zone_id, track);
     win_SQL_ClearZonePoints(zone_id, track);
     win_SQL_InsertZonePoints(zone_id, track);
@@ -1884,6 +1910,9 @@ Zone_RemoveZone(client, zone_id, track=MAIN_TRACK)
     CountTracks();
     BuildTrackMenu();
     
+    if (track == MAIN_TRACK)
+        RebuildPracticeMenu();
+    
     win_SQL_DeleteZone(zone_id, track);
     
     Zone_Reply(client, "Removed zone {T}%d{N} (track {T}%d{N}).", zone_id, track);
@@ -1902,6 +1931,9 @@ Zone_ClearTrack(client, track)
     CountTracks();
     BuildTrackMenu();
     
+    if (track == MAIN_TRACK)
+        RebuildPracticeMenu();
+    
     win_SQL_ClearTrackZonePoints(track);
     win_SQL_ClearTrackZones(track);
     
@@ -1914,6 +1946,7 @@ Zone_ClearAllZones(client)
     
     SetZoneMenuTitle();
     BuildTrackMenu();
+    RebuildPracticeMenu();
     
     win_SQL_ClearAllZonePoints();
     win_SQL_ClearAllZones();

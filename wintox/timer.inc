@@ -97,6 +97,13 @@ new bool:g_IsTiming[MAXPLAYERS] = { false, ... };
 // When the player paused their timer (0.0 for not paused)
 new Float:g_PauseStart[MAXPLAYERS] = { 0.0, ... };
 
+// Whether the player is practicing (i.e. not recording main map time)
+new bool:g_IsPracticing[MAXPLAYERS] = { false, ... };
+// The global handle to the menu listing stages for !practice
+new Handle:g_PracticeMenu = INVALID_HANDLE;
+// The zone the player is currently practicing on
+new g_PracticeZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+
 // Whether to display the timer +/-
 new bool:g_DisplayPlusMinus[MAXPLAYERS] = { false, ... };
 // The style to display for +/-
@@ -187,6 +194,7 @@ Timer_Init()
     RegisterCommand("sm_wrbsw", ConCommand_WrBSW, "sm_wrbsw <bonus #> [<partial map name>] | Shows the current sideways bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current normal stage record holder for the specified stage on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrssw", ConCommand_WrSSW, "sm_wrssw <stage #> [<partial map name>] | Shows the current sideways stage record holder for the specified stage on the specified map (or the current map if none specified).");
+    RegisterCommand("sm_practice", ConCommand_Practice, "sm_practice | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
 #endif
 
 #if defined(WINTOX_DEBUG)
@@ -235,6 +243,8 @@ Timer_DeinitPlayer(client)
     
     g_Jumps[client] = 0;
     g_PauseStart[client] = 0.0;
+    g_IsTiming[client] = false;
+    g_IsPracticing[client] = false;
     
     g_TimerEnabled[client] = true;
     g_SideStageInfoEnabled[client] = true;
@@ -370,7 +380,10 @@ DisplayTimer(client, is_in_zone)
                 }
             }
             
-            SecondsToTimeString(time, STR(sz_time));
+            if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] == 0.0 && is_in_zone)
+                strcopy(STR(sz_time), "<not set>");
+            else
+                SecondsToTimeString(time, STR(sz_time));
             
             new Float:velocity = GetPlayerVelocity(client);
             decl String:sz_speed[32];
@@ -408,27 +421,33 @@ DisplayTimer(client, is_in_zone)
 
             if (g_StartTimes[client][g_EndZone[track]] == 0.0 || (g_CurMapStaged && is_in_zone))
             {
+                decl String:header[64];
+                header[0] = '\0';
+                
+                if (g_IsPracticing[client])
+                    strcopy(STR(header), "[PRACTICE]\n");
+                if (IS_PAUSED(client))
+                    Format(STR(header), "[PAUSED]\n%s", header);
+                
                 if (!g_CurMapStaged || (ZONE_TIME[client][zone] != 0.0 && !is_in_zone))
                     PrintHintText(client, "\
-                        %s\
-                        Time: %s\n\
+                        %sTime: %s\n\
                         Style: %s\n\
                         %s%s%s",
-                    IS_PAUSED(client) ? "[PAUSED]\n" : "", 
+                    header, 
                     sz_time,
                     STYLE_NAMES_C[style],
                     stagename, plus_minus, sz_speed);
                 
                 else
                     PrintHintText(client, "\
-                        [%s]\n\
-                        Stage time: %s\n\
-                        Stage style: %s\
-                        %s%s",
-                    stagename,
+                        %sStage time: %s\n\
+                        Stage style: %s\n\
+                        %s%s%s",
+                    header, 
                     sz_time,
                     STYLE_NAMES_C[g_LastRunZoneStyle[client][zone]],
-                    plus_minus, sz_speed);
+                    stagename, plus_minus, sz_speed);
             }
             else
                 PrintHintText(client, "\
@@ -598,6 +617,9 @@ public Action:Timer_Callback_DisableDisplayPlusMinus(Handle:timer, any:data)
 
 public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, style)
 {
+    if (g_IsPracticing[client])
+        g_PracticeZone[client] = zone_id;
+    
     if (track == MAIN_TRACK && g_ZoneRecords[client][track][zone_id][style] == INVALID_ZONE_RECORD)
     {
         g_PlayerPoints[client] += g_CurMapTier;
@@ -660,6 +682,10 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
 
 public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
 {
+    // We don't record map completion times when practicing
+    if (g_IsPracticing[client])
+        return;
+    
     // On staged maps, we need to make sure the player has completed ALL stages
     // before they can have a map completion. Plus, we need to add up the
     // elapsed times of each zone, because the zone timestamps are non-linear
@@ -1024,6 +1050,86 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
         else
             MenuPlaySelectSound(param1);
     }
+}
+
+Handle:GetPracticeMenu()
+{
+    if (g_PracticeMenu == INVALID_HANDLE)
+        RebuildPracticeMenu();
+    
+    return g_PracticeMenu;
+}
+
+RebuildPracticeMenu()
+{
+    if (g_PracticeMenu != INVALID_HANDLE)
+        CloseHandle(g_PracticeMenu);
+    
+    g_PracticeMenu = CreateMenu(MenuHandler_Practice);
+    SetMenuTitle(g_PracticeMenu, "Select a stage to practice");
+    
+    new bool:has_items_drawn = false;
+    for (new zone=0; zone<g_EndZone[MAIN_TRACK]; zone++)
+    {
+        if (ZONE_EMPTY_T(MAIN_TRACK, zone))
+            continue;
+        
+        decl String:buffer[64];
+        GetStageName(MAIN_TRACK, zone, STR(buffer));
+        
+        decl String:sz_zone[8];
+        IntToString(zone, STR(sz_zone));
+        
+        AddMenuItem(g_PracticeMenu, sz_zone, buffer);
+        has_items_drawn = true;
+    }
+    
+    // Add an item if the menu is empty to prevent crashes
+    if (!has_items_drawn)
+        AddMenuItem(g_PracticeMenu, "", "-");
+}
+
+DisplayPracticeMenu(client)
+{
+    DisplaySubmenu(GetPracticeMenu(), client, MENU_TIME_FOREVER, false);
+}
+
+public MenuHandler_Practice(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:sz_info[8];
+        GetMenuItem(menu, param2, STR(sz_info));
+        
+        if (IS_STR_EMPTY(sz_info))
+            return;
+        
+        decl zone;
+        if (StringToIntEx(sz_info, zone) == 0)
+        {
+            Timer_Reply(param1, "Invalid stage selection. Please try again.");
+            FakeClientCommand(param1, "sm_practice");
+            return;
+        }
+        
+        StartTimer(param1);
+        g_PracticeZone[param1] = zone;
+        g_PlayerEnteredStart[param1] = true;
+        g_PlayerCurrentTrack[param1] = MAIN_TRACK;
+        g_PlayerCurrentZone[param1] = zone;
+        g_PlayerCurrentPath[param1] = GetPathOfZone(MAIN_TRACK, zone);
+        g_IsPracticing[param1] = true;
+        g_IsTiming[param1] = true;
+        
+        ZoneTeleport(param1, zone, MAIN_TRACK);
+        
+        decl String:stagename[64];
+        GetStageName(MAIN_TRACK, zone, STR(stagename));
+        Timer_Reply(param1, "Began practicing on {G}%s{N}, but you may practice on any stage.", stagename);
+        Timer_Reply(param1, "Use {OG}!restart{N} to stop practicing.");
+    }
+    else
+        HANDLE_CANCEL();
 }
 
 
@@ -1437,7 +1543,23 @@ Action:Handle_ConCommand_WrS_WrSSW(client, args, style)
     
     return Plugin_Handled;
 }
-#endif // defined(WINTOX_SURF
+
+public Action:ConCommand_Practice(client, args)
+{
+    NO_ARGS()
+    NO_FAKECLIENTS()
+    
+    if (client == 0)
+    {
+        Timer_Reply(client, "You know you can't practice on the server console, BUB!");
+        return Plugin_Handled;
+    }
+    
+    DisplayPracticeMenu(client);
+    
+    return Plugin_Handled;
+}
+#endif//WINTOX_SURF
 
 
 
@@ -1450,6 +1572,9 @@ ResetTimer(client)
 {
     for (new i=0; i<MAX_ZONES; i++)
         g_StartTimes[client][i] = 0.0;
+    
+    if (g_PracticeZone[client] != INVALID_ZONE && g_PracticeZone[client] != g_PlayerCurrentZone[client])
+        g_IsPracticing[client] = false;
     
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentZone[client] = INVALID_ZONE;
@@ -1851,6 +1976,10 @@ public T_CacheZoneRecords(Handle:owner, Handle:hndl, const String:error[], any:d
         time = SQL_FetchFloat(hndl, 4);
         
         g_ZoneRecords[client][track][zone_id][StyleNameToIndex(stylename)] = time;
+        
+        // More info is always good for a player!
+        if (track == MAIN_TRACK)
+            g_LastRunZoneElapsed[client][zone_id] = time;
     }
 }
 
