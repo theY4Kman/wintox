@@ -35,6 +35,7 @@ new String:DEBUG_NAMES[][] = {
 
 #define IS_STR_EMPTY(%1) ((%1)[0] == '\0')
 #define STR(%1) (%1), sizeof((%1))
+#define MSTR(%1) (%1), maxlength
 
 #define ARRAY(%1)[%2] GetArrayCell((%1), (%2))
 #define ARRAY_SET(%1)[%2]\32=\32%3 SetArrayCell((%1), (%2), (%3))
@@ -203,4 +204,12 @@ stock StringToLower(const String:input[], String:output[], size)
 	}
 
 	output[x] = '\0';
+}
+
+// Lowercases the first word in a string, then prepends another string
+// e.g. PrependCapitals("Time: 00:00", "Stage") -> "Stage time: 00:00"
+// Be damn sure strlen(orig) >= 1
+stock PrependCapitals(const String:orig[], const String:prepend[], String:buffer[], maxlength)
+{
+    Format(MSTR(buffer), "%s %c%s", prepend, CharToLower(orig[0]), orig[1]);
 }

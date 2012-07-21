@@ -15,8 +15,10 @@
 #include "./wintox/sql"
 #include "./wintox/race"
 
-#define INVALID_ZONE_RECORD -1.0
-#define INVALID_TRACK_RECORD -1.0
+#define INVALID_STYLE -1
+#define INVALID_TIME -1.0
+#define INVALID_ZONE_RECORD INVALID_TIME
+#define INVALID_TRACK_RECORD INVALID_TIME
 #define INVALID_POINTS -1
 
 #if defined(WINTOX_BHOP)
@@ -139,6 +141,11 @@ new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
 #define IS_PAUSED(%1) (g_PauseStart[(%1)] != 0.0)
 #define IS_FINISHED(%1) (g_StartTimes[(%1)][g_EndZone[g_PlayerCurrentTrack[(%1)]]] != 0.0)
 
+
+// We include this here so all our constants and vars can be used
+#include "./wintox/timer_display"
+
+
 Timer_Init()
 {
     // PAWN YOU BASTARD
@@ -207,6 +214,25 @@ Timer_Init()
     AddToForward(g_fwdMapLoaded, INVALID_HANDLE, fwd_Timer_OnMapLoaded);
     AddToForward(g_fwdPlayerSwitchedTracks, INVALID_HANDLE, fwd_Timer_OnPlayerSwitchedTracks);
     AddToForward(g_fwdPlayerEnteredStartZone, INVALID_HANDLE, fwd_Timer_OnPlayerEnteredStartZone);
+    
+    /* Contains the callbacks which will test if they're the right display for
+     * the job, then set the correct options. They should return Plugin_Continue
+     * if they can't handle the current case, and Plugin_Stop if they handle it.
+     *
+     * Prototype:
+     *   Action:public(render_client, Handle:opts_trie, TimerItem:template[MAX_TIMER_LINES], &template_size)
+     * Where:
+     *   `render_client` is the client whose timer we're rendering (not who
+     *      it's being displayed to.
+     *   `opts_trie` is a Trie which should contain all necessary arguments and 
+     *      values to render the timer.
+     *   `template` is a byref array which the filter should copy its template
+     *      into.
+     *   `template_size` is a byref cell which should be set to the number of 
+     *      display items inside `template`
+     */
+    g_fwdTimerDisplayFilters = CreateForward(ET_Hook, Param_Cell, Param_Cell, Param_Array, Param_CellByRef);
+    RegisterTimerDisplayFilters();
     
     RegClientCookie(COOKIE_TIMER_ENABLED, "Whether to display the middle (hint text) timer.", CookieAccess_Public);
     RegClientCookie(COOKIE_SIDE_STAGE_INFO_ENABLED, "Whether to display side stage info.", CookieAccess_Public);
@@ -297,7 +323,143 @@ StopTiming(client)
     g_IsTiming[client] = false;
 }
 
-DisplayTimer(client)
+DisplayTimerNotRacing(client, track, zone, style, bool:is_in_zone, const String:stagename[])
+{
+    
+    else if (HasPlayerInitiatedTiming(client))
+    {
+        decl Float:time;
+        if (g_CurMapStaged && IS_END_ZONE_T(track, zone) && g_TrackRecords[client][track][style] != INVALID_TRACK_RECORD)
+            time = g_TrackRecords[client][track][style];
+        if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] != 0.0 && is_in_zone)
+            time = g_LastRunZoneElapsed[client][zone];
+        else
+        {
+            new Float:relative_from = GetEngineTime();
+            new Float:relative_to = g_StartTimes[client][0];
+            if (IS_FINISHED(client))
+                relative_from = g_StartTimes[client][g_EndZone[track]];
+            else if (IS_PAUSED(client))
+                relative_from = g_PauseStart[client];
+            else if (g_CurMapStaged && zone > 0)
+                relative_to = ZONE_TIME[client][zone];
+            
+            time = relative_from - relative_to;
+        }
+        
+        decl String:sz_time[24];
+        
+        decl String:plus_minus[64];
+        plus_minus[0] = '\0';
+        if (g_DisplayPlusMinus[client] && zone >= 1)
+        {
+            decl Float:zone_time;
+            if (!g_CurMapStaged)
+                zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
+            else
+                zone_time = g_LastRunZoneElapsed[client][zone];
+            
+            new pm_style = g_PlusMinusStyle[client];
+            
+            if (g_BestZoneRecords[track][zone][pm_style] != INVALID_ZONE_RECORD)
+            {
+                new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][pm_style];
+                
+                SecondsToTimeString(zone_pm, STR(sz_time), true);
+                Format(STR(plus_minus), "\nZone (%s)", sz_time);
+            }
+            
+            if (g_TrackWorldRecord[track][zone][pm_style] != INVALID_TRACK_RECORD)
+            {
+                new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][pm_style];
+                
+                SecondsToTimeString(wr_pm, STR(sz_time), true);
+                Format(STR(plus_minus), "%s\nTotal (%s)", plus_minus, sz_time);
+            }
+        }
+        
+        if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] == 0.0 && is_in_zone)
+            strcopy(STR(sz_time), "<not set>");
+        else
+            SecondsToTimeString(time, STR(sz_time));
+        
+        new Float:velocity = GetPlayerVelocity(client);
+        decl String:sz_speed[32];
+        sz_speed[0] = '\0';
+        if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
+            Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
+        
+#if defined(WINTOX_BHOP)
+
+        if (g_StartTimes[client][g_EndZone[track]] == 0.0)
+        {
+            
+            PrintHintText(client, "\
+                %s\
+                Time: %s\n\
+                Style: %s\n\
+                %s%s\n\
+                Jumps: %d%s",
+            IS_PAUSED(client) ? "[PAUSED]\n" : "", 
+            sz_time,
+            STYLE_NAMES_C[style],
+            stagename, plus_minus,
+            g_Jumps[client], sz_speed);
+        }
+        else
+            PrintHintText(client, "\
+                Final time: %s\n\
+                Style: %s\n\
+                Jumps: %d",
+            sz_time,
+            STYLE_NAMES_C[style],
+            g_Jumps[client]);
+
+#elseif defined(WINTOX_SURF)
+
+        if (g_StartTimes[client][g_EndZone[track]] == 0.0 || (g_CurMapStaged && is_in_zone))
+        {
+            decl String:header[64];
+            header[0] = '\0';
+            
+            if (g_IsPracticing[client])
+                strcopy(STR(header), "[PRACTICE]\n");
+            if (IS_PAUSED(client))
+                Format(STR(header), "[PAUSED]\n%s", header);
+            
+            if (!g_CurMapStaged || (ZONE_TIME[client][zone] != 0.0 && !is_in_zone))
+                PrintHintText(client, "\
+                    %sTime: %s\n\
+                    Style: %s\n\
+                    %s%s%s",
+                header, 
+                sz_time,
+                STYLE_NAMES_C[style],
+                stagename, plus_minus, sz_speed);
+            
+            else
+                PrintHintText(client, "\
+                    %sStage time: %s\n\
+                    Stage style: %s\n\
+                    %s%s%s",
+                header, 
+                sz_time,
+                STYLE_NAMES_C[g_LastRunZoneStyle[client][zone]],
+                stagename, plus_minus, sz_speed);
+        }
+        else
+            PrintHintText(client, "\
+                %s time: %s\n\
+                Style: %s",
+            g_CurMapStaged ? "Total" : "Final", sz_time,
+            STYLE_NAMES_C[style]);
+
+#endif
+
+    }
+}
+
+stock DisplayTimerOld(client)
 {
     new bool:is_in_zone = g_PlayerCurrentlyInZone[client];
     new track = GetPlayerCurrentTrack(client);
@@ -317,154 +479,14 @@ DisplayTimer(client)
             strcopy(STR(stagename), "Start");
     }
     
-    if (!IsRacing(client))
+    if (g_ClientEditZone[client] != INVALID_ZONE)   
     {
-        if (g_ClientEditZone[client] != INVALID_ZONE)   
-            PrintHintText(client, "[Timer disabled when editing zones]");
-        
-#if defined(WINTOX_BHOP)
-        else if (g_PlayerLowGrav[client])
-            PrintHintText(client, "[Disable low gravity to begin timing]");
-#endif
-        
-        else if (!HasPlayerInitiatedTiming(client))
-            PrintHintText(client, "[Enter the start zone]");
-        
-        else if (is_in_zone && GetPlayerCurrentZone(client) == 0 && !TIMER_STARTED(client))
-            PrintHintText(client, "[Leave the start zone]");
-        
-        else if (HasPlayerInitiatedTiming(client))
-        {
-            decl Float:time;
-            if (g_CurMapStaged && IS_END_ZONE_T(track, zone) && g_TrackRecords[client][track][style] != INVALID_TRACK_RECORD)
-                time = g_TrackRecords[client][track][style];
-            if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] != 0.0 && is_in_zone)
-                time = g_LastRunZoneElapsed[client][zone];
-            else
-            {
-                new Float:relative_from = GetEngineTime();
-                new Float:relative_to = g_StartTimes[client][0];
-                if (IS_FINISHED(client))
-                    relative_from = g_StartTimes[client][g_EndZone[track]];
-                else if (IS_PAUSED(client))
-                    relative_from = g_PauseStart[client];
-                else if (g_CurMapStaged && zone > 0)
-                    relative_to = ZONE_TIME[client][zone];
-                
-                time = relative_from - relative_to;
-            }
-            
-            decl String:sz_time[24];
-            
-            decl String:plus_minus[64];
-            plus_minus[0] = '\0';
-            if (g_DisplayPlusMinus[client] && zone >= 1)
-            {
-                decl Float:zone_time;
-                if (!g_CurMapStaged)
-                    zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
-                else
-                    zone_time = g_LastRunZoneElapsed[client][zone];
-                
-                new pm_style = g_PlusMinusStyle[client];
-                
-                if (g_BestZoneRecords[track][zone][pm_style] != INVALID_ZONE_RECORD)
-                {
-                    new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][pm_style];
-                    
-                    SecondsToTimeString(zone_pm, STR(sz_time), true);
-                    Format(STR(plus_minus), "\nZone (%s)", sz_time);
-                }
-                
-                if (g_TrackWorldRecord[track][zone][pm_style] != INVALID_TRACK_RECORD)
-                {
-                    new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][pm_style];
-                    
-                    SecondsToTimeString(wr_pm, STR(sz_time), true);
-                    Format(STR(plus_minus), "%s\nTotal (%s)", plus_minus, sz_time);
-                }
-            }
-            
-            if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] == 0.0 && is_in_zone)
-                strcopy(STR(sz_time), "<not set>");
-            else
-                SecondsToTimeString(time, STR(sz_time));
-            
-            new Float:velocity = GetPlayerVelocity(client);
-            decl String:sz_speed[32];
-            sz_speed[0] = '\0';
-            if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
-                Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
-            
-#if defined(WINTOX_BHOP)
-
-            if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-            {
-                
-                PrintHintText(client, "\
-                    %s\
-                    Time: %s\n\
-                    Style: %s\n\
-                    %s%s\n\
-                    Jumps: %d%s",
-                IS_PAUSED(client) ? "[PAUSED]\n" : "", 
-                sz_time,
-                STYLE_NAMES_C[style],
-                stagename, plus_minus,
-                g_Jumps[client], sz_speed);
-            }
-            else
-                PrintHintText(client, "\
-                    Final time: %s\n\
-                    Style: %s\n\
-                    Jumps: %d",
-                sz_time,
-                STYLE_NAMES_C[style],
-                g_Jumps[client]);
-
-#elseif defined(WINTOX_SURF)
-
-            if (g_StartTimes[client][g_EndZone[track]] == 0.0 || (g_CurMapStaged && is_in_zone))
-            {
-                decl String:header[64];
-                header[0] = '\0';
-                
-                if (g_IsPracticing[client])
-                    strcopy(STR(header), "[PRACTICE]\n");
-                if (IS_PAUSED(client))
-                    Format(STR(header), "[PAUSED]\n%s", header);
-                
-                if (!g_CurMapStaged || (ZONE_TIME[client][zone] != 0.0 && !is_in_zone))
-                    PrintHintText(client, "\
-                        %sTime: %s\n\
-                        Style: %s\n\
-                        %s%s%s",
-                    header, 
-                    sz_time,
-                    STYLE_NAMES_C[style],
-                    stagename, plus_minus, sz_speed);
-                
-                else
-                    PrintHintText(client, "\
-                        %sStage time: %s\n\
-                        Stage style: %s\n\
-                        %s%s%s",
-                    header, 
-                    sz_time,
-                    STYLE_NAMES_C[g_LastRunZoneStyle[client][zone]],
-                    stagename, plus_minus, sz_speed);
-            }
-            else
-                PrintHintText(client, "\
-                    %s time: %s\n\
-                    Style: %s",
-                g_CurMapStaged ? "Total" : "Final", sz_time,
-                STYLE_NAMES_C[style]);
-
-#endif
-
-        }
+        PrintHintText(client, "[Timer disabled when editing zones]");
+        return;
     }
+    
+    if (!IsRacing(client))
+        DisplayTimerNotRacing(client, track, zone, style, is_in_zone, stagename);
     else
     {
         new opponent = g_RaceOpponents[client];
@@ -2620,7 +2642,7 @@ stock HasPlayerReachedEnd(client)
  * (usually by entering a start zone, but possibly by entering a stage on a
  *  staged map)
  */
-stock HasPlayerInitiatedTiming(client)
+stock bool:HasPlayerInitiatedTiming(client)
 {
     // Deliberate direct access from g_PlayerCurrentZone,
     // as GetPlayerCurrentZone uses paths, so it returns INVALID_ZONE only on error
