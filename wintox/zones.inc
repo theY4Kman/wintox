@@ -359,7 +359,12 @@ public fwd_Zone_OnTextEntryComplete(client, const String:text[], any:data)
     if (data == TEXT_ENTRY_ZONE_NAME)
     {
         Zone_SetName(client, text);
-        ResetClientZoneEditMenu(client, g_ClientTitleEditTrack[client], g_ClientTitleEditZone[client]);
+        new zone = g_ClientTitleEditZone[client];
+        ResetClientZoneEditMenu(client, g_ClientTitleEditTrack[client], zone);
+        
+        // The rebuild triggers the Cancel, because technically it's interrupting
+        // the old menu with the new menu. So we set their editing zone again.
+        g_ClientEditZone[client] = zone;
     }
 }
 
