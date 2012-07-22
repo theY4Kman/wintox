@@ -33,6 +33,10 @@ new Float:g_RaceStart[MAXPLAYERS];
 new Float:g_RaceEndElapsed[MAXPLAYERS];
 // The client who won
 new g_RaceWinner[MAXPLAYERS];
+// The style of the player at the end of the race
+new g_RaceEndStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
+// The style of the player at the end of the race
+new g_RaceEndJumps[MAXPLAYERS] = { -1, ... };
 
 // Keeps track of the start index for each client's !rtop panel
 new g_RaceRtopStart[MAXPLAYERS];
@@ -105,7 +109,10 @@ Race_DeinitPlayer(client)
     
     g_RaceStart[client] = 0.0;
     g_Racing[client] = false;
+    
     g_RaceEndElapsed[client] = 0.0;
+    g_RaceEndJumps[client] = -1;
+    g_RaceEndStyle[client] = STYLE_NORMAL;
     
     g_RaceRtopStart[client] = 0;
 }
@@ -699,7 +706,7 @@ StopRace(challenger, challengee, const String:reason[]="")
             strcopy(STR(buffer), "The race has {R}stopped{N}!");
             
             if (!IS_STR_EMPTY(reason))
-                Format(STR(buffer), "%s Reason: {OG}%s", reason);
+                Format(STR(buffer), "%s Reason: {OG}%s", buffer, reason);
             
             Race_PrintToChat(client, "%s", buffer);
         }
@@ -733,13 +740,16 @@ EndRace(winner, loser, challenger, challengee)
     DO_PARTICIPANTS
     {
         g_RaceChallengedBy[client] = 0;
-        g_RaceEndElapsed[client] = win_time;
         g_Racing[client] = false;
         g_RaceWinner[client] = winner;
         g_RaceOpponents[client] = 0;
         g_RaceStart[client] = 0.0;
         
-        ResetTimer(client);
+        g_RaceEndJumps[client] = g_Jumps[client];
+        g_RaceEndStyle[client] = g_PlayerCurrentStyle[client];
+        g_RaceEndElapsed[client] = win_time;
+        
+        ResetTimer(client, false);
     }
 }
 
@@ -818,6 +828,8 @@ Race_PlayerReachedEnd(client, track)
 #pragma unused track
 
     StopTiming(client);
+    
+    g_PlayerCompletedRun[client] = true;
     
     decl challenger, challengee, loser;
     if (g_RaceChallengedBy[client] == 0)

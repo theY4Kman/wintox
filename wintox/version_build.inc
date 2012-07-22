@@ -1,4 +1,4 @@
 // This file is automatically rewritten every build. 
 #if !defined(WINTOX_VERSION) 
-    #define WINTOX_VERSION "0.2dev 743" 
+    #define WINTOX_VERSION "0.2dev 829" 
 #endif 

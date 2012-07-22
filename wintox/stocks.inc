@@ -79,6 +79,8 @@ stock Reply(client, const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 3);
     
+    Color_ChatSetSubject(client);
+    
     if (client != 0)
         Client_PrintToChat(client, false, "[{R}WTX{N}] %s", buffer);
     Client_PrintToConsole(client, "[WTX] %s", buffer);
@@ -93,6 +95,8 @@ stock ReplyTag(client, const String:tag[], const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 4);
     
+    Color_ChatSetSubject(client);
+    
     if (client != 0)
         Client_PrintToChat(client, false, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
     Client_PrintToConsole(client, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
@@ -105,6 +109,8 @@ stock Tag_PrintToChat(client, const String:tag[], const String:format[], any:...
 {
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 4);
+    
+    Color_ChatSetSubject(client);
     
     Client_PrintToChat(client, false, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
 }

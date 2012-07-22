@@ -13,7 +13,6 @@
 #include "./wintox/zones"
 #include "./wintox/menus"
 #include "./wintox/sql"
-#include "./wintox/race"
 
 #define INVALID_STYLE -1
 #define INVALID_TIME -1.0
@@ -76,6 +75,12 @@ new g_PlayerCurrentStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
 new g_LastRunZoneStyle[MAXPLAYERS][MAX_ZONES];
 // Elapsed times for each zone during the player's last run
 new Float:g_LastRunZoneElapsed[MAXPLAYERS][MAX_ZONES];
+// Number of jumps at end of track run
+new g_LastRunJumps[MAXPLAYERS] = { -1, ... };
+
+// Whether the player's state is after finishing a map, but before restarting
+// the timer or entering another zone (on staged maps)
+new bool:g_PlayerCompletedRun[MAXPLAYERS] = { false, ... };
 
 // Best times, in seconds, of each zone (zone 0 will always be 0.0)
 new Float:g_ZoneRecords[MAXPLAYERS][MAX_TRACKS][MAX_ZONES][MAX_STYLES];
@@ -109,7 +114,7 @@ new g_PracticeZone[MAXPLAYERS] = { INVALID_ZONE, ... };
 // Whether to display the timer +/-
 new bool:g_DisplayPlusMinus[MAXPLAYERS] = { false, ... };
 // The style to display for +/-
-new g_PlusMinusStyle[MAXPLAYERS] = { STYLE_NORMAL, ... };
+new g_PlusMinusStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
 
 // Holds the state of wintox_display_plus_minus_time
 new Float:g_DisplayPlusMinusTime = 3.0;
@@ -144,6 +149,7 @@ new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
 
 // We include this here so all our constants and vars can be used
 #include "./wintox/timer_display"
+#include "./wintox/race"
 
 
 Timer_Init()
@@ -258,12 +264,17 @@ Timer_DeinitPlayer(client)
         for (new zone=0; zone<MAX_ZONES; zone++)
         {
             if (track == 0)
+            {
                 g_StartTimes[client][zone] = 0.0;
+                g_LastRunZoneStyle[client][zone] = STYLE_NORMAL;
+                g_LastRunZoneElapsed[client][zone] = 0.0;
+            }
             
             for (new style=0; style<MAX_STYLES; style++)
             {
                 if (zone == 0)
                     g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
+                
                 g_ZoneRecords[client][track][zone][style] = INVALID_ZONE_RECORD;
             }
         }
@@ -283,10 +294,14 @@ Timer_DeinitPlayer(client)
     g_PlayerCurrentTrack[client] = MAIN_TRACK;
     g_PlayerCurrentPath[client] = INVALID_PATH;
     g_PlayerCurrentStyle[client] = STYLE_NORMAL;
+    
+    g_PlayerCompletedRun[client] = false;
     g_PlayerEnteredStart[client] = false;
     
     g_DisplayPlusMinus[client] = false;
     g_PlusMinusStyle[client] = STYLE_NORMAL;
+    
+    g_LastRunJumps[client] = -1;
     
     g_TimerTopStart[client] = 0;
 }
@@ -391,21 +406,6 @@ DisplayTimerNotRacing(client, track, zone, style, bool:is_in_zone, const String:
         
 #if defined(WINTOX_BHOP)
 
-        if (g_StartTimes[client][g_EndZone[track]] == 0.0)
-        {
-            
-            PrintHintText(client, "\
-                %s\
-                Time: %s\n\
-                Style: %s\n\
-                %s%s\n\
-                Jumps: %d%s",
-            IS_PAUSED(client) ? "[PAUSED]\n" : "", 
-            sz_time,
-            STYLE_NAMES_C[style],
-            stagename, plus_minus,
-            g_Jumps[client], sz_speed);
-        }
         else
             PrintHintText(client, "\
                 Final time: %s\n\
@@ -487,110 +487,6 @@ stock DisplayTimerOld(client)
     
     if (!IsRacing(client))
         DisplayTimerNotRacing(client, track, zone, style, is_in_zone, stagename);
-    else
-    {
-        new opponent = g_RaceOpponents[client];
-        
-        decl Float:time;
-        if (g_RaceEndElapsed[client] > 0.0)
-            time = g_RaceEndElapsed[client];
-        else
-            time = GetEngineTime() - g_RaceStart[client];
-        decl String:sz_time[24];
-            
-        decl String:plus_minus[64];
-        plus_minus[0] = '\0';
-        if (g_DisplayPlusMinus[client] && zone >= 1)
-        {
-            decl Float:opponent_pm;
-            if (zone < GetPlayerCurrentZone(opponent))
-            {
-                new Float:zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
-                new Float:opponent_time = g_StartTimes[opponent][zone] - g_StartTimes[opponent][zone-1];
-                
-                opponent_pm = zone_time - opponent_time;
-            }
-            else
-                opponent_pm = MAX(g_StartTimes[opponent][GetPlayerCurrentZone(client, 0)], g_RaceStart[opponent]) - g_StartTimes[client][zone];
-            
-            SecondsToTimeString(opponent_pm, STR(sz_time), true);
-            Format(STR(plus_minus), "\n Opponent (%s)", sz_time);
-        }
-        
-        SecondsToTimeString(time, STR(sz_time));
-        
-        decl String:winner[64];
-        if (IsRaceEnded(client))
-        {
-            if (g_RaceWinner[client] == client)
-                strcopy(STR(winner), "You");
-            else if (IsClientConnected(client))
-                GetClientName(g_RaceWinner[client], STR(winner));
-            else
-                strcopy(STR(winner), "Your opponent");
-        }
-        
-        if (time < 0.0)
-            PrintHintText(client, "\
-                [RACE COUNTDOWN]\n\
-                %s%s",
-            sz_time,
-            (time > -1.0) ? "\nSet..." : ((time > -2.0) ? "\nReady..." : ""));
-        else if (g_RaceEndElapsed[client] == 0.0)
-        {
-#if defined(WINTOX_BHOP)
-            decl String:sz_speed[48];
-            sz_speed[0] = '\0';
-            if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
-                Format(STR(sz_speed), "\nSpeed: %.1f (opp %.1f)", GetPlayerVelocity(client), GetPlayerVelocity(opponent));
-            
-            PrintHintText(client, "\
-                [RACE]\n\
-                Time: %s\n\
-                Style: %s (opp %s)\n\
-                %s%s\n\
-                Jumps: %d (opp %d)%s",
-            sz_time,
-            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            stagename, plus_minus,
-            g_Jumps[client], g_Jumps[opponent], sz_speed);
-
-#elseif defined(WINTOX_SURF)
-            PrintHintText(client, "\
-                [RACE]\n\
-                Time: %s\n\
-                Style: %s (opp %s)\n\
-                %s%s",
-            sz_time,
-            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            stagename, plus_minus);
-#endif
-        }
-        else
-        {
-#if defined(WINTOX_BHOP)
-            PrintHintText(client, "\
-                %s won!\n\
-                Final time: %s\n\
-                Style: %s (opp %s)\n\
-                Jumps: %d (opp %d)",
-            winner,
-            sz_time,
-            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]],
-            g_Jumps[client], g_Jumps[opponent]);
-
-#elseif defined(WINTOX_SURF)
-            PrintHintText(client, "\
-                %s won!\n\
-                Final time: %s\n\
-                Style: %s (opp %s)",
-            winner,
-            sz_time,
-            STYLE_NAMES_C[style], STYLE_NAMES_C[g_PlayerCurrentStyle[opponent]]);
-            
-#endif
-        }
-    }
 }
 
 Timer_DisplayPlusMinus(client)
@@ -615,6 +511,9 @@ Timer_PlayerReachedZone(client, track, zone)
         new last_zone = GetPlayerCurrentZone(client);
         // This has to be called after IsZoneConsecutiveInPlayerPath
         SetPlayerCurrentZone(client, zone, track);
+        
+        ZONE_TIME[client][zone] = 0.0;
+        g_PlayerCompletedRun[client] = false;
         
         // TODO: disable main map timer
         decl String:stagename[64];
@@ -645,6 +544,8 @@ Timer_PlayerReachedEnd(client, track)
     new style = g_PlayerCurrentStyle[client];
     g_IsTiming[client] = false;
     
+    g_PlayerCompletedRun[client] = true;
+    
     Call_StartForward(g_fwdPlayerReachedEnd);
     Call_PushCell(client);
     Call_PushCell(track);
@@ -672,6 +573,7 @@ public fwd_Timer_OnPlayerEnteredStartZone(client, track, zone)
     decl bool:did_reset;
     
     g_PlayerEnteredStart[client] = true;
+    g_PlayerCompletedRun[client] = false;
     
     if (IsRacing(client))
         return;
@@ -696,6 +598,7 @@ public fwd_Timer_OnPlayerSwitchedTracks(client, old_track, track)
 {
     ResetTimer(client);
     g_PlayerCurrentTrack[client] = track;
+    g_PlayerCompletedRun[client] = false;
     
     if (track == 0)
         Timer_PrintToChat(client, "You've switched to the {G}main track{N}. Your timer has been reset.");
@@ -790,18 +693,16 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         ZONE_TIME[client][g_EndZone[track]] = GetEngineTime();
         
         total_time = 0.0;
-        for (new i=1; i<MAX_ZONES; i++)
+        for (new i=1; i<=g_EndZone[track]; i++)
         {
             if (ZONE_EMPTY_T(track, i))
                 continue;
             
+            // TODO: this is fucked. They might have completed the map in different styles
             if (g_ZoneRecords[client][track][i][style] == INVALID_ZONE_RECORD)
                 return;
             
             total_time += g_ZoneRecords[client][track][i][style];
-            
-            if (IS_END_ZONE_T(track, i))
-                break;
         }
     }
     
@@ -1147,7 +1048,7 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
-Handle:GetPracticeMenu()
+stock Handle:GetPracticeMenu()
 {
     if (g_PracticeMenu == INVALID_HANDLE)
         RebuildPracticeMenu();
@@ -1155,7 +1056,7 @@ Handle:GetPracticeMenu()
     return g_PracticeMenu;
 }
 
-RebuildPracticeMenu()
+stock RebuildPracticeMenu()
 {
     if (g_PracticeMenu != INVALID_HANDLE)
         CloseHandle(g_PracticeMenu);
@@ -1184,7 +1085,7 @@ RebuildPracticeMenu()
         AddMenuItem(g_PracticeMenu, "", "-");
 }
 
-DisplayPracticeMenu(client)
+stock DisplayPracticeMenu(client)
 {
     DisplaySubmenu(GetPracticeMenu(), client, MENU_TIME_FOREVER, false);
 }
@@ -1664,7 +1565,8 @@ public Action:ConCommand_Practice(client, args)
    ======================================================================== */
 
 // Resets all the zone times and jumps and sets IsTiming false
-ResetTimer(client)
+// If reset_race is true, also resets race-related vars
+ResetTimer(client, bool:reset_race=true)
 {
     for (new i=0; i<MAX_ZONES; i++)
         g_StartTimes[client][i] = 0.0;
@@ -1676,9 +1578,14 @@ ResetTimer(client)
     g_PlayerCurrentZone[client] = INVALID_ZONE;
     g_PlayerCurrentPath[client] = INVALID_PATH;
     g_PlayerCurrentStyle[client] = MAX_STYLES-1;
+    
     g_PlayerEnteredStart[client] = false;
+    
     g_IsTiming[client] = false;
     g_Jumps[client] = false;
+    
+    if (reset_race)
+        g_RaceEndElapsed[client] = 0.0;
 }
 
 // Pauses the timer, recording the pause time for use in correcting zone times on unpause
@@ -2559,7 +2466,7 @@ stock GetPlayerOffsetZone(client, offset, if_invalid=INVALID_ZONE, &save_path)
     if (path == INVALID_PATH)
     {
         save_path = 0;
-        return 0;
+        return if_invalid;
     }
     
     new offset_path = path + offset;
@@ -2627,7 +2534,7 @@ stock StartTimer(client)
 }
 
 // Returns whether the client's time is currently being recorded (for any purpose)
-stock IsPlayerTiming(client)
+stock bool:IsPlayerTiming(client)
 {
     return g_IsTiming[client];
 }
@@ -2635,7 +2542,7 @@ stock IsPlayerTiming(client)
 // Returns whether the client reached the end zone in their latest run
 stock HasPlayerReachedEnd(client)
 {
-    return IS_END_ZONE_T(GetPlayerCurrentTrack(client), GetPlayerCurrentZone(client));
+    return g_PlayerCompletedRun[client];
 }
 
 /* Returns whether the client has initiated timing, or the intent to time

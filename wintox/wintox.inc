@@ -296,13 +296,14 @@ GetZonesToCheck(client, track, zones[MAX_ZONES])
 #if defined(WINTOX_SURF)
 #pragma unused client
     new i = 0;
-    for (new zone=0; zone<g_EndZone[track]; zone++)
+    for (new zone=0; zone<=g_EndZone[track]; zone++)
         if (!ZONE_EMPTY_T(track, zone))
             zones[i++] = zone;
     
     return i;
     
 #else
+#pragma unused track
     zones[0] = GetPlayerCurrentZone(client);
     zones[1] = GetPlayerNextZone(client);
     return 2;
@@ -352,7 +353,24 @@ PlayerInCurrentZone(client, track, zone)
 // Handles a player being inside a zone
 PlayerInZone(client, track, zone)
 {
-    if (zone > 0)
+    LimitVelocityInZone(client, track, zone);
+    
+    // Yeah, you go, player! YOU ROCK!
+    if (IS_END_ZONE_T(track, zone))
+    {
+        if (g_PlayerCompletedRun[client])
+            return;
+        
+        SetPlayerCurrentZone(client, zone, track);
+        
+        if (IsRacing(client))
+            Race_PlayerReachedEnd(client, track);
+        else if (IsPlayerTiming(client))
+            Timer_PlayerReachedEnd(client, track);
+    }
+    
+    // We also the reached zone signal if the current map is staged
+    else if (zone > 0)
     {
         if (GetPlayerCurrentZone(client) != zone)
         {
@@ -365,17 +383,6 @@ PlayerInZone(client, track, zone)
         // Reset the timer if the player goes back to their starting stage
         else
             PlayerInCurrentZone(client, track, zone);
-    }
-    
-    LimitVelocityInZone(client, track, zone);
-    
-    // Yeah, you go, player! YOU ROCK!
-    if (IS_END_ZONE_T(track, zone))
-    {
-        if (IsRacing(client))
-            Timer_PlayerReachedEnd(client, track);
-        else if (IsPlayerTiming(client))
-            Race_PlayerReachedEnd(client, track);
     }
 }
 
@@ -396,7 +403,7 @@ PlayerNotInZone(client)
     if (!HasPlayerInitiatedTiming(client))
         return;
     
-    new zone = GetPlayerCurrentZone(client);
+    new zone = GetPlayerCurrentZone(client, 0);
     g_IsTiming[client] = true;
     
     // Starting the timer because the player left the start zone
@@ -465,8 +472,8 @@ public OnGameFrame()
             }
             else
             {
-                g_PlayerCurrentlyInZone[client] = false;
                 PlayerNotInZone(client);
+                g_PlayerCurrentlyInZone[client] = false;
             }
             
         }

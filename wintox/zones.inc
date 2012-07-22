@@ -795,17 +795,21 @@ public Action:ConCommand_Teleport(client, args)
     new track = GetPlayerCurrentTrack(client, MAIN_TRACK);
     new zone = GetPlayerCurrentZone(client, 0);
     ZoneTeleport(client, zone, track);
+        
+    decl String:stagename[64];
+    GetStageName(track, zone, STR(stagename));
     
     if (zone > 0)
     {
         g_PlayerCurrentZone[client] = zone;
-        Tele_Reply(client, "Teleported to the start of the current stage.");
+        
+        Tele_Reply(client, "Teleported to the start of the {OG}current stage{N} ({G}%s{N}).", stagename);
     }
     else
     {
         ResetTimer(client);
         g_PlayerCurrentZone[client] = -1;
-        Tele_Reply(client, "Teleported to the start zone, resetting your timer.");
+        Tele_Reply(client, "Teleported to the {OG}start zone{N} ({G}%s{N}), resetting your timer.", stagename);
     }
     
     return Plugin_Handled;
@@ -825,17 +829,21 @@ public Action:ConCommand_GoBack(client, args)
     new track = GetPlayerCurrentTrack(client, MAIN_TRACK);
     new zone = GetPlayerLastZone_Path(client, 0, path);
     ZoneTeleport(client, zone, track);
-
+        
+    decl String:stagename[64];
+    GetStageName(track, zone, STR(stagename));
+    
     if (zone > 0)
     {
         g_PlayerCurrentZone[client] = zone;
-        Tele_Reply(client, "Teleported to the previous stage.");
+        
+        Tele_Reply(client, "Teleported to the {OG}previous stage{N} ({G}%s{N}).", stagename);
     }
     else
     {
         ResetTimer(client);
         g_PlayerCurrentZone[client] = -1;
-        Tele_Reply(client, "Teleported to the start zone, resetting your timer.");
+        Tele_Reply(client, "Teleported to the {OG}start zone{N} ({G}%s{N}), resetting your timer.", stagename);
     }
     
     // Set our path to its new, correct value
@@ -1119,7 +1127,7 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
             new track = g_ZonesCount[g_TrackMenuSelected[param1]];
             if (track == 0)
             {
-                PrintToChat(param1, "There are no zones in track %d to delete!", track);
+                Zone_Reply(param1, "There are no zones in track %d to delete!", track);
                 DisplayMenu(menu, param1, MENU_TIME_FOREVER);
                 return;
             }
@@ -1130,14 +1138,14 @@ public MenuHandler_TrackIndex(Handle:menu, MenuAction:action, param1, param2)
             SetMenuExitBackButton(zone_id_submenu, true);
             SetMenuTitle(zone_id_submenu, "Select a zone index to remove");
             
-            for (new i=0; i<MAX_ZONES; i++)
+            for (new i=0; i<=g_EndZone[track]; i++)
             {
                 decl String:buffer[32];
                 
-                if (ZONE_POINTS_T[g_ZonesCount[track]][i] == 0)
+                if (ZONE_EMPTY_T(track, i))
                     continue;
                 
-                Format(STR(buffer), "%d (%s)", i, g_ZoneNames[track][i]);
+                FormatEx(STR(buffer), "%d (%s)", i, g_ZoneNames[track][i]);
                 AddMenuItem(zone_id_submenu, buffer, buffer);
             }
             
@@ -1598,7 +1606,9 @@ GetStageName(track, zone, String:buffer[], maxlength)
     if (IS_STR_EMPTY(g_ZoneNames[track][zone]))
     {
         if (zone == 0)
-            strcopy(buffer, maxlength, "Start");
+            strcopy(MSTR(buffer), "Start");
+        else if (IsZoneEndZone(track, zone))
+            strcopy(MSTR(buffer), "End");
         else
             FormatEx(buffer, maxlength, "Stage %d", zone + 1);
     }
