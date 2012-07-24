@@ -196,6 +196,7 @@ Timer_Init()
     RegisterCommand("sm_stop", ConCommand_Stop, "sm_stop | Disables the timer until you pass through the start zone.");
     RegisterCommand("sm_respawn", ConCommand_Respawn, "sm_respawn | If you are dead, this respawns you.");
     RegisterCommand("sm_pause", ConCommand_Pause, "sm_pause | Pauses or unpauses you and the timer.");
+    RegisterCommand("sm_unpause", ConCommand_Unpause, "sm_unpause | Unpauses you and the timer.");
     RegisterCommand("sm_top", ConCommand_Top, "sm_top [<partial map name>] | Shows the top normal style times for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wr", ConCommand_Wr, "sm_wr [<partial map name>] | Shows the current normal world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_rank", ConCommand_Rank, "sm_rank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map.");
@@ -1067,7 +1068,8 @@ public Action:ConCommand_Stop(client, args)
     }
     
     ResetTimer(client);
-    Timer_Reply(client, "Stopped timer. Pass through the {T}start zone{N} to restart it.");
+    
+    Timer_Reply(client, "Stopped timer. Pass through the {T}start zone{N}%s to restart it.", g_CurMapStaged ? " or a {T}stage{N}" : "");
     
     return Plugin_Handled;
 }
@@ -1105,12 +1107,7 @@ public Action:ConCommand_Pause(client, args)
     }
     
     if (IS_PAUSED(client))
-    {
-        UnpauseTimer(client);
-        SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
-        
-        Timer_Reply(client, "Unpaused timer and your movement.");
-    }
+        UnpauseTimerMovetypeAndNotify(client);
     else
     {
         PauseTimer(client);
@@ -1119,6 +1116,26 @@ public Action:ConCommand_Pause(client, args)
         Timer_Reply(client, "Paused timer and your movement.");
     }
     
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Unpause(client, args)
+{
+    NO_ARGS()
+    
+    if (!IsPlayerTiming(client))
+    {
+        Timer_Reply(client, "The timer is not running. There's no need to unpause.");
+        return Plugin_Handled;
+    }
+    
+    if (!IS_PAUSED(client))
+    {
+        Timer_Reply(client, "Your timer is not paused.");
+        return Plugin_Handled;
+    }
+    
+    UnpauseTimerMovetypeAndNotify(client);
     return Plugin_Handled;
 }
 
@@ -1454,6 +1471,14 @@ UnpauseTimer(client)
     }
     
     g_PauseStart[client] = 0.0;
+}
+
+UnpauseTimerMovetypeAndNotify(client)
+{
+    UnpauseTimer(client);
+    SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
+    
+    Timer_Reply(client, "Unpaused timer and your movement.");
 }
 
 // Checks whether the player is allowed to begin timing
