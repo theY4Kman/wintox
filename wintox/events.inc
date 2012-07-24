@@ -376,7 +376,7 @@ public T_GetOrInsertMapInfo(Handle:owner, Handle:hndl, const String:error[], any
         g_CurMapTier = tier;
         g_CurMapStaged = is_staged;
         
-        DEBUG("Loaded map info for %s (ID %d, human \"%s\", tier %d, %sstaged)", mapname, map_id, human_name, tier, is_staged ? "" : "not ")
+        DEBUG("Loaded map info for %s (ID %d, human \"%s\", tier %d, %sstaged)", mapname, map_id, human_name, tier, is_staged ? "" : "not ");
         
         // Fire the wintox_map_loaded forward
         Call_StartForward(g_fwdMapLoaded);
