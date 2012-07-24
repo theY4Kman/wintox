@@ -797,6 +797,12 @@ public Action:ConCommand_Teleport(client, args)
         return Plugin_Handled;
     }
     
+    if (IsRacing(client))
+    {
+        Timer_Reply(client, "You cannot teleport while racing!");
+        return Plugin_Handled;
+    }
+    
     new track = GetPlayerCurrentTrack(client, MAIN_TRACK);
     new zone = GetPlayerCurrentZone(client, 0);
     ZoneTeleport(client, zone, track);
@@ -827,6 +833,12 @@ public Action:ConCommand_GoBack(client, args)
     if (!IsOnPlayingTeam(client))
     {
         Tele_Reply(client, "You are not on a playing team and cannot teleport to the last stage.");
+        return Plugin_Handled;
+    }
+    
+    if (IsRacing(client))
+    {
+        Timer_Reply(client, "You cannot teleport back while racing!");
         return Plugin_Handled;
     }
     

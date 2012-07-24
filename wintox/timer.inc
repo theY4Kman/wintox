@@ -1054,6 +1054,12 @@ public Action:ConCommand_Restart(client, args)
         return Plugin_Handled;
     }
     
+    if (IsRacing(client))
+    {
+        Timer_Reply(client, "You cannot restart while racing!");
+        return Plugin_Handled;
+    }
+    
     RestartAndNotify(client);
     
     return Plugin_Handled;
@@ -1108,6 +1114,12 @@ public Action:ConCommand_Pause(client, args)
         return Plugin_Handled;
     }
     
+    if (IsRacing(client))
+    {
+        Timer_Reply(client, "You cannot pause the timer while racing!");
+        return Plugin_Handled;
+    }
+    
     if (IS_PAUSED(client))
         UnpauseTimerMovetypeAndNotify(client);
     else
@@ -1157,7 +1169,6 @@ public Action:ConCommand_Cp(client, args)
     new bool:is_timing = IsPlayerTiming(target);
     if (ZONE_TIME[target][0] != 0.0 && (is_timing || HasPlayerReachedEnd(target)))
     {
-        decl Float:relative_to;
         decl Float:relative_from;
         
         new zone = GetPlayerCurrentZone(target, 0);
@@ -1417,6 +1428,12 @@ public Action:ConCommand_Practice(client, args)
     if (client == 0)
     {
         Timer_Reply(client, "You know you can't practice on the server console, BUB!");
+        return Plugin_Handled;
+    }
+    
+    if (IsRacing(client))
+    {
+        Timer_Reply(client, "You cannot practice while racing!");
         return Plugin_Handled;
     }
     
