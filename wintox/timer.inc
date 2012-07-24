@@ -208,6 +208,7 @@ Timer_Init()
     RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current normal stage record holder for the specified stage on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrssw", ConCommand_WrSSW, "sm_wrssw <stage #> [<partial map name>] | Shows the current sideways stage record holder for the specified stage on the specified map (or the current map if none specified).");
     RegisterCommand("sm_practice", ConCommand_Practice, "sm_practice | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
+    RegisterCommand("sm_stage", ConCommand_Practice, "sm_stage | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
 #endif
 
 #if defined(WINTOX_DEBUG)
