@@ -208,10 +208,12 @@ Timer_Init()
 #endif
 
 #if defined(WINTOX_BHOP)
-    RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Displays the specified player's elapsed time of their run, type, and jumps.");
+    RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Prints to chat the specified player's elapsed time of their run, style, and jumps.");
     RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
     RegisterCommand("sm_wrw", ConCommand_WrW, "sm_wrw [<partial map name>] | Shows the current W-only world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrsw", ConCommand_WrSW, "sm_wrsw [<partial map name>] | Shows the current sideways world record holder for the specified map (or the current map if none specified).");
+#else
+    RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Prints to chat the player's current elapsed time, style, and stage (if on a staged map).");
 #endif
 
 #if defined(WINTOX_SURF)
@@ -1139,7 +1141,6 @@ public Action:ConCommand_Unpause(client, args)
     return Plugin_Handled;
 }
 
-#if defined(WINTOX_BHOP)
 public Action:ConCommand_Cp(client, args)
 {
     CHECK_ARGS_LOWER(1)
@@ -1153,28 +1154,59 @@ public Action:ConCommand_Cp(client, args)
     
     Color_ChatSetSubject(target);
     
-    new bool:is_timing = IsPlayerTiming(client);
-    if (is_timing || IS_FINISHED(target))
+    new bool:is_timing = IsPlayerTiming(target);
+    if (ZONE_TIME[target][0] != 0.0 && (is_timing || HasPlayerReachedEnd(target)))
     {
+        decl Float:relative_to;
         decl Float:relative_from;
-        if (is_timing)
+        
+        new zone = GetPlayerCurrentZone(target, 0);
+        new track = GetPlayerCurrentTrack(target);
+        new style = GetPlayerCurrentStyle(target);
+        
+        if (g_CurMapStaged && ZONE_TIME[target][0] == 0.0)
+        {
+            Timer_Reply(client, "{T}%N{N} is not being timed for map completion.", target);
+            return Plugin_Handled;
+        }
+        
+        if (IS_PAUSED(target))
+            relative_from = g_PauseStart[target];
+        else if (is_timing)
             relative_from = GetEngineTime();
         else
-            relative_from = g_StartTimes[target][g_EndZone[g_PlayerCurrentTrack[target]]];
+            relative_from = ZONE_TIME[target][g_EndZone[track]];
         
-        new Float:time = relative_from - g_StartTimes[target][0];
-        new hours = RoundToFloor(time) / SECONDS_IN_HOUR;
-        new minutes = (RoundToFloor(time) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE;
-        new Float:seconds = time - (hours * SECONDS_IN_HOUR) - (minutes * SECONDS_IN_MINUTE);
+        decl String:sz_time[32];
+        SecondsToTimeString(relative_from - ZONE_TIME[target][0], STR(sz_time));
         
-        Timer_PrintToChat(client, is_timing ? "{OG}%s{N} | {T}%N{N} is {R}%02d:%02d:%07.4f{N} into the map with {R}%d{N} jump%s." : "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[g_PlayerCurrentStyle[target]], target, hours, minutes, seconds, g_Jumps[target], g_Jumps[target] == 1 ? "" : "s");
+#if defined(WINTOX_BHOP)
+        if (is_timing)
+            Timer_Reply(client, "{OG}%s{N} | {T}%N{N} is%s {R}%s{N} into the map with {R}%d{N} jump%s.", STYLE_NAMES_C[style], target, IS_PAUSED(target) ? " {OG}paused{N} at" : "", sz_time, g_Jumps[target], PLURAL(g_Jumps[target]));
+        else
+            Timer_Reply(client, "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[style], target, sz_time, g_Jumps[target], PLURAL(g_Jumps[target]));
+#else
+        if (is_timing)
+        {
+            decl String:sz_stage[96];
+            sz_stage[0] = '\0';
+            if (g_CurMapStaged)
+            {
+                GetStageName(track, zone, STR(sz_stage));
+                Format(STR(sz_stage), " in {G}%s{N}", sz_stage);
+            }
+            
+            Timer_Reply(client, "{OG}%s{N} | {T}%N{N} is%s {R}%s{N} into the map%s.", STYLE_NAMES_C[style], target, IS_PAUSED(target) ? " {OG}paused{N} at" : "", sz_time, sz_stage);
+        }
+        else
+            Timer_Reply(client, "{OG}%s{N} | {T}%N{N} completed the map in {R}%s{N}.", STYLE_NAMES_C[style], target, sz_time);
+#endif
     }
     else
-        Timer_PrintToChat(client, "{T}%N{N} is not currently being timed.", target);
+        Timer_Reply(client, "{T}%N{N} is not currently being timed.", target);
     
     return Plugin_Handled;
 }
-#endif
 
 public Action:ConCommand_Top(client, args)
 {
@@ -2357,6 +2389,15 @@ stock GetPlayerCurrentPathIndex(client, if_invalid=INVALID_PATH)
         return if_invalid;
     
     return path;
+}
+
+stock GetPlayerCurrentStyle(client, if_invalid=INVALID_STYLE)
+{
+    new style = g_PlayerCurrentStyle[client];
+    if (style < 0 || style >= MAX_STYLES)
+        return if_invalid;
+    
+    return style;
 }
 
 /**
