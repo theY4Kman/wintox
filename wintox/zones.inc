@@ -1332,6 +1332,7 @@ public MenuHandler_SetMapTier(Handle:menu, MenuAction:action, param1, param2)
         Map_SetTier(param1, info[0] - '0');
         
         PrevSubmenu(param1, false);
+        PrevSubmenu(param1, false);
         BuildMapEditMenu();
         DisplaySubmenu(g_ZoneMenu, param1, MENU_TIME_FOREVER, false);
     }
@@ -1348,6 +1349,7 @@ public MenuHandler_SetMapMode(Handle:menu, MenuAction:action, param1, param2)
         GetMenuItem(menu, param2, STR(info));
         Map_SetStaged(param1, info[0] == '1');
         
+        PrevSubmenu(param1, false);
         PrevSubmenu(param1, false);
         BuildMapEditMenu();
         DisplaySubmenu(g_ZoneMenu, param1, MENU_TIME_FOREVER, false);
