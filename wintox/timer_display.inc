@@ -544,15 +544,21 @@ FILTERFUNC(RegularTimerRun)
     zone = GetPlayerCurrentZone(client, 0);
     
     decl Float:relative_to;
+    decl Float:relative_from;
     if (g_CurMapStaged)
         relative_to = ZONE_TIME[client][zone];
     else
         relative_to = ZONE_TIME[client][0];
     
+    if (IS_PAUSED(client))
+        relative_from = g_PauseStart[client];
+    else
+        relative_from = GetEngineTime();
+    
     if (relative_to < g_ClientJoinTime[client])
         SetTrieString(opts, TIMER_OPT_TIME_STRING, "<not set>");
     else
-        SetTrieValue(opts, TIMER_OPT_TIME, GetEngineTime() - relative_to);
+        SetTrieValue(opts, TIMER_OPT_TIME, relative_from - relative_to);
     
     SetTrieValue(opts, TIMER_OPT_TIME_SOURCE, TIME_SOURCE_ZONE_CACHE);
     
@@ -748,8 +754,8 @@ bool:RenderTimerTemplateItem(render_client, Handle:opts, TimerDisplay:item, Time
         case TimerDisplay_Time:
         {
             decl String:sz_time[32];
-            
             sz_time[0] = '\0';
+            
             if(!GetTrieString(opts, TIMER_OPT_TIME_STRING, STR(sz_time)) || IS_STR_EMPTY(sz_time))
             {
                 decl Float:time;
@@ -758,7 +764,11 @@ bool:RenderTimerTemplateItem(render_client, Handle:opts, TimerDisplay:item, Time
                 SecondsToTimeString(time, STR(sz_time));
             }
             
-            FormatEx(MSTR(sz_item), "Time: %s", sz_time);
+            // Add asterisks just to really hammer it into the player they're paused
+            if (IS_PAUSED(render_client))
+                Format(STR(sz_time), "*%s*", sz_time);
+            
+            FormatEx(MSTR(sz_item), "Time: %s", IS_STR_EMPTY(sz_time) ? "<not set>" : sz_time);
         }
         
         case TimerDisplay_Jumps:
