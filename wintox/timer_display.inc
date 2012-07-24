@@ -18,6 +18,11 @@ new Handle:g_fwdTimerDisplayFilters = INVALID_HANDLE;
 #define TIMER_DISPLAY_ITEM_MASK 0x0000ffff
 #define TIMER_DISPLAY_FLAGS_MASK 0xffff0000
 
+// Flags explaining where a time was calculated from
+#define TIME_SOURCE_ANY 0
+#define TIME_SOURCE_DATABASE 1<<0       // Times retrieved from the database
+#define TIME_SOURCE_ZONE_CACHE 1<<1     // From g_StartTimes
+
 #define NO_STYLE_DISPLAY -2
 
 
@@ -34,8 +39,10 @@ new Handle:g_fwdTimerDisplayFilters = INVALID_HANDLE;
 #define TIMER_OPT_RENDER_CLIENT "render_client"
 #define TIMER_OPT_DISPLAY_CLIENT "display_client"
 #define TIMER_OPT_STAGENAME "stagename"
+
 #define TIMER_OPT_TIME "time"
 #define TIMER_OPT_TIME_STRING "timestr"
+#define TIMER_OPT_TIME_SOURCE "time_source"
 
 #define TIMER_OPT_OPPONENT "opponent"
 #define TIMER_OPT_OPP_STYLE "opponent_style"
@@ -541,7 +548,13 @@ FILTERFUNC(RegularTimerRun)
         relative_to = ZONE_TIME[client][zone];
     else
         relative_to = ZONE_TIME[client][0];
-    SetTrieValue(opts, TIMER_OPT_TIME, GetEngineTime() - relative_to);
+    
+    if (relative_to < g_ClientJoinTime[client])
+        SetTrieString(opts, TIMER_OPT_TIME_STRING, "<not set>");
+    else
+        SetTrieValue(opts, TIMER_OPT_TIME, GetEngineTime() - relative_to);
+    
+    SetTrieValue(opts, TIMER_OPT_TIME_SOURCE, TIME_SOURCE_ZONE_CACHE);
     
     RETURN_TEMPLATE(TimerRunning);
 }
@@ -919,6 +932,7 @@ FillTimerDisplayOpts(display_client, render_client, Handle:opts)
     // Time
     SetTrieValue(opts, TIMER_OPT_TIME, INVALID_TIME);
     SetTrieString(opts, TIMER_OPT_TIME_STRING, NULL_STRING);
+    SetTrieValue(opts, TIMER_OPT_TIME_SOURCE, TIME_SOURCE_ANY);
     
     
     // Arbitrary strings

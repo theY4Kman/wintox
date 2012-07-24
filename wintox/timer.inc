@@ -64,6 +64,9 @@
 // GET_TIME without the declarations
 #define GET_TIME_D(%1) SecondsToTime((%1), hours, minutes, seconds)
 
+// The GetEngineTime() value recorded on each player join
+new Float:g_ClientJoinTime[MAXPLAYERS] = { 0.0, ... };
+
 // Timestamps for entering each zone (or for exiting zone 0)
 new Float:g_StartTimes[MAXPLAYERS][MAX_ZONES];
 // Number of jumps in the last attempt
@@ -154,9 +157,15 @@ new bool:g_TimerSpeedEnabled[MAXPLAYERS] = { true, ... };
 
 Timer_Init()
 {
+    new Float:start_time = GetEngineTime();
+    
     // PAWN YOU BASTARD
     for (new client=0; client<MAXPLAYERS; client++)
+    {
+        g_ClientJoinTime[client] = start_time;
+        
         for (new track=0; track<MAX_TRACKS; track++)
+        {
             for (new style=0; style<MAX_STYLES; style++)
             {
                 for (new zone=0; zone<MAX_ZONES; zone++)
@@ -179,6 +188,8 @@ Timer_Init()
                 
                 g_TrackRecords[client][track][style] = INVALID_TRACK_RECORD;
             }
+        }
+    }
     
     RegisterCommand("sm_timer", ConCommand_Timer, "sm_timer | Shows the timer settings menu.");
     RegisterCommand("sm_restart", ConCommand_Restart, "sm_restart | Teleports you to the start zone and resets your timer.");
@@ -280,6 +291,8 @@ Timer_DeinitPlayer(client)
             }
         }
     }
+    
+    g_ClientJoinTime[client] = GetEngineTime();
     
     g_Jumps[client] = 0;
     g_PauseStart[client] = 0.0;

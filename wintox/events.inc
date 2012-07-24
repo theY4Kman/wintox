@@ -162,6 +162,8 @@ public OnClientPutInServer(client)
         LogError("Could not hook WeaponDropPost on %L", client);
     
     QueryClientConVar(client, "fps_max", QueryConVar_FpsMax);
+    
+    g_ClientJoinTime[client] = GetEngineTime();
 }
 
 public OnClientDisconnect(client)
