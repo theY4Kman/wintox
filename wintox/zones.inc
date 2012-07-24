@@ -1336,8 +1336,6 @@ public MenuHandler_SetMapTier(Handle:menu, MenuAction:action, param1, param2)
         BuildMapEditMenu();
         DisplaySubmenu(g_ZoneMenu, param1, MENU_TIME_FOREVER, false);
     }
-    else if (action == MenuAction_Cancel)
-        HANDLE_CANCEL();
 }
 
 #if defined(WINTOX_SURF)
@@ -1354,8 +1352,6 @@ public MenuHandler_SetMapMode(Handle:menu, MenuAction:action, param1, param2)
         BuildMapEditMenu();
         DisplaySubmenu(g_ZoneMenu, param1, MENU_TIME_FOREVER, false);
     }
-    else if (action == MenuAction_Cancel)
-        HANDLE_CANCEL();
 }
 #endif//WINTOX_SURF
 
