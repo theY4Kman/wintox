@@ -786,7 +786,7 @@ bool:RenderTimerTemplateItem(render_client, Handle:opts, TimerDisplay:item, Time
     if (HAS_FLAG(flags, DisplayFlag_Brackets))
         Format(MSTR(sz_item), "[%s]", sz_item);
     
-    if (!HAS_FLAG(flags, DisplayFlag_NoNewline) && !is_last)
+    if (!HAS_FLAG(flags, DisplayFlag_NoNewline) && !is_last && !IS_STR_EMPTY(sz_item))
         Format(MSTR(sz_item), "%s\n", sz_item);
     
     return true;
