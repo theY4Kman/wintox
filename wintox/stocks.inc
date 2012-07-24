@@ -56,7 +56,7 @@ new String:DEBUG_NAMES[][] = {
 #define ADD_FLAG(%1,%2) ((%1) | (%2))
 #define SET_ADD_FLAG(%1,%2) (%1) = ADD_FLAG(%1,%2)
 
-stock void;
+stock void() { }
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
