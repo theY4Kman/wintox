@@ -56,6 +56,7 @@ new String:DEBUG_NAMES[][] = {
 #define ADD_FLAG(%1,%2) ((%1) | (%2))
 #define SET_ADD_FLAG(%1,%2) (%1) = ADD_FLAG(%1,%2)
 
+stock void;
 
 // For debugging stacks
 stock PrintStack(Handle:stack)
@@ -168,17 +169,17 @@ stock Float:GetPlayerVelocity(client)
 }
 
 #if defined(WINTOX_DEBUG)
-    #define ERROR(%1) { DebugPrintLevel(DEBUG_ERROR, (1); }
-    #define WARN(%1) { DebugPrintLevel(DEBUG_WARN, %1); }
-    #define INFO(%1) { DebugPrintLevel(DEBUG_INFO, %1); }
-    #define DEBUG(%1) { DebugPrintLevel(DEBUG_DEBUG, %1); }
-    #define CRAZYDBG(%1) { DebugPrintLevel(DEBUG_CRAZYDEBUG, %1); }
+    #define ERROR(%1) DebugPrintLevel(DEBUG_ERROR, %1)
+    #define WARN(%1) DebugPrintLevel(DEBUG_WARN, %1)
+    #define INFO(%1) DebugPrintLevel(DEBUG_INFO, %1)
+    #define DEBUG(%1) DebugPrintLevel(DEBUG_DEBUG, %1)
+    #define CRAZYDBG(%1) DebugPrintLevel(DEBUG_CRAZYDEBUG, %1)
 #else
-    #define ERROR(%1) { }
-    #define WARN(%1) { }
-    #define INFO(%1) { }
-    #define DEBUG(%1) { }
-    #define CRAZYDBG(%1) { }
+    #define ERROR(%1) void()
+    #define WARN(%1) void()
+    #define INFO(%1) void()
+    #define DEBUG(%1) void()
+    #define CRAZYDBG(%1) void()
 #endif
 
 stock DebugPrintLevel(level, const String:format[], any:...)

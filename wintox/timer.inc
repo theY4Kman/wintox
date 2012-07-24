@@ -339,157 +339,6 @@ StopTiming(client)
     g_IsTiming[client] = false;
 }
 
-DisplayTimerNotRacing(client, track, zone, style, bool:is_in_zone, const String:stagename[])
-{
-    
-    else if (HasPlayerInitiatedTiming(client))
-    {
-        decl Float:time;
-        if (g_CurMapStaged && IS_END_ZONE_T(track, zone) && g_TrackRecords[client][track][style] != INVALID_TRACK_RECORD)
-            time = g_TrackRecords[client][track][style];
-        if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] != 0.0 && is_in_zone)
-            time = g_LastRunZoneElapsed[client][zone];
-        else
-        {
-            new Float:relative_from = GetEngineTime();
-            new Float:relative_to = g_StartTimes[client][0];
-            if (IS_FINISHED(client))
-                relative_from = g_StartTimes[client][g_EndZone[track]];
-            else if (IS_PAUSED(client))
-                relative_from = g_PauseStart[client];
-            else if (g_CurMapStaged && zone > 0)
-                relative_to = ZONE_TIME[client][zone];
-            
-            time = relative_from - relative_to;
-        }
-        
-        decl String:sz_time[24];
-        
-        decl String:plus_minus[64];
-        plus_minus[0] = '\0';
-        if (g_DisplayPlusMinus[client] && zone >= 1)
-        {
-            decl Float:zone_time;
-            if (!g_CurMapStaged)
-                zone_time = g_StartTimes[client][zone] - g_StartTimes[client][zone-1];
-            else
-                zone_time = g_LastRunZoneElapsed[client][zone];
-            
-            new pm_style = g_PlusMinusStyle[client];
-            
-            if (g_BestZoneRecords[track][zone][pm_style] != INVALID_ZONE_RECORD)
-            {
-                new Float:zone_pm = zone_time - g_BestZoneRecords[track][zone][pm_style];
-                
-                SecondsToTimeString(zone_pm, STR(sz_time), true);
-                Format(STR(plus_minus), "\nZone (%s)", sz_time);
-            }
-            
-            if (g_TrackWorldRecord[track][zone][pm_style] != INVALID_TRACK_RECORD)
-            {
-                new Float:wr_pm = zone_time - g_TrackWorldRecord[track][zone][pm_style];
-                
-                SecondsToTimeString(wr_pm, STR(sz_time), true);
-                Format(STR(plus_minus), "%s\nTotal (%s)", plus_minus, sz_time);
-            }
-        }
-        
-        if (g_CurMapStaged && zone > 0 && g_LastRunZoneElapsed[client][zone] == 0.0 && is_in_zone)
-            strcopy(STR(sz_time), "<not set>");
-        else
-            SecondsToTimeString(time, STR(sz_time));
-        
-        new Float:velocity = GetPlayerVelocity(client);
-        decl String:sz_speed[32];
-        sz_speed[0] = '\0';
-        if (g_AllowVelocityDisplay && g_TimerSpeedEnabled[client])
-            Format(STR(sz_speed), "\nSpeed: %.1f", velocity);
-        
-#if defined(WINTOX_BHOP)
-
-        else
-            PrintHintText(client, "\
-                Final time: %s\n\
-                Style: %s\n\
-                Jumps: %d",
-            sz_time,
-            STYLE_NAMES_C[style],
-            g_Jumps[client]);
-
-#elseif defined(WINTOX_SURF)
-
-        if (g_StartTimes[client][g_EndZone[track]] == 0.0 || (g_CurMapStaged && is_in_zone))
-        {
-            decl String:header[64];
-            header[0] = '\0';
-            
-            if (g_IsPracticing[client])
-                strcopy(STR(header), "[PRACTICE]\n");
-            if (IS_PAUSED(client))
-                Format(STR(header), "[PAUSED]\n%s", header);
-            
-            if (!g_CurMapStaged || (ZONE_TIME[client][zone] != 0.0 && !is_in_zone))
-                PrintHintText(client, "\
-                    %sTime: %s\n\
-                    Style: %s\n\
-                    %s%s%s",
-                header, 
-                sz_time,
-                STYLE_NAMES_C[style],
-                stagename, plus_minus, sz_speed);
-            
-            else
-                PrintHintText(client, "\
-                    %sStage time: %s\n\
-                    Stage style: %s\n\
-                    %s%s%s",
-                header, 
-                sz_time,
-                STYLE_NAMES_C[g_LastRunZoneStyle[client][zone]],
-                stagename, plus_minus, sz_speed);
-        }
-        else
-            PrintHintText(client, "\
-                %s time: %s\n\
-                Style: %s",
-            g_CurMapStaged ? "Total" : "Final", sz_time,
-            STYLE_NAMES_C[style]);
-
-#endif
-
-    }
-}
-
-stock DisplayTimerOld(client)
-{
-    new bool:is_in_zone = g_PlayerCurrentlyInZone[client];
-    new track = GetPlayerCurrentTrack(client);
-    new zone = GetPlayerCurrentZone(client);
-    new style = g_PlayerCurrentStyle[client];
-    
-    decl String:stagename[72];
-    stagename[0] = '\0';
-    
-    if (zone >= 0)
-    {
-        if (!IS_STR_EMPTY(g_ZoneNames[track][zone]))
-            strcopy(STR(stagename), g_ZoneNames[track][zone]);
-        else if (zone > 0)
-            Format(STR(stagename), "Stage %d", zone + 1);
-        else
-            strcopy(STR(stagename), "Start");
-    }
-    
-    if (g_ClientEditZone[client] != INVALID_ZONE)   
-    {
-        PrintHintText(client, "[Timer disabled when editing zones]");
-        return;
-    }
-    
-    if (!IsRacing(client))
-        DisplayTimerNotRacing(client, track, zone, style, is_in_zone, stagename);
-}
-
 Timer_DisplayPlusMinus(client)
 {
     // Cancel the last disable +/- timer, so we don't end the +/- prematurely
@@ -516,11 +365,10 @@ Timer_PlayerReachedZone(client, track, zone)
         ZONE_TIME[client][zone] = 0.0;
         g_PlayerCompletedRun[client] = false;
         
-        // TODO: disable main map timer
         decl String:stagename[64];
         GetStageName(track, zone, STR(stagename));
         
-        Timer_PrintToChat(client, "You've skipped%s to {G}%s{N}. Map completion time will not be recorded. Use {OG}/restart{N} to record.", last_zone > zone ? " back" : "", stagename);
+        Timer_PrintToChat(client, "You've skipped%s to {G}%s{N}.", last_zone > zone ? " back" : "", stagename);
         return;
     }
     
@@ -550,7 +398,7 @@ Timer_PlayerReachedEnd(client, track)
     Call_StartForward(g_fwdPlayerReachedEnd);
     Call_PushCell(client);
     Call_PushCell(track);
-    Call_PushFloat(g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0]);
+    Call_PushFloat(GetEngineTime() - g_StartTimes[client][0]);
     Call_PushCell(style);
     Call_Finish();
 }
@@ -684,28 +532,6 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     // We don't record map completion times when practicing
     if (g_IsPracticing[client])
         return;
-    
-    // On staged maps, we need to make sure the player has completed ALL stages
-    // before they can have a map completion. Plus, we need to add up the
-    // elapsed times of each zone, because the zone timestamps are non-linear
-    if (g_CurMapStaged)
-    {
-        // This must be set for the Total time to display in the middle timer
-        ZONE_TIME[client][g_EndZone[track]] = GetEngineTime();
-        
-        total_time = 0.0;
-        for (new i=1; i<=g_EndZone[track]; i++)
-        {
-            if (ZONE_EMPTY_T(track, i))
-                continue;
-            
-            // TODO: this is fucked. They might have completed the map in different styles
-            if (g_ZoneRecords[client][track][i][style] == INVALID_ZONE_RECORD)
-                return;
-            
-            total_time += g_ZoneRecords[client][track][i][style];
-        }
-    }
     
     Client_SetScore(client, Client_GetScore(client) + 1);
     
