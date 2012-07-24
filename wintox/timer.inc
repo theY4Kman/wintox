@@ -207,8 +207,8 @@ Timer_Init()
     RegisterCommand("sm_wrbsw", ConCommand_WrBSW, "sm_wrbsw <bonus #> [<partial map name>] | Shows the current sideways bonus record holder for the specified bonus on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrs", ConCommand_WrS, "sm_wrs <stage #> [<partial map name>] | Shows the current normal stage record holder for the specified stage on the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrssw", ConCommand_WrSSW, "sm_wrssw <stage #> [<partial map name>] | Shows the current sideways stage record holder for the specified stage on the specified map (or the current map if none specified).");
-    RegisterCommand("sm_practice", ConCommand_Practice, "sm_practice | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
-    RegisterCommand("sm_stage", ConCommand_Practice, "sm_stage | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
+    RegisterCommand("sm_practice", ConCommand_Practice, "sm_practice <stage #> | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
+    RegisterCommand("sm_stage", ConCommand_Practice, "sm_stage <stage #> | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
 #endif
 
 #if defined(WINTOX_DEBUG)
@@ -1066,7 +1066,7 @@ stock RebuildPracticeMenu()
     SetMenuTitle(g_PracticeMenu, "Select a stage to practice");
     
     new bool:has_items_drawn = false;
-    for (new zone=0; zone<g_EndZone[MAIN_TRACK]; zone++)
+    for (new zone=1; zone<g_EndZone[MAIN_TRACK]; zone++)
     {
         if (ZONE_EMPTY_T(MAIN_TRACK, zone))
             continue;
@@ -1109,23 +1109,9 @@ public MenuHandler_Practice(Handle:menu, MenuAction:action, param1, param2)
             return;
         }
         
-        StartTimer(param1);
-        g_PracticeZone[param1] = zone;
-        g_PlayerEnteredStart[param1] = true;
-        g_PlayerCurrentTrack[param1] = MAIN_TRACK;
-        g_PlayerCurrentZone[param1] = zone;
-        g_PlayerCurrentPath[param1] = GetPathOfZone(MAIN_TRACK, zone);
-        g_IsPracticing[param1] = true;
-        g_IsTiming[param1] = true;
-        
-        ZoneTeleport(param1, zone, MAIN_TRACK);
-        
-        decl String:stagename[64];
-        GetStageName(MAIN_TRACK, zone, STR(stagename));
-        Timer_Reply(param1, "Began practicing on {G}%s{N}, but you may practice on any stage.", stagename);
-        Timer_Reply(param1, "Use {OG}!restart{N} to stop practicing.");
+        BeginPracticing(param1, zone);
     }
-    else
+    else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
 }
 
@@ -1226,14 +1212,7 @@ public Action:ConCommand_Restart(client, args)
         return Plugin_Handled;
     }
     
-    ResetTimer(client);
-    ZoneTeleport(client, 0);
-    
-    // Clear pause, just in case
-    UnpauseTimer(client);
-    SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
-    
-    Timer_Reply(client, "Reset timer and teleported to start zone.");
+    RestartAndNotify(client);
     
     return Plugin_Handled;
 }
@@ -1531,7 +1510,7 @@ Action:Handle_ConCommand_WrS_WrSSW(client, args, style)
         strcopy(STR(partial), partial[bytes + 1]);
     }
     
-    if (IS_STR_EMPTY(partial) && g_ZonesCount[MAIN_TRACK] <= stage)
+    if (IS_STR_EMPTY(partial) && g_EndZone[MAIN_TRACK] <= stage)
     {
         Timer_Reply(client, "{OG}Stage {G}%d{N} doesn't exist.", stage);
         return Plugin_Handled;
@@ -1544,7 +1523,7 @@ Action:Handle_ConCommand_WrS_WrSSW(client, args, style)
 
 public Action:ConCommand_Practice(client, args)
 {
-    NO_ARGS()
+    CHECK_ARGS_UPPER(1)
     NO_FAKECLIENTS()
     
     if (client == 0)
@@ -1553,7 +1532,37 @@ public Action:ConCommand_Practice(client, args)
         return Plugin_Handled;
     }
     
-    DisplayPracticeMenu(client);
+    if (args == 0)
+    {
+        DisplayPracticeMenu(client);
+        return Plugin_Handled;
+    }
+    
+    decl stage;
+    decl zone;
+    decl String:sz_stage[32];
+    GetCmdArg(1, STR(sz_stage));
+    
+    if (0 == StringToIntEx(sz_stage, stage))
+    {
+        Timer_Reply(client, "\"{G}%s{N}\" is an invalid stage number.", sz_stage);
+        return Plugin_Handled;
+    }
+    
+    zone = stage - 1;
+    if (zone > g_EndZone[MAIN_TRACK] || zone < 0)
+    {
+        Timer_Reply(client, "Stage {G}%d{N} does not exist.", stage);
+        return Plugin_Handled;
+    }
+    
+    if (zone == 0)
+    {
+        RestartAndNotify(client);
+        return Plugin_Handled;
+    }
+    
+    BeginPracticing(client, zone);
     
     return Plugin_Handled;
 }
@@ -1693,6 +1702,44 @@ stock SetTrackWorldRecordCache(client, track, style)
     g_TrackWorldRecord[track][0][style] = g_TrackRecords[client][track][style];
 }
 
+// Puts the client into practice mode at the passed zone
+// Currently, track should only ever be MAIN_TRACK
+stock BeginPracticing(client, zone, track=MAIN_TRACK)
+{
+    StartTimer(client);
+    g_PracticeZone[client] = zone;
+    g_PlayerEnteredStart[client] = true;
+    g_PlayerCurrentTrack[client] = track;
+    g_PlayerCurrentZone[client] = zone;
+    g_PlayerCurrentPath[client] = GetPathOfZone(track, zone);
+    g_IsPracticing[client] = true;
+    g_IsTiming[client] = true;
+    
+    ZoneTeleport(client, zone, track);
+    
+    decl String:stagename[64];
+    GetStageName(track, zone, STR(stagename));
+    Timer_Reply(client, "Began practicing on {G}%s{N}, but you may practice on any stage.", stagename);
+    Timer_Reply(client, "Use {OG}!restart{N} to stop practicing.");
+}
+
+// Resets the player's timer and teleports them to the start zone
+stock RestartPlayer(client)
+{
+    ResetTimer(client);
+    ZoneTeleport(client, 0);
+    
+    // Clear pause, just in case
+    UnpauseTimer(client);
+    SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
+}
+
+// Calls RestartPlayer and gives the player a message telling them wtf happened
+stock RestartAndNotify(client)
+{
+    RestartPlayer(client);
+    Timer_Reply(client, "Reset timer and teleported to start zone.");
+}
 
 
 /* ========================================================================
