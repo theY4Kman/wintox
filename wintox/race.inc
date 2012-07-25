@@ -10,8 +10,19 @@
 #define _wintox_race_included
 
 
+enum RaceType
+{
+    RaceType_Invalid=-1,
+    RaceType_Linear=0,  // Default -- from start zone to end zone on MAIN_TRACK
+    RaceType_Bonus,     // From start zone to end zone, MAIN_TRACK < track < MAX_TRACKS
+    RaceType_Stage      // From one zone to the next on MAIN_TRACK
+};
+
+
 // Whether a player has an outstanding challenge or race
 #define HAS_OUTSTANDING_CHALLENGE(%1) (g_RaceOutstandingChallenges[(%1)] > 0)
+// Loops over the challenger and challengee vars, making them available in `client`
+#define DO_PARTICIPANTS for (new client=challenger, i=-1; i<1; client=i++ ? challengee : challenger)
 
 // Holds state for wintox_race_challenges_amount
 new g_RaceChallengesAmount = 1;
@@ -37,6 +48,16 @@ new g_RaceWinner[MAXPLAYERS];
 new g_RaceEndStyle[MAXPLAYERS] = { DEFAULT_STYLE, ... };
 // The style of the player at the end of the race
 new g_RaceEndJumps[MAXPLAYERS] = { -1, ... };
+
+// Stores the type of race
+new RaceType:g_RaceType[MAXPLAYERS] = { RaceType_Invalid, ... };
+// The track the race is on
+new g_RaceTrack[MAXPLAYERS] = { INVALID_TRACK, ... };
+// The zone the race begins in
+new g_RaceStartZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+// The zone the race will end in (used to check if the race is finished)
+new g_RaceEndZone[MAXPLAYERS] = { INVALID_ZONE, ... };
+
 
 // Keeps track of the start index for each client's !rtop panel
 new g_RaceRtopStart[MAXPLAYERS];
@@ -71,6 +92,10 @@ new String:g_RaceTauntsAccept[][] = {
 Race_Init()
 {
     RegisterCommand("sm_race", ConCommand_Race, "sm_race | Challenge another player to a race!");
+#if defined(WINTOX_SURF)
+    RegisterCommand("sm_srace", ConCommand_SRace, "sm_srace [<stage #>] | Challenge another player to a race on a certain stage.");
+    RegisterCommand("sm_brace", ConCommand_BRace, "sm_brace [<bonus #>] | Challenge another player to a race in a bonus area.");
+#endif
     RegisterCommand("sm_racehide", ConCommand_RaceHide, "sm_racehide | Hide all other players but the other racer");
     RegisterCommand("sm_raceshow", ConCommand_RaceShow, "sm_raceshow | Show all other players (or hide your race opponent if you've run !hide)");
     RegisterCommand("sm_rstats", ConCommand_Rstats, "sm_rstats [<partial player name>] | Show the race wins, losses, and ratio for the specified player (or yours if omitted)");
@@ -101,19 +126,9 @@ Race_DeinitPlayer(client)
     if (IsRacing(client))
         StopRace(client, g_RaceOpponents[client], "Your opponent left!");
     
-    g_RaceOpponents[client] = 0;
-    g_RaceChallengedBy[client] = 0;
-    g_RaceOutstandingChallenges[client] = 0;
+    ResetRaceVars(client);
     
     g_RaceHideOtherPlayers[client] = false;
-    
-    g_RaceStart[client] = 0.0;
-    g_Racing[client] = false;
-    
-    g_RaceEndElapsed[client] = 0.0;
-    g_RaceEndJumps[client] = -1;
-    g_RaceEndStyle[client] = STYLE_NORMAL;
-    
     g_RaceRtopStart[client] = 0;
 }
 
@@ -133,15 +148,150 @@ public ConVar_RaceChallengeTaunts(Handle:cvar, const String:oldVal[], const Stri
 }
 
 
+
+/* ========================================================================
+                              CONCOMMANDS
+   ======================================================================== */
+
+public Action:ConCommand_RaceHide(client, args)
+{
+    NO_ARGS()
+    
+    g_RaceHideOtherPlayers[client] = !g_RaceHideOtherPlayers[client];
+    
+    if (g_RaceHideOtherPlayers[client])
+        Race_Reply(client, "{OG}Hiding{N} all other players, except your race opponent.");
+    else
+        RaceShowHideMessage(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_RaceShow(client, args)
+{
+    NO_ARGS()
+    
+    g_RaceHideOtherPlayers[client] = false;
+    RaceShowHideMessage(client);
+    
+    return Plugin_Handled;
+}
+
 public Action:ConCommand_Race(client, args)
 {
     NO_ARGS()
     NO_FAKECLIENTS()
     
+    g_RaceTrack[client] = MAIN_TRACK;
+    g_RaceStartZone[client] = START_ZONE;
+    g_RaceType[client] = RaceType_Linear;
+    
     RaceMenu(client);
     
     return Plugin_Handled;
 }
+
+#if defined(WINTOX_SURF)
+public Action:ConCommand_SRace(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    NO_FAKECLIENTS()
+    
+    if (0 == g_ZonesCount[MAIN_TRACK] || START_ZONE == g_EndZone[MAIN_TRACK])
+    {
+        Race_Reply(client, "Sorry, there are no stages to race on {OG}:({N}");
+        return Plugin_Handled;
+    }
+    
+    if (args == 1)
+    {
+        decl String:sz_stage[32];
+        decl stage;
+        GetCmdArg(1, STR(sz_stage));
+        
+        if (0 == StringToIntEx(sz_stage, stage))
+        {
+            Race_Reply(client, "\"{G}%s{N}\" is an invalid stage number.", sz_stage);
+            return Plugin_Handled;
+        }
+        
+        new zone = stage - 1;
+        if (zone < START_ZONE || zone > g_EndZone[MAIN_TRACK])
+        {
+            Race_Reply(client, "Stage {G}%d{N} doesn't exist.", stage);
+            return Plugin_Handled;
+        }
+        
+        if (zone == g_EndZone[MAIN_TRACK])
+        {
+            Race_Reply(client, "I'm afraid I can't let you race on the {G}last stage{N}, {OG}Dave{N}.");
+            return Plugin_Handled;
+        }
+        
+        g_RaceTrack[client] = MAIN_TRACK;
+        g_RaceStartZone[client] = zone;
+        g_RaceType[client] = RaceType_Stage;
+        
+        RaceMenu(client);
+        
+        return Plugin_Handled;
+    }
+    
+    RaceStageMenu(client);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_BRace(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    NO_FAKECLIENTS()
+    
+    // TracksCount always counts the main track, so we test for <=1
+    if (g_TracksCount <= 1)
+    {
+        Race_Reply(client, "Sorry, there are no bonuses to race on {OG}:({N}");
+        return Plugin_Handled;
+    }
+    
+    if (args == 1)
+    {
+        decl String:sz_track[32];
+        decl track;
+        GetCmdArg(1, STR(sz_track));
+        
+        if (0 == StringToIntEx(sz_track, track))
+        {
+            Race_Reply(client, "\"{G}%s{N}\" is an invalid bonus number.", sz_track);
+            return Plugin_Handled;
+        }
+        
+        if (track < 0 || track >= MAX_TRACKS)
+        {
+            Race_Reply(client, "Bonus {G}%d{N} doesn't exist.", track);
+            return Plugin_Handled;
+        }
+        
+        if (track == MAIN_TRACK)
+        {
+            Race_Reply(client, "Bonus {G}%d{N} is too extreme for you, and I can't let you race on it.", track);
+            return Plugin_Handled;
+        }
+        
+        g_RaceTrack[client] = track;
+        g_RaceStartZone[client] = START_ZONE;
+        g_RaceType[client] = RaceType_Bonus;
+        
+        RaceMenu(client);
+        
+        return Plugin_Handled;
+    }
+    
+    RaceBonusMenu(client);
+    
+    return Plugin_Handled;
+}
+#endif//WINTOX_SURF
 
 public Action:ConCommand_Rstats(client, args)
 {
@@ -390,53 +540,6 @@ public MenuHandler_Rtop(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
-IsRacing(client)
-{
-    return g_RaceOpponents[g_RaceOpponents[client]] == client;
-}
-
-stock IsRaceStarted(client)
-{
-    return g_Racing[client];
-}
-
-IsRaceEnded(client)
-{
-    return g_RaceEndElapsed[client] > 0.0;
-}
-
-RaceShowHideMessage(client)
-{
-    if (g_HideOtherPlayers[client])
-        Race_Reply(client, "No longer showing your race opponent.");
-    else
-        Race_Reply(client, "{OG}Showing{N} all other players.");
-}
-
-public Action:ConCommand_RaceHide(client, args)
-{
-    NO_ARGS()
-    
-    g_RaceHideOtherPlayers[client] = !g_RaceHideOtherPlayers[client];
-    
-    if (g_RaceHideOtherPlayers[client])
-        Race_Reply(client, "{OG}Hiding{N} all other players, except your race opponent.");
-    else
-        RaceShowHideMessage(client);
-    
-    return Plugin_Handled;
-}
-
-public Action:ConCommand_RaceShow(client, args)
-{
-    NO_ARGS()
-    
-    g_RaceHideOtherPlayers[client] = false;
-    RaceShowHideMessage(client);
-    
-    return Plugin_Handled;
-}
-
 #if defined(WINTOX_DEBUG)
 public Action:ConCommand_ForceChallenge(client, args)
 {
@@ -468,6 +571,159 @@ public Action:ConCommand_ForceChallenge(client, args)
 }
 #endif
 
+
+
+/* ========================================================================
+                                CHALLENGES
+   ======================================================================== */
+
+// The challengee declined a race challenge
+ChallengeeDeclined(challenger, challengee)
+{
+    Color_ChatSetSubject(challenger);
+    Race_PrintToChat(challenger, "{T}%N{N} has {R}declined{N} your race challenge {OG}:({N}", challengee);
+    
+    g_RaceChallengedBy[challengee] = 0;
+}
+
+// The challengee accepted a race challenge
+ChallengeeAccepted(challenger, challengee, RaceType:type, track, start_zone, end_zone)
+{
+    Color_ChatSetSubject(challenger);
+    Race_PrintToChat(challenger, "{T}%N{N} has {R}accepted{N} your race challenge!", challengee);
+    Race_PrintToChatAll("{R}%N{N} challenged {R}%N{N} to a race!", challenger, challengee);
+    
+    g_RaceOpponents[challenger] = challengee;
+    g_RaceOpponents[challengee] = challenger;
+    g_RaceChallengedBy[challengee] = challenger;
+    
+    DO_PARTICIPANTS
+    {
+        g_RaceType[client] = type;
+        g_RaceTrack[client] = track;
+        g_RaceStartZone[client] = start_zone;
+        g_RaceEndZone[client] = end_zone;
+    }
+    
+    InitiateRace(challenger, challengee);
+}
+
+#if defined(WINTOX_SURF)
+RaceStageMenu(client)
+{
+    new Handle:menu = CreateMenu(MenuHandler_RaceStages);
+    SetMenuTitle(menu, "Which stage will you race on?");
+    
+    new bool:items_drawn = false;
+    for (new zone=START_ZONE; zone<g_EndZone[MAIN_TRACK]; zone++)
+    {
+        decl String:sz_item[96];
+        decl String:sz_info[8];
+        
+        if (ZONE_EMPTY_T(MAIN_TRACK, zone))
+            continue;
+        
+        IntToString(zone, STR(sz_info));
+        
+        GetStageName(MAIN_TRACK, zone, STR(sz_item));
+        if (zone == g_PlayerCurrentZone[client])
+            StrCat(STR(sz_item), " (cur)");
+        
+        if (AddMenuItem(menu, sz_info, sz_item))
+            items_drawn = true;
+    }
+    
+    if (!items_drawn)
+        AddMenuItem(menu, "-", "-");
+    
+    DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_RaceStages(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[16];
+        new zone = INVALID_ZONE;
+        
+        GetMenuItem(menu, param2, STR(info));
+        zone = StringToInt(info);
+        
+        if (zone < START_ZONE || zone >= g_EndZone[MAIN_TRACK])
+        {
+            Race_Reply(param1, "Somehow, you chose an invalid stage. Sorry. Try that again.");
+            FakeClientCommand(param1, "sm_srace");
+            return;
+        }
+        
+        g_RaceTrack[param1] = MAIN_TRACK;
+        g_RaceStartZone[param1] = zone;
+        g_RaceType[param1] = RaceType_Stage;
+        
+        RaceMenu(param1);
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
+RaceBonusMenu(client)
+{
+    new Handle:menu = CreateMenu(MenuHandler_RaceBonus);
+    SetMenuTitle(menu, "Which bonus will you race on?");
+    
+    new bool:items_drawn = false;
+    for (new track=FIRST_BONUS_TRACK; track<MAX_TRACKS; track++)
+    {
+        decl String:sz_item[96];
+        decl String:sz_info[8];
+        
+        if (IS_TRACK_EMPTY(track) || TRACK_EMPTY(track))
+            continue;
+        
+        IntToString(track, STR(sz_info));
+        
+        GetTrackName(track, STR(sz_item));
+        if (track == g_PlayerCurrentTrack[client])
+            StrCat(STR(sz_item), " (cur)");
+        
+        if (AddMenuItem(menu, sz_info, sz_item))
+            items_drawn = true;
+    }
+    
+    if (!items_drawn)
+        AddMenuItem(menu, "-", "-");
+    
+    DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_RaceBonus(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[16];
+        new track = INVALID_TRACK;
+        
+        GetMenuItem(menu, param2, STR(info));
+        track = StringToInt(info);
+        
+        if (track <= MAIN_TRACK || track >= MAX_TRACKS || 
+            TRACK_EMPTY(track) || IS_TRACK_EMPTY(track))
+        {
+            Race_Reply(param1, "Somehow, you chose an invalid bonus. Sorry. Try that again.");
+            FakeClientCommand(param1, "sm_brace");
+            return;
+        }
+        
+        g_RaceTrack[param1] = track;
+        g_RaceStartZone[param1] = START_ZONE;
+        g_RaceType[param1] = RaceType_Bonus;
+        
+        RaceMenu(param1);
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+#endif//WINTOX_SURF
 
 // Bring up a menu of all players in the server for the challenger to choose
 // their challengee.
@@ -548,7 +804,11 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
         
         g_RaceChallengedBy[challengee] = param1;
         
-        AskRace(param1, challengee);
+        new RaceType:type = g_RaceType[param1];
+        new track = g_RaceTrack[param1];
+        new start_zone = g_RaceStartZone[param1];
+        
+        AskRace(param1, challengee, type, track, start_zone);
         g_RaceOutstandingChallenges[param1]++;
     }
     else if (action == MenuAction_Cancel)
@@ -556,22 +816,49 @@ public MenuHandler_RaceMenu(Handle:menu, MenuAction:action, param1, param2)
 }
 
 // Show a dialog on the challengee's screen asking to accept or decline the race
-AskRace(challenger, challengee)
+AskRace(challenger, challengee, RaceType:type=RaceType_Linear, track=MAIN_TRACK, zone=START_ZONE)
 {
+    decl Handle:menu;
+    decl end_zone;
+    decl String:sz_userid[8];
+            
+    end_zone = g_EndZone[track];
+    if (type == RaceType_Stage)
+        end_zone = GetPathOffsetZone(track, zone, 1, end_zone);
+    
 #if defined(WINTOX_DEBUG)
     if (IsFakeClient(challengee))
     {
-        ChallengeeAccepted(challenger, challengee);
+        ChallengeeAccepted(challenger, challengee, type, track, zone, end_zone);
         g_RaceOutstandingChallenges[challenger]--;
         return;
     }
 #endif
     
-    new Handle:menu = CreateMenu(MenuHandler_AskRace);
-    SetMenuTitle(menu, "%N has challenged you to a race", challenger);
+    menu = CreateMenu(MenuHandler_AskRace);
+    if (type == RaceType_Bonus)
+    {
+        decl String:track_name[64];
+        GetTrackName(track, STR(track_name));
+        
+        SetMenuTitle(menu, "%N has challenged you to a race on {G}%s{N}", challenger, track_name);
+    }
+    else if (type == RaceType_Stage)
+    {
+        decl String:stagename[64];
+        GetStageName(track, zone, STR(stagename));
+        
+        SetMenuTitle(menu, "%N has challenged you to a race on {G}%s{N}", challenger, stagename);
+    }
+    else
+        SetMenuTitle(menu, "%N has challenged you to a race", challenger);
+    
+    g_RaceType[challengee] = type;
+    g_RaceTrack[challengee] = track;
+    g_RaceStartZone[challengee] = zone;
+    g_RaceEndZone[challengee] = end_zone;
     
     // Add a hidden item containing the challenger's userid
-    decl String:sz_userid[8];
     IntToString(GetClientUserId(challenger), STR(sz_userid));
     AddMenuItem(menu, sz_userid, "", ITEMDRAW_NOTEXT|ITEMDRAW_DISABLED|ITEMDRAW_IGNORE);
     
@@ -611,21 +898,16 @@ public MenuHandler_AskRace(Handle:menu, MenuAction:action, param1, param2)
         else if (strncmp("yes", info, 3) == 0)
         {
             accepted = true;
-            ChallengeeAccepted(challenger, param1);
+            ChallengeeAccepted(challenger, param1, g_RaceType[param1], g_RaceTrack[param1], g_RaceStartZone[param1], g_RaceEndZone[param1]);
         }
         
         if (StrEqual("taunt", info[2]))
         {
-            new num_taunts = 0;
-            if (accepted)
-                num_taunts = sizeof(g_RaceTauntsAccept);
-            else
-                num_taunts = sizeof(g_RaceTauntsDecline);
-            
-            new taunt_idx = GetRandomInt(0, num_taunts-1);
+            decl String:sz_taunt[256];
+            GetRaceRandomTaunt(accepted, STR(sz_taunt));
             
             Color_ChatSetSubject(challenger);
-            Race_PrintToChat(challenger, "{T}%N{N} says: {OG}%s{N}", param1, accepted ? g_RaceTauntsAccept[taunt_idx] : g_RaceTauntsDecline[taunt_idx]);
+            Race_PrintToChat(challenger, "{T}%N{N} says: {OG}%s{N}", param1, sz_taunt);
         }
         
         g_RaceOutstandingChallenges[challenger]--;
@@ -638,7 +920,45 @@ public MenuHandler_AskRace(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
-#define DO_PARTICIPANTS for (new client=challenger, i=-1; i<1; client=i++ ? challengee : challenger)
+
+
+
+/* ========================================================================
+                           RACE MANIPULATION
+   ======================================================================== */
+
+// Resets the vars used in racing players (not settings)
+ResetRaceVars(client)
+{
+    g_RaceOpponents[client] = 0;
+    g_RaceChallengedBy[client] = 0;
+    g_RaceOutstandingChallenges[client] = 0;
+    
+    g_RaceStart[client] = 0.0;
+    g_Racing[client] = false;
+    
+    g_RaceType[client] = RaceType_Invalid;
+    g_RaceTrack[client] = INVALID_TRACK;
+    g_RaceStartZone[client] = INVALID_ZONE;
+    g_RaceEndZone[client] = INVALID_ZONE;
+    
+    g_RaceEndElapsed[client] = 0.0;
+    g_RaceEndJumps[client] = -1;
+    g_RaceEndStyle[client] = STYLE_NORMAL;
+}
+
+// Begin the race!
+StartRace(challenger, challengee)
+{
+    
+    DO_PARTICIPANTS
+    {
+        SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
+        
+        g_RaceStart[client] = GetEngineTime();
+        g_Racing[client] = true;
+    }
+}
 
 // Setup the players at the start zone and begin the countdown timer
 InitiateRace(challenger, challengee)
@@ -653,7 +973,7 @@ InitiateRace(challenger, challengee)
     
     DO_PARTICIPANTS
     {
-        ZoneTeleport(client, 0);
+        ZoneTeleport(client, g_RaceStartZone[client], g_RaceTrack[client]);
         SetEntityMoveType(client, MOVETYPE_NONE);
         
         g_RaceCountdownTimer[client] = timer;
@@ -690,14 +1010,44 @@ public Action:Timer_Callback_RaceCountdown(Handle:timer, Handle:pack)
     return Plugin_Continue;
 }
 
+// End the race gracefully
+EndRace(winner, loser, challenger, challengee)
+{
+    decl Float:win_time;
+    decl String:sz_win_time[32];
+    
+    win_SQL_IncrementPlayerRaceWins(winner);
+    win_SQL_IncrementPlayerRaceLosses(loser);
+    
+    win_time = GetEngineTime() - g_RaceStart[winner];
+    SecondsToTimeString(win_time, STR(sz_win_time));
+    
+    DO_PARTICIPANTS
+    {
+        g_RaceWinner[client] = winner;
+        
+        g_RaceEndJumps[client] = g_Jumps[client];
+        g_RaceEndStyle[client] = g_PlayerCurrentStyle[client];
+        g_RaceEndElapsed[client] = win_time;
+        
+        ResetRaceVars(client);
+        ResetTimer(client, false);
+    }
+    
+    Color_ChatSetSubject(winner);
+#if defined(WINTOX_BHOP)
+    Race_PrintToChatAll("{OG}%s{N} | {T}%N{N} won the race in {G}%s{N} with {G}%d{N} jumps!", GET_STYLE_NAME(g_RaceEndStyle[winner]), winner, sz_win_time, g_RaceEndJumps[winner]);
+#else
+    Race_PrintToChatAll("{OG}%s{N} | {T}%N{N} won the race in {G}%s{N}!", GET_STYLE_NAME(g_RaceEndStyle[winner]), winner, sz_win_time);
+#endif
+}
+
 // Stop a race prematurely
 StopRace(challenger, challengee, const String:reason[]="")
 {
     DO_PARTICIPANTS
     {
-        g_RaceChallengedBy[client] = 0;
-        g_RaceOpponents[client] = 0;
-        
+        ResetRaceVars(client);
         StopTiming(client);
         
         if (IsClientConnected(client))
@@ -706,52 +1056,68 @@ StopRace(challenger, challengee, const String:reason[]="")
             strcopy(STR(buffer), "The race has {R}stopped{N}!");
             
             if (!IS_STR_EMPTY(reason))
-                Format(STR(buffer), "%s Reason: {OG}%s", buffer, reason);
+                Format(STR(buffer), "%s Reason: {OG}%s{N}", buffer, reason);
             
             Race_PrintToChat(client, "%s", buffer);
         }
     }
 }
 
-// Begin the race!
-StartRace(challenger, challengee)
+
+
+
+/* ========================================================================
+                          ZONE DETECTION HANDLING
+   ======================================================================== */
+
+bool:RaceEndConditionsMet(client, track, zone)
 {
-    DO_PARTICIPANTS
-    {
-        SetEntityMoveType(client, MOVETYPE_ISOMETRIC);
-        g_RaceStart[client] = GetEngineTime();
-        g_Racing[client] = true;
-    }
+    return track == g_RaceTrack[client] && zone == g_RaceEndZone[client];
 }
 
-// End the race gracefully
-EndRace(winner, loser, challenger, challengee)
+Race_PlayerReachedZone(client, track, zone)
 {
-    decl String:sz_win_time[16];
-    new Float:win_time = GetEngineTime() - g_RaceStart[winner];
-    SecondsToTimeString(win_time, STR(sz_win_time));
-    
-    Color_ChatSetSubject(winner);
-    Race_PrintToChatAll("{T}%N{N} won the race in {G}%s{N} with {G}%d{N} jumps!", winner, sz_win_time, GetJumps(winner));
-    
-    win_SQL_IncrementPlayerRaceWins(winner);
-    win_SQL_IncrementPlayerRaceLosses(loser);
-    
-    DO_PARTICIPANTS
+    if (RaceEndConditionsMet(client, track, zone))
     {
-        g_RaceChallengedBy[client] = 0;
-        g_Racing[client] = false;
-        g_RaceWinner[client] = winner;
-        g_RaceOpponents[client] = 0;
-        g_RaceStart[client] = 0.0;
-        
-        g_RaceEndJumps[client] = g_Jumps[client];
-        g_RaceEndStyle[client] = g_PlayerCurrentStyle[client];
-        g_RaceEndElapsed[client] = win_time;
-        
-        ResetTimer(client, false);
+        Race_PlayerReachedEnd(client, track);
+        return;
     }
+
+    ZoneTime(client, zone);
+    g_PlayerCurrentPath[client]++;
+    
+    Timer_DisplayPlusMinus(client);
 }
+
+Race_PlayerReachedEnd(client, track)
+{
+// I hate warnings
+#pragma unused track
+
+    StopTiming(client);
+    
+    g_PlayerCompletedRun[client] = true;
+    
+    decl challenger, challengee, loser;
+    if (g_RaceChallengedBy[client] == 0)
+    {
+        challenger = client;
+        loser = challengee = g_RaceOpponents[client];
+    }
+    else
+    {
+        loser = challenger = g_RaceChallengedBy[client];
+        challengee = client;
+    }
+    
+    EndRace(client, loser, challenger, challengee);
+}
+
+
+
+/* ========================================================================
+                                SQL BIZNIZ
+   ======================================================================== */
 
 win_SQL_IncrementPlayerRaceWins(client)
 {
@@ -788,60 +1154,47 @@ win_SQL_IncrementPlayerRaceLosses(client)
 }
 SQLT_HANDLER(IncrementPlayerRaceLosses, "Error incrementing player %L race losses: %s", data)
 
-// The challengee declined a race challenge
-ChallengeeDeclined(challenger, challengee)
+
+
+/* ========================================================================
+                            UTILITY FUNCTIONS
+   ======================================================================== */
+
+stock IsRacing(client)
 {
-    Color_ChatSetSubject(challenger);
-    Race_PrintToChat(challenger, "{T}%N{N} has {R}declined{N} your race challenge {OG}:({N}", challengee);
-    
-    g_RaceChallengedBy[challengee] = 0;
+    return g_RaceOpponents[g_RaceOpponents[client]] == client;
 }
 
-// The challengee accepted a race challenge
-ChallengeeAccepted(challenger, challengee)
+stock IsRaceStarted(client)
 {
-    Color_ChatSetSubject(challenger);
-    Race_PrintToChat(challenger, "{T}%N{N} has {R}accepted{N} your race challenge!", challengee);
-    Race_PrintToChatAll("{R}%N{N} challenged {R}%N{N} to a race!", challenger, challengee);
-    
-    g_RaceOpponents[challenger] = challengee;
-    g_RaceOpponents[challengee] = challenger;
-    g_RaceChallengedBy[challengee] = challenger;
-    
-    InitiateRace(challenger, challengee);
+    return g_Racing[client];
 }
 
-Race_PlayerReachedZone(client, track, zone)
+stock IsRaceEnded(client)
 {
-// I hate warnings
-#pragma unused track
-
-    ZoneTime(client, zone);
-    g_PlayerCurrentPath[client]++;
-    
-    Timer_DisplayPlusMinus(client);
+    return g_RaceEndElapsed[client] > 0.0;
 }
 
-Race_PlayerReachedEnd(client, track)
+stock RaceShowHideMessage(client)
 {
-// I hate warnings
-#pragma unused track
-
-    StopTiming(client);
-    
-    g_PlayerCompletedRun[client] = true;
-    
-    decl challenger, challengee, loser;
-    if (g_RaceChallengedBy[client] == 0)
+    if (g_HideOtherPlayers[client])
     {
-        challenger = client;
-        loser = challengee = g_RaceOpponents[client];
+        Color_ChatSetSubject(g_RaceOpponents[client]);
+        Race_Reply(client, "No longer {OG}showing{N} your {T}race opponent{N}.");
     }
     else
-    {
-        loser = challenger = g_RaceChallengedBy[client];
-        challengee = client;
-    }
-    
-    EndRace(client, loser, challenger, challengee);
+        Race_Reply(client, "{OG}Showing{N} all other players.");
 }
+
+stock GetRaceRandomTaunt(bool:accepted, String:buffer[], maxlength)
+{
+    new num_taunts = 0;
+    if (accepted)
+        num_taunts = sizeof(g_RaceTauntsAccept);
+    else
+        num_taunts = sizeof(g_RaceTauntsDecline);
+    
+    new taunt_idx = GetRandomInt(0, num_taunts-1);
+    return strcopy(MSTR(buffer), accepted ? g_RaceTauntsAccept[taunt_idx] : g_RaceTauntsDecline[taunt_idx]);
+}
+

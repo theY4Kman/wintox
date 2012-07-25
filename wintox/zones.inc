@@ -50,6 +50,8 @@ new g_CurMapTier = 1;
 #define MAX_PATH_LENGTH MAX_ZONES
 
 #define MAIN_TRACK 0
+#define FIRST_BONUS_TRACK 1
+#define START_ZONE 0
 
 #define ZONE_POINT[%1][%2] (g_ZonesCache[MAIN_TRACK][(%1)][(%2)])
 #define ZONE_POINTS[%1] (_:g_ZonesCache[MAIN_TRACK][(%1)][0][0])
@@ -1625,14 +1627,28 @@ GetStageName(track, zone, String:buffer[], maxlength)
     if (IS_STR_EMPTY(g_ZoneNames[track][zone]))
     {
         if (zone == 0)
-            strcopy(MSTR(buffer), "Start");
+            return strcopy(MSTR(buffer), "Start");
         else if (IsZoneEndZone(track, zone))
-            strcopy(MSTR(buffer), "End");
+            return strcopy(MSTR(buffer), "End");
         else
-            FormatEx(buffer, maxlength, "Stage %d", zone + 1);
+            return FormatEx(MSTR(buffer), "Stage %d", zone + 1);
     }
     else
-        strcopy(buffer, maxlength, g_ZoneNames[track][zone]);
+        return strcopy(MSTR(buffer), g_ZoneNames[track][zone]);
+}
+
+// Gets a name for a track that can be printed to a player
+GetTrackName(track, String:buffer[], maxlength)
+{
+    if (IS_STR_EMPTY(g_TrackNames[track]))
+    {
+        if (track == MAIN_TRACK)
+            return strcopy(MSTR(buffer), "Main track");
+        else
+            return FormatEx(MSTR(buffer), "Bonus %d", track);
+    }
+    else
+        return strcopy(MSTR(buffer), g_TrackNames[track]);
 }
 
 GetPathOfZone(track, zone)
@@ -1642,6 +1658,24 @@ GetPathOfZone(track, zone)
             return i;
     
     return INVALID_PATH;
+}
+
+// Gets the zone index at `offset` places from the anchor zone in its path
+stock GetPathOffsetZone(track, zone, offset, if_invalid=INVALID_ZONE)
+{
+    new path = GetPathOfZone(track, zone);
+    if (path == INVALID_PATH)
+        return if_invalid;
+    
+    new path_offs = path + offset;
+    if (path_offs < 0 || path_offs > g_ZonesCount[track])
+        return if_invalid;
+    
+    new zone_offs = g_TrackPaths[track][path_offs];
+    if (zone_offs == INVALID_ZONE)
+        return if_invalid;
+    
+    return zone_offs;
 }
 
 Zone_BeginNewZone(client, zone_id=ZONE_NEXT_NEW_ZONE, track=MAIN_TRACK)

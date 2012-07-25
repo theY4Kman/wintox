@@ -80,10 +80,11 @@ stock Reply(client, const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 3);
     
-    Color_ChatSetSubject(client);
+    if (Color_ChatGetSubject() == CHATCOLOR_NOSUBJECT)
+        Color_ChatSetSubject(client);
     
     if (client != 0)
-        Client_PrintToChat(client, false, "[{R}WTX{N}] %s", buffer);
+        Client_PrintToChat(client, false, "[{G}WTX{N}] %s", buffer);
     Client_PrintToConsole(client, "[WTX] %s", buffer);
 }
 
@@ -96,11 +97,12 @@ stock ReplyTag(client, const String:tag[], const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 4);
     
-    Color_ChatSetSubject(client);
+    if (Color_ChatGetSubject() == CHATCOLOR_NOSUBJECT)
+        Color_ChatSetSubject(client);
     
     if (client != 0)
-        Client_PrintToChat(client, false, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
-    Client_PrintToConsole(client, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
+        Client_PrintToChat(client, false, "{OG}[{G}%s{OG}]{N} %s", tag, buffer);
+    Client_PrintToConsole(client, "{OG}[{G}%s{OG}]{N} %s", tag, buffer);
 }
 
 #define WTX_PrintToChat(%1,%2) Tag_PrintToChat((%1), "WTX", %2)
@@ -111,9 +113,10 @@ stock Tag_PrintToChat(client, const String:tag[], const String:format[], any:...
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 4);
     
-    Color_ChatSetSubject(client);
+    if (Color_ChatGetSubject() == CHATCOLOR_NOSUBJECT)
+        Color_ChatSetSubject(client);
     
-    Client_PrintToChat(client, false, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
+    Client_PrintToChat(client, false, "{OG}[{G}%s{OG}]{N} %s", tag, buffer);
 }
 
 #define Race_PrintToChatAll(%1) Tag_PrintToChatAll("Race", %1)
@@ -123,7 +126,7 @@ stock Tag_PrintToChatAll(const String:tag[], const String:format[], any:...)
     decl String:buffer[1024];
     VFormat(STR(buffer), format, 3);
     
-    Client_PrintToChatAll(false, "{OG}[{R}%s{OG}]{N} %s", tag, buffer);
+    Client_PrintToChatAll(false, "{OG}[{G}%s{OG}]{N} %s", tag, buffer);
 }
 
 stock HideHintText(client)

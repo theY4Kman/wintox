@@ -55,6 +55,8 @@
     };
 #endif
 
+#define GET_STYLE_NAME(%1) (((%1) >= STYLE_NORMAL && (%1) < MAX_STYLES) ? STYLE_NAMES_C[(%1)] : "<none>")
+
 #define SECONDS_IN_MINUTE 60
 #define SECONDS_IN_HOUR (SECONDS_IN_MINUTE*60)
 #define SECONDS_TO_TIME(%1) RoundToFloor(%1) / SECONDS_IN_HOUR, (RoundToFloor(%1) % SECONDS_IN_HOUR) / SECONDS_IN_MINUTE, ((%1) - (RoundToFloor(%1) / SECONDS_IN_MINUTE * SECONDS_IN_MINUTE))
@@ -338,11 +340,6 @@ public ConVar_DisplayPlusMinusTime(Handle:cvar, const String:oldVal[], const Str
 public ConVar_AllowVelocityDisplay(Handle:cvar, const String:oldVal[], const String:newVal[])
 {
     g_AllowVelocityDisplay = GetConVarBool(cvar);
-}
-
-GetJumps(client)
-{
-    return g_Jumps[client];
 }
 
 ZoneTime(client, zone)
