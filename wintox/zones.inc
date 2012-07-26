@@ -2443,6 +2443,177 @@ ZoneTeleport(client, zone_id, track=MAIN_TRACK)
 
 
 /* ========================================================================
+                         UTILITY MENUS/FUNCTIONS
+   ======================================================================== */
+
+stock DisplayGenericTrackMenu(client, Function:callback, any:data=INVALID_HANDLE, const String:title[]="Select a track", const String:mapname[]="", start_track=MAIN_TRACK, end_track=MAX_TRACKS-1, bool:exitback=false, bool:displaycur=true)
+{
+    
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, _:callback);
+    WritePackCell(pack, data);
+    ResetPack(pack);
+    
+    new Handle:menu = CreateMenu(MenuHandler_TrackMenuGeneric);
+    SetMenuTitle(menu, "%s", title);
+    SetMenuExitBackButton(menu, exitback);
+    
+    // Add a hidden item containing the handle to our pack
+    decl String:sz_handle[12];
+    Format(STR(sz_handle), "%08x", pack);
+    AddMenuItem(menu, sz_handle, "", ITEMDRAW_NOTEXT|ITEMDRAW_DISABLED|ITEMDRAW_IGNORE);
+    
+    if (!IS_STR_EMPTY(mapname))
+    {
+        _RetrieveTracksForGenericMenu(client, mapname, menu, start_track, end_track);
+        return;
+    }
+    
+    new items_drawn = 0;
+    for (new track=start_track; track<=end_track; track++)
+    {
+        decl String:sz_track[96];
+        decl String:sz_info[8];
+        
+        if (IS_TRACK_EMPTY(track) || TRACK_EMPTY(track))
+            continue;
+        
+        IntToString(track, STR(sz_info));
+        
+        GetTrackName(track, STR(sz_track));
+        if (displaycur && g_PlayerCurrentTrack[client] == track)
+            StrCat(STR(sz_track), " (cur)");
+        
+        if (AddMenuItem(menu, sz_info, sz_track))
+            items_drawn++;
+    }
+    
+    _DisplayTrackMenuGenericMenu(client, menu, items_drawn);
+}
+
+stock _DisplayTrackMenuGenericMenu(client, Handle:menu, items_drawn=0)
+{
+    if (0 == items_drawn)
+        AddMenuItem(menu, "-", "-");
+    else if (items_drawn < 10)
+        SetMenuPagination(menu, MENU_NO_PAGINATION);
+    
+    DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_TrackMenuGeneric(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:sz_info[8];
+        GetMenuItem(menu, param2, STR(sz_info));
+        
+        decl track;
+        if (StringToIntEx(sz_info, track) == 0)
+            track = INVALID_TRACK;
+        
+        decl String:sz_pack[12];
+        GetMenuItem(menu, 0, STR(sz_pack));
+        new Handle:pack = Handle:StringToInt(sz_pack, 16);
+        
+        ResetPack(pack);
+        new client = ReadPackCell(pack);
+        new callback = ReadPackCell(pack);
+        new data = ReadPackCell(pack);
+        CloseHandle(pack);
+        
+        Call_StartFunction(INVALID_HANDLE, Function:callback);
+        Call_PushCell(client);
+        Call_PushCell(track);
+        Call_PushCell(data);
+        Call_Finish();
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
+stock _RetrieveTracksForGenericMenu(client, const String:mapname[], Handle:menu, start_track, end_track)
+{
+    new Handle:pack = CreateDataPack();
+    WritePackCell(pack, client);
+    WritePackCell(pack, _:menu);
+    WritePackString(pack, mapname);
+    WritePackCell(pack, start_track);
+    WritePackCell(pack, end_track);
+    ResetPack(pack);
+    
+    SQLTH(GetTracksPartial, pack, WINTOX_GAMETYPE, mapname);
+}
+
+public T_GetTracksPartial(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    new Handle:pack = Handle:data;
+    ResetPack(pack);
+    
+    new client = ReadPackCell(pack);
+    new Handle:menu = Handle:ReadPackCell(pack);
+    decl String:mapname[64];
+    ReadPackString(pack, STR(mapname));
+    new start_track = ReadPackCell(pack);
+    new end_track = ReadPackCell(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        Reply(client, "Error retrieving tracks for \"{G}%s{N}\"", mapname);
+        return;
+    }
+    
+    new i = 0;
+    new items_drawn = 0;
+    while (SQL_FetchRow(hndl))
+    {
+        decl track;
+        decl String:name[64];
+        decl zones;
+        decl String:bsp_name[64];
+        decl String:sz_info[8];
+        
+        if (i == 0)
+        {
+            decl String:menutitle[128];
+            
+            SQL_FetchString(hndl, 4, STR(bsp_name));
+            GetMenuTitle(menu, STR(menutitle));
+            SetMenuTitle(menu, "%s for %s", menutitle, bsp_name);
+        }
+        
+        track = SQL_FetchInt(hndl, 0);
+        SQL_FetchString(hndl, 0, STR(sz_info)); // tee-hee
+        SQL_FetchString(hndl, 2, STR(name));
+        zones = SQL_FetchInt(hndl, 3);
+        
+        // Don't display empty tracks
+        if (zones <= 0)
+            continue;
+        
+        if (track < start_track)
+            continue;
+        
+        // Our query has ORDER BY track ASC, so we can assume this
+        if (track > end_track)
+            break;
+        
+        if (IS_STR_EMPTY(name))
+            FormatEx(STR(name), "Bonus %d", track);
+        
+        if (AddMenuItem(menu, sz_info, name))
+            items_drawn++;
+        
+        i++;
+    }
+    
+    _DisplayTrackMenuGenericMenu(client, menu, items_drawn);
+}
+
+
+   
+/* ========================================================================
                             SQL SHIT. GURGLE.
    ======================================================================== */
 

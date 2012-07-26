@@ -411,6 +411,15 @@ NEW_SQL_QUERY_PARAMS(UpsertTrack,5) = {
 NEW_SQL_QUERY_PARAMS(GetTracks,1) = {
     SQLITE_MYSQL("SELECT track, tier, name, zones FROM wintox_tracks WHERE fk_map = %d;")
 };
+NEW_SQL_QUERY_PARAMS(GetTracksPartial,2) = {
+    SQLITE_MYSQL("SELECT track, tier, name, zones, bsp_name \
+                        FROM wintox_tracks AS wt, \
+                        (SELECT id, bsp_name FROM wintox_maps \
+                            WHERE gametype = '%s' AND bsp_name LIKE '%%%s%%' \
+                            LIMIT 1) AS wm \
+                        WHERE fk_map = wm.id \
+                        ORDER BY track ASC;")
+};
 
 // ===========================================================================
 //   Zones and zone points

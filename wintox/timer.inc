@@ -225,6 +225,8 @@ Timer_Init()
     RegisterCommand("sm_wrssw", ConCommand_WrSSW, "sm_wrssw <stage #> [<partial map name>] | Shows the current sideways stage record holder for the specified stage on the specified map (or the current map if none specified).");
     RegisterCommand("sm_practice", ConCommand_Practice, "sm_practice <stage #> | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
     RegisterCommand("sm_stage", ConCommand_Practice, "sm_stage <stage #> | Brings up a menu listing all the stages, allowing you to teleport and begin practicing (map completion times not recorded).");
+    RegisterCommand("sm_bonustop", ConCommand_BonusTop, "sm_bonustop [<bonus #>] [<partial map name>] | Shows the top bonus times for a map. Opens a menu to select bonuses for the current map with no arguments.");
+    RegisterCommand("sm_bonustopsw", ConCommand_BonusTopSW, "sm_bonustopsw [<bonus #>] [<partial map name>] | Shows the top sideways-style bonus times for a map. Opens a menu to select bonuses for the current map with no arguments.");
 #endif
 
 #if defined(WINTOX_DEBUG)
@@ -729,7 +731,7 @@ public MenuHandler_TimerSettings(Handle:menu, MenuAction:action, param1, param2)
         HANDLE_CANCEL();
 }
 
-ShowTopStyle(client, style, const String:mapname[]="", start=0)
+ShowTopStyle(client, style, const String:mapname[]="", track=MAIN_TRACK, start=0)
 {
     decl String:esc_mapname[128];
     decl bool:partial;
@@ -752,17 +754,18 @@ ShowTopStyle(client, style, const String:mapname[]="", start=0)
     WritePackCell(pack, start);
     WritePackString(pack, g_TimerTopMapName[client]);
     WritePackCell(pack, style);
+    WritePackCell(pack, track);
     ResetPack(pack);
     
     g_TimerTopStyle[client] = style;
     
     if (partial)
     {
-        SQLTH_H(GetTopPartial, T_GetTop, pack, WINTOX_GAMETYPE, esc_mapname, MAIN_TRACK, STYLE_NAMES[style], start);
+        SQLTH_H(GetTopPartial, T_GetTop, pack, WINTOX_GAMETYPE, esc_mapname, track, STYLE_NAMES[style], start);
     }
     else
     {
-        SQLTH(GetTop, pack, WINTOX_GAMETYPE, esc_mapname, MAIN_TRACK, STYLE_NAMES[style], start);
+        SQLTH(GetTop, pack, WINTOX_GAMETYPE, esc_mapname, track, STYLE_NAMES[style], start);
     }
 }
 
@@ -772,17 +775,19 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
     decl start;
     decl String:mapname[64];
     decl style;
+    decl track;
     
     new Handle:pack = Handle:data;
     client = ReadPackCell(pack);
     start = ReadPackCell(pack);
     ReadPackString(pack, STR(mapname));
     style = ReadPackCell(pack);
+    track = ReadPackCell(pack);
     CloseHandle(pack);
     
     if (hndl == INVALID_HANDLE)
     {
-        LogError("Error retrieving top times for %s, %s style (for %L, starting at %d): %s", mapname, STYLE_NAMES[style], client, start, error);
+        LogError("Error retrieving top times for %s, %s style, track %d (for %L, starting at %d): %s", mapname, STYLE_NAMES[style], track, client, start, error);
         Timer_Reply(client, "There was a {OG}database error{N} retrieving race records. Please try again.");
         return;
     }
@@ -796,6 +801,11 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
         Timer_Reply(client, "There are no top {OG}%s{N} times! {G}Go make some{N}!", STYLE_NAMES[style]);
         return;
     }
+    
+    decl String:trackname[64];
+    trackname[0] = '\0';
+    if (track > MAIN_TRACK)
+        FormatEx(STR(trackname), " bonus %d", track);
     
     new Handle:panel = CreatePanel(GetMenuStyleHandle(MenuStyle_Default));
     
@@ -821,7 +831,7 @@ public T_GetTop(Handle:owner, Handle:hndl, const String:error[], any:data)
         if (i == 0)
         {
             SQL_FetchString(hndl, 0, STR(bsp_name));
-            Format(STR(records), "Top %s times on %s, %d to %d\n \n", STYLE_NAMES[style], bsp_name, start+1, start+rows);
+            Format(STR(records), "Top %s%s times on %s, %d to %d\n \n", STYLE_NAMES[style], trackname, bsp_name, start+1, start+rows);
         }
         
         SecondsToTimeString(time, STR(sz_time));
@@ -886,6 +896,61 @@ public MenuHandler_Top(Handle:menu, MenuAction:action, param1, param2)
         else
             MenuPlaySelectSound(param1);
     }
+}
+
+stock HandleBonusTop(client, args, style=STYLE_NORMAL)
+{
+    new track = INVALID_TRACK;
+    decl String:mapname[64];
+    mapname[0] = '\0';
+    
+    for (new i=1; i<=args; i++)
+    {
+        decl temptrack;
+        decl String:sz_arg[64];
+        new arglen = GetCmdArg(i, STR(sz_arg));
+        
+        if (StringToIntEx(sz_arg, temptrack) != arglen)
+        {
+            if (!IS_STR_EMPTY(mapname))
+            {
+                Timer_Reply(client, "\"%s\" is an invalid bonus number.", sz_arg);
+                return;
+            }
+            
+            strcopy(STR(mapname), sz_arg);
+        }
+        else if (track != INVALID_TRACK)
+            strcopy(STR(mapname), sz_arg);
+        else
+            track = temptrack;
+    }
+    
+    if (track == INVALID_TRACK)
+    {
+        new Handle:pack = CreateDataPack();
+        WritePackCell(pack, style);
+        WritePackString(pack, mapname);
+        ResetPack(pack);
+        
+        DisplayGenericTrackMenu(client, TrackMenuSelected_BonusTop, pack, "Select a bonus", mapname, FIRST_BONUS_TRACK);
+        return;
+    }
+    
+    ShowTopStyle(client, style, mapname, track, 0);
+}
+
+public TrackMenuSelected_BonusTop(client, track, Handle:pack)
+{
+    decl style;
+    decl String:mapname[64];
+    
+    ResetPack(pack);
+    style = ReadPackCell(pack);
+    ReadPackString(pack, STR(mapname));
+    CloseHandle(pack);
+    
+    ShowTopStyle(client, style, mapname, track, 0);
 }
 
 stock Handle:GetPracticeMenu()
@@ -1168,7 +1233,6 @@ public Action:ConCommand_Cp(client, args)
     {
         decl Float:relative_from;
         
-        new zone = GetPlayerCurrentZone(target, 0);
         new track = GetPlayerCurrentTrack(target);
         new style = GetPlayerCurrentStyle(target);
         
@@ -1194,6 +1258,7 @@ public Action:ConCommand_Cp(client, args)
         else
             Timer_Reply(client, "{OG}%s{N} | {T}%N{N} completed the map in {R}%02d:%02d:%07.4f{N} with {R}%d{N} jump%s.", STYLE_NAMES_C[style], target, sz_time, g_Jumps[target], PLURAL(g_Jumps[target]));
 #else
+        new zone = GetPlayerCurrentZone(target, 0);
         if (is_timing)
         {
             decl String:sz_stage[96];
@@ -1223,7 +1288,7 @@ public Action:ConCommand_Top(client, args)
     decl String:mapname[64];
     GetCmdArg(1, STR(mapname));
     
-    ShowTopStyle(client, STYLE_NORMAL, mapname, 0);
+    ShowTopStyle(client, STYLE_NORMAL, mapname, MAIN_TRACK, 0);
     
     return Plugin_Handled;
 }
@@ -1248,7 +1313,7 @@ public Action:ConCommand_TopSW(client, args)
     decl String:mapname[64];
     GetCmdArg(1, STR(mapname));
     
-    ShowTopStyle(client, STYLE_SIDEWAYS, mapname, 0);
+    ShowTopStyle(client, STYLE_SIDEWAYS, mapname, MAIN_TRACK, 0);
     
     return Plugin_Handled;
 }
@@ -1262,7 +1327,7 @@ public Action:ConCommand_TopW(client, args)
     decl String:mapname[64];
     GetCmdArg(1, STR(mapname));
     
-    ShowTopStyle(client, STYLE_WONLY, mapname, 0);
+    ShowTopStyle(client, STYLE_WONLY, mapname, MAIN_TRACK, 0);
     
     return Plugin_Handled;
 }
@@ -1291,6 +1356,26 @@ public Action:ConCommand_WrSW(client, args)
     return Plugin_Handled;
 }
 #endif // defined(WINTOX_BHOP)
+
+#if defined(WINTOX_SURF)
+public Action:ConCommand_BonusTop(client, args)
+{
+    CHECK_ARGS_UPPER(2)
+    
+    HandleBonusTop(client, args, STYLE_NORMAL);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_BonusTopSW(client, args)
+{
+    CHECK_ARGS_UPPER(2)
+    
+    HandleBonusTop(client, args, STYLE_SIDEWAYS);
+    
+    return Plugin_Handled;
+}
+#endif
 
 public Action:ConCommand_Rank(client, args)
 {
