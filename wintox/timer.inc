@@ -204,9 +204,11 @@ Timer_Init()
     RegisterCommand("sm_rank", ConCommand_Rank, "sm_rank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map.");
     RegisterCommand("sm_crank", ConCommand_CRank, "sm_crank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map, restricted to players of the same country.");
     RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
+    RegisterCommand("sm_pr", ConCommand_Pr, "sm_pr [<partial map name>] | Shows your best normal style times on the specified map (or current map with no arguments).");
 
 #if defined(WINTOX_BHOP) || defined(WINTOX_SURF)
     RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
+    RegisterCommand("sm_prsw", ConCommand_PrSW, "sm_prsw [<partial map name>] | Shows your best sideways style times on the specified map (or current map with no arguments).");
 #endif
 
 #if defined(WINTOX_BHOP)
@@ -214,6 +216,7 @@ Timer_Init()
     RegisterCommand("sm_topw", ConCommand_TopW, "sm_topw [<partial map name>] | Shows the top W-only times for specified map (or the current map if none specified).");
     RegisterCommand("sm_wrw", ConCommand_WrW, "sm_wrw [<partial map name>] | Shows the current W-only world record holder for the specified map (or the current map if none specified).");
     RegisterCommand("sm_wrsw", ConCommand_WrSW, "sm_wrsw [<partial map name>] | Shows the current sideways world record holder for the specified map (or the current map if none specified).");
+    RegisterCommand("sm_prw", ConCommand_PrW, "sm_prw [<partial map name>] | Shows your best w-only style times on the specified map (or current map with no arguments).");
 #else
     RegisterCommand("sm_cp", ConCommand_Cp, "sm_cp <partial player name> | Prints to chat the player's current elapsed time, style, and stage (if on a staged map).");
 #endif
@@ -953,6 +956,155 @@ public TrackMenuSelected_BonusTop(client, track, Handle:pack)
     ShowTopStyle(client, style, mapname, track, 0);
 }
 
+ShowPersonalRecords(client, style, const String:mapname[]="")
+{
+    if (!IS_STR_EMPTY(mapname))
+    {
+        if (g_PlayerIDs[client] == -1)
+        {
+            LogError("Tried to retrieve personal records for %L, with an invalid database ID.", client);
+            Timer_Reply(client, "Sorry, I couldn't find you in the database. Try again, if you'd like!");
+            return;
+        }
+        
+        new Handle:pack = CreateDataPack();
+        WritePackCell(pack, client);
+        WritePackCell(pack, style);
+        WritePackString(pack, mapname);
+        ResetPack(pack);
+        
+        decl String:query[1440];
+        SQLTH_D(GetPersonalRecords, pack, g_PlayerIDs[client], STYLE_NAMES[style], WINTOX_GAMETYPE, mapname);
+        
+        return;
+    }
+    
+    new Handle:menu = CreateMenu(MenuHandler_PersonalRecords);
+    SetMenuTitle(menu, "Personal %s records for %s", GET_STYLE_NAME(style), g_CurMapName);
+    
+    decl String:buffer[128];
+    buffer[0] = '\0'; // Completely unnecessary, like being offended at Chick-Fil-A donating money to anti-gay organizations
+    decl String:sz_time[32];
+    
+    new items_drawn = 0;
+    
+    if (g_TrackRecords[client][MAIN_TRACK][style] != INVALID_TRACK_RECORD)
+    {
+        SecondsToTimeString(g_TrackRecords[client][MAIN_TRACK][style], STR(sz_time));
+        GetTrackName(MAIN_TRACK, STR(buffer));
+        
+        Format(STR(buffer), "%s: %s", buffer, sz_time);
+        if (AddMenuItem(menu, "", buffer))
+            items_drawn++;
+    }
+    
+    for (new zone=0; zone<=g_EndZone[MAIN_TRACK]; zone++)
+    {
+        if (ZONE_EMPTY_T(MAIN_TRACK, zone))
+            continue;
+        
+        if (g_ZoneRecords[client][MAIN_TRACK][zone][style] == INVALID_ZONE_RECORD)
+            continue;
+        
+        SecondsToTimeString(g_ZoneRecords[client][MAIN_TRACK][zone][style], STR(sz_time));
+        GetStageName(MAIN_TRACK, zone, STR(buffer));
+        
+        Format(STR(buffer), "%s: %s", buffer, sz_time);
+        if (AddMenuItem(menu, "", buffer))
+            items_drawn++;
+    }
+    
+    for (new track=FIRST_BONUS_TRACK; track<MAX_TRACKS; track++)
+    {
+        if (TRACK_EMPTY(track) || IS_TRACK_EMPTY(track))
+            continue;
+        
+        if (g_TrackRecords[client][track][style] == INVALID_TRACK_RECORD)
+            continue;
+        
+        SecondsToTimeString(g_TrackRecords[client][track][style], STR(sz_time));
+        GetTrackName(track, STR(buffer));
+        
+        Format(STR(buffer), "%s: %s", buffer, sz_time);
+        if (AddMenuItem(menu, "", buffer))
+            items_drawn++;
+    }
+    
+    DisplayMenuAutoPaginate(client, menu, items_drawn);
+}
+
+public T_GetPersonalRecords(Handle:owner, Handle:hndl, const String:error[], any:data)
+{
+    decl client;
+    decl style;
+    decl String:mapname[64];
+    
+    new Handle:pack = data;
+    client = ReadPackCell(pack);
+    style = ReadPackCell(pack);
+    ReadPackString(pack, STR(mapname));
+    CloseHandle(pack);
+    
+    if (hndl == INVALID_HANDLE)
+    {
+        LogError("Error retrieving personal records for client %d (map partial \"%s\", style \"%s\"): %s", client, mapname, STYLE_NAMES[style], error);
+        Timer_Reply(client, "There was a {OG}database error{N} retrieving your personal records. Please try again.");
+        return;
+    }
+    
+    new Handle:menu = CreateMenu(MenuHandler_PersonalRecords);
+    SetMenuTitle(menu, "Personal %s records for \"%s\"", STYLE_NAMES[style], mapname);
+    
+    new i = 0;
+    new items_drawn = 0;
+    while (SQL_FetchRow(hndl))
+    {
+        decl String:name[64];
+        decl track;
+        decl zone;
+        decl Float:time;
+        
+        SQL_FetchString(hndl, 1, STR(name));
+        track = SQL_FetchInt(hndl, 2);
+        zone = SQL_FetchInt(hndl, 3);
+        time = SQL_FetchFloat(hndl, 4);
+        
+        if (i == 0)
+        {
+            decl String:bsp_name[64];
+            SQL_FetchString(hndl, 0, STR(bsp_name));
+            SetMenuTitle(menu, "Personal %s records on %s", STYLE_NAMES[style], bsp_name);
+        }
+        
+        if (IS_STR_EMPTY(name))
+        {
+            if (zone != -1)
+                GetStageDefaultName(zone, STR(name));
+            else
+                GetTrackDefaultName(track, STR(name));
+        }
+        
+        decl String:sz_display[128];
+        decl String:sz_time[32];
+        
+        SecondsToTimeString(time, STR(sz_time));
+        FormatEx(STR(sz_display), "%s: %s", name, sz_time);
+        
+        if (AddMenuItem(menu, "", sz_display))
+            items_drawn++;
+        
+        i++;
+    }
+    
+    DisplayMenuAutoPaginate(client, menu, items_drawn);
+}
+
+public MenuHandler_PersonalRecords(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
+}
+
 stock Handle:GetPracticeMenu()
 {
     if (g_PracticeMenu == INVALID_HANDLE)
@@ -1317,6 +1469,18 @@ public Action:ConCommand_TopSW(client, args)
     
     return Plugin_Handled;
 }
+
+public Action:ConCommand_PrSW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    ShowPersonalRecords(client, STYLE_SIDEWAYS, partial);
+    
+    return Plugin_Handled;
+}
 #endif
 
 #if defined(WINTOX_BHOP)
@@ -1352,6 +1516,18 @@ public Action:ConCommand_WrSW(client, args)
     GetCmdArgString(STR(partial));
     
     win_SQL_GetWorldRecord(client, MAIN_TRACK, STYLE_SIDEWAYS, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_PrW(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    ShowPersonalRecords(client, STYLE_WONLY, partial);
     
     return Plugin_Handled;
 }
@@ -1409,6 +1585,18 @@ public Action:ConCommand_Pc(client, args)
     GetCmdArgString(STR(partial));
     
     win_SQL_GetPercentCompletion(client, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_Pr(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    
+    decl String:partial[64];
+    GetCmdArgString(STR(partial));
+    
+    ShowPersonalRecords(client, STYLE_NORMAL, partial);
     
     return Plugin_Handled;
 }

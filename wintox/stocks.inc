@@ -223,3 +223,14 @@ stock PrependCapitals(const String:orig[], const String:prepend[], String:buffer
 {
     Format(MSTR(buffer), "%s %c%s", prepend, CharToLower(orig[0]), orig[1]);
 }
+
+// Displays a menu, automatically removing pagination if not needed
+stock DisplayMenuAutoPaginate(client, Handle:menu, items_drawn=0, bool:close_handle=true)
+{
+    if (0 == items_drawn)
+        AddMenuItem(menu, "-", "-");
+    else if (items_drawn < 10)
+        SetMenuPagination(menu, MENU_NO_PAGINATION);
+    
+    DisplaySubmenu(menu, client, MENU_TIME_FOREVER, close_handle);
+}

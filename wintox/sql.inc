@@ -723,6 +723,40 @@ NEW_SQL_QUERY_PARAMS(GetTrackTotalTopRecords,1) = {
                         GROUP BY type, track;")
 };
 
+
+// ===========================================================================
+//   Personal Records (!pr and !cpr)
+// ===========================================================================
+
+NEW_SQL_QUERY_PARAMS(GetPersonalRecords,4) = {
+    "",
+    
+    "SELECT `bsp_name`, `name`, wtr.`track`, -1 AS `zone`, `time` \
+        FROM (SELECT @playerID := %d, @mapID := id, @style := '%s' \
+                FROM `wintox_maps` \
+                WHERE gametype = '%s' AND `bsp_name` LIKE '%%%s%%' \
+                LIMIT 1 \
+            ) AS `map`, \
+            `wintox_track_records` AS wtr \
+        JOIN `wintox_tracks` AS wt ON wt.track = wtr.track \
+        JOIN `wintox_maps` AS wm ON wm.id = wt.fk_map \
+        WHERE wt.`track` = 0 AND wt.fk_map = @mapID AND fk_player = @playerID AND `type` = @style \
+        LIMIT 1 \
+    UNION (SELECT `bsp_name`, `name`, `track`, `number`, `time` \
+        FROM `wintox_zone_records` AS wzr \
+        JOIN `wintox_zones` AS wz ON wz.id = wzr.fk_zone \
+        JOIN `wintox_maps` AS wm ON wm.id = wz.fk_map \
+        WHERE track = 0 AND wzr.fk_map = @mapID AND fk_player = @playerID AND `type` = @style \
+        ORDER BY `number` ASC) \
+    UNION (SELECT `bsp_name`, `name`, wtr.`track`, -1, `time` \
+        FROM `wintox_track_records` AS wtr \
+        JOIN `wintox_tracks` AS wt ON wt.track = wtr.track \
+        JOIN `wintox_maps` AS wm ON wm.id = wt.fk_map \
+        WHERE wt.track > 0 AND wt.fk_map = @mapID AND fk_player = @playerID AND `type` = @style \
+        ORDER BY wtr.track ASC)"
+};
+
+
 // ===========================================================================
 //   Rank
 // ===========================================================================

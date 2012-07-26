@@ -1716,30 +1716,36 @@ FindTrackPath(track)
 GetStageName(track, zone, String:buffer[], maxlength)
 {
     if (IS_STR_EMPTY(g_ZoneNames[track][zone]))
-    {
-        if (zone == 0)
-            return strcopy(MSTR(buffer), "Start");
-        else if (IsZoneEndZone(track, zone))
-            return strcopy(MSTR(buffer), "End");
-        else
-            return FormatEx(MSTR(buffer), "Stage %d", zone + 1);
-    }
+        return GetStageDefaultName(zone, MSTR(buffer), IsZoneEndZone(track, zone));
     else
         return strcopy(MSTR(buffer), g_ZoneNames[track][zone]);
+}
+
+GetStageDefaultName(zone, String:buffer[], maxlength, is_end_zone=false)
+{
+    if (zone == 0)
+        return strcopy(MSTR(buffer), "Start");
+    else if (is_end_zone)
+        return strcopy(MSTR(buffer), "End");
+    else
+        return FormatEx(MSTR(buffer), "Stage %d", zone + 1);
 }
 
 // Gets a name for a track that can be printed to a player
 GetTrackName(track, String:buffer[], maxlength)
 {
     if (IS_STR_EMPTY(g_TrackNames[track]))
-    {
-        if (track == MAIN_TRACK)
-            return strcopy(MSTR(buffer), "Main track");
-        else
-            return FormatEx(MSTR(buffer), "Bonus %d", track);
-    }
+        return GetTrackDefaultName(track, MSTR(buffer));
     else
         return strcopy(MSTR(buffer), g_TrackNames[track]);
+}
+
+GetTrackDefaultName(track, String:buffer[], maxlength)
+{
+    if (track == MAIN_TRACK)
+        return strcopy(MSTR(buffer), "Map");
+    else
+        return FormatEx(MSTR(buffer), "Bonus %d", track);
 }
 
 GetPathOfZone(track, zone)
@@ -2489,17 +2495,7 @@ stock DisplayGenericTrackMenu(client, Function:callback, any:data=INVALID_HANDLE
             items_drawn++;
     }
     
-    _DisplayTrackMenuGenericMenu(client, menu, items_drawn);
-}
-
-stock _DisplayTrackMenuGenericMenu(client, Handle:menu, items_drawn=0)
-{
-    if (0 == items_drawn)
-        AddMenuItem(menu, "-", "-");
-    else if (items_drawn < 10)
-        SetMenuPagination(menu, MENU_NO_PAGINATION);
-    
-    DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+    DisplayMenuAutoPaginate(client, menu, items_drawn);
 }
 
 public MenuHandler_TrackMenuGeneric(Handle:menu, MenuAction:action, param1, param2)
@@ -2600,7 +2596,7 @@ public T_GetTracksPartial(Handle:owner, Handle:hndl, const String:error[], any:d
             break;
         
         if (IS_STR_EMPTY(name))
-            FormatEx(STR(name), "Bonus %d", track);
+            GetTrackDefaultName(track, STR(name));
         
         if (AddMenuItem(menu, sz_info, name))
             items_drawn++;
@@ -2608,7 +2604,7 @@ public T_GetTracksPartial(Handle:owner, Handle:hndl, const String:error[], any:d
         i++;
     }
     
-    _DisplayTrackMenuGenericMenu(client, menu, items_drawn);
+    DisplayMenuAutoPaginate(client, menu, items_drawn);
 }
 
 
