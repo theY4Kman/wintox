@@ -236,7 +236,9 @@ Zones_Init()
     RegisterCommand("sm_synczones", ConCommand_SyncZones, "sm_synczones | Sync the zone cache to the database, including any unfinished zones.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_tracktier", ConCommand_TrackTier, "sm_tracktier <track #> <tier (1-6)> | Set the tier of the specified track.", 0, ADMFLAG_GENERIC, "editzones");
     RegisterCommand("sm_trackname", ConCommand_TrackName, "sm_trackname <track #> <name> | Set the name of the specified track.", 0, ADMFLAG_GENERIC, "editzones");
-    RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.",  0, ADMFLAG_GENERIC, "editzones");
+    RegisterCommand("sm_maptier", ConCommand_MapTier, "sm_maptier <tier (1-6)> | Set the tier of the current map.", 0, ADMFLAG_GENERIC, "editzones");
+    
+    RegisterCommand("sm_bonus", ConCommand_Bonus, "sm_bonus [<bonus #>] | Teleports you to the specified bonus area, or displays a menu listing the bonuses to teleport to.");
     RegisterCommand("sm_sr", ConCommand_SR, "sm_sr | Displays a menu listing information about the current map.");
     
 #if defined(WINTOX_DEBUG)
@@ -713,6 +715,95 @@ public Action:ConCommand_MapTier(client, args)
     Map_SetTier(client, tier);
     
     return Plugin_Handled;
+}
+
+public Action:ConCommand_Bonus(client, args)
+{
+    CHECK_ARGS_UPPER(1)
+    NO_FAKECLIENTS()
+    
+    if (args == 1)
+    {
+        decl track;
+        decl String:sz_track[16];
+        
+        // TracksCount always counts the main track, so we test for <=1
+        if (g_TracksCount <= 1)
+        {
+            Zone_Reply(client, "Sorry, there are no bonuses to play on {OG}:({N}");
+            return Plugin_Handled;
+        }
+        
+        GetCmdArg(1, STR(sz_track));
+        if (0 == StringToIntEx(sz_track, track))
+        {
+            Zone_Reply(client, "\"%s\" is an invalid bonus number.", sz_track);
+            return Plugin_Handled;
+        }
+        
+        if (track <= MAIN_TRACK || track >= MAX_TRACKS)
+        {
+            Zone_Reply(client, "Bonus {G}%d{N} doesn't exist.", track);
+            return Plugin_Handled;
+        }
+        
+        ZoneTeleport(client, START_ZONE, track);
+        
+        return Plugin_Handled;
+    }
+    
+    new Handle:menu = CreateMenu(MenuHandler_BonusTeleport);
+    SetMenuTitle(menu, "Bonuses on %s", g_CurMapName);
+    
+    new bool:items_drawn = false;
+    for (new track=FIRST_BONUS_TRACK; track<MAX_TRACKS; track++)
+    {
+        decl String:sz_item[96];
+        decl String:sz_info[8];
+        
+        if (IS_TRACK_EMPTY(track) || TRACK_EMPTY(track))
+            continue;
+        
+        IntToString(track, STR(sz_info));
+        
+        GetTrackName(track, STR(sz_item));
+        if (track == g_PlayerCurrentTrack[client])
+            StrCat(STR(sz_item), " (cur)");
+        
+        if (AddMenuItem(menu, sz_info, sz_item))
+            items_drawn = true;
+    }
+    
+    if (!items_drawn)
+        AddMenuItem(menu, "-", "-");
+    
+    DisplaySubmenu(menu, client, MENU_TIME_FOREVER);
+    
+    return Plugin_Handled;
+}
+
+public MenuHandler_BonusTeleport(Handle:menu, MenuAction:action, param1, param2)
+{
+    if (action == MenuAction_Select)
+    {
+        decl String:info[16];
+        new track = INVALID_TRACK;
+        
+        GetMenuItem(menu, param2, STR(info));
+        track = StringToInt(info);
+        
+        if (track <= MAIN_TRACK || track >= MAX_TRACKS || 
+            TRACK_EMPTY(track) || IS_TRACK_EMPTY(track))
+        {
+            Race_Reply(param1, "Somehow, you chose an invalid bonus. Sorry. Try that again.");
+            FakeClientCommand(param1, "sm_bonus");
+            return;
+        }
+        
+        ZoneTeleport(param1, START_ZONE, track);
+    }
+    else if (action == MenuAction_Cancel)
+        HANDLE_CANCEL();
 }
 
 public Action:ConCommand_SR(client, args)

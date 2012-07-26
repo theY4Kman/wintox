@@ -94,8 +94,8 @@ Race_Init()
     RegisterCommand("sm_race", ConCommand_Race, "sm_race | Challenge another player to a race!");
 #if defined(WINTOX_SURF)
     RegisterCommand("sm_srace", ConCommand_SRace, "sm_srace [<stage #>] | Challenge another player to a race on a certain stage.");
-    RegisterCommand("sm_brace", ConCommand_BRace, "sm_brace [<bonus #>] | Challenge another player to a race in a bonus area.");
 #endif
+    RegisterCommand("sm_brace", ConCommand_BRace, "sm_brace [<bonus #>] | Challenge another player to a race in a bonus area.");
     RegisterCommand("sm_racehide", ConCommand_RaceHide, "sm_racehide | Hide all other players but the other racer");
     RegisterCommand("sm_raceshow", ConCommand_RaceShow, "sm_raceshow | Show all other players (or hide your race opponent if you've run !hide)");
     RegisterCommand("sm_rstats", ConCommand_Rstats, "sm_rstats [<partial player name>] | Show the race wins, losses, and ratio for the specified player (or yours if omitted)");
@@ -241,6 +241,7 @@ public Action:ConCommand_SRace(client, args)
     
     return Plugin_Handled;
 }
+#endif//WINTOX_SURF
 
 public Action:ConCommand_BRace(client, args)
 {
@@ -291,7 +292,6 @@ public Action:ConCommand_BRace(client, args)
     
     return Plugin_Handled;
 }
-#endif//WINTOX_SURF
 
 public Action:ConCommand_Rstats(client, args)
 {
@@ -665,6 +665,7 @@ public MenuHandler_RaceStages(Handle:menu, MenuAction:action, param1, param2)
     else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
 }
+#endif//WINTOX_SURF
 
 RaceBonusMenu(client)
 {
@@ -723,7 +724,6 @@ public MenuHandler_RaceBonus(Handle:menu, MenuAction:action, param1, param2)
     else if (action == MenuAction_Cancel)
         HANDLE_CANCEL();
 }
-#endif//WINTOX_SURF
 
 // Bring up a menu of all players in the server for the challenger to choose
 // their challengee.
