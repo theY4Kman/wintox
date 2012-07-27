@@ -123,6 +123,10 @@ new Handle:g_DatabaseDriver = INVALID_HANDLE;
 #define SQLF(%1) SQL_FastQuery(g_Database, (%1))
 #define SQLT(%1,%2,%3) SQL_TQuery(g_Database, (%2), (%1), (%3))
 
+#define SQLF_F_D(%1,%2) \
+    Format(STR(query), SQL_QUERY[%1], %2); \
+    SQLF(query)
+
 // If using SQLT_HANDLER, SQLTH can handle both the formatting and querying
 // SQLTH(SQL_QUERY[?], any:data_passed_to_SQLT, any:...)
 #define SQLTH(%1,%2,%3) decl String:query[512]; \
@@ -1083,6 +1087,20 @@ NEW_SQL_QUERY_PARAMS(GetTopRecordsZoneRecords,1) = {
             LEFT JOIN `wintox_zone_records` AS wzr ON wzr.`fk_player` = wtr.`fk_player` AND wzr.`type` = wtr.`type` \
             JOIN `wintox_zones` AS wz ON wz.`id` = wzr.`fk_zone` \
             WHERE wzr.fk_map = %d;")
+};
+
+// ===========================================================================
+//   Clearing Records
+// ===========================================================================
+
+NEW_SQL_QUERY_PARAMS(ClearMapTopRecords,1) = {
+    SQLITE_MYSQL("DELETE FROM wintox_top_records WHERE fk_map = %d;")
+};
+NEW_SQL_QUERY_PARAMS(ClearMapTrackRecords,1) = {
+    SQLITE_MYSQL("DELETE FROM wintox_track_records WHERE fk_map = %d;")
+};
+NEW_SQL_QUERY_PARAMS(ClearMapZoneRecords,1) = {
+    SQLITE_MYSQL("DELETE FROM wintox_zone_records WHERE fk_map = %d;")
 };
 
 

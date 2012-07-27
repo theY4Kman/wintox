@@ -82,6 +82,8 @@ new g_LastRunZoneStyle[MAXPLAYERS][MAX_ZONES];
 new Float:g_LastRunZoneElapsed[MAXPLAYERS][MAX_ZONES];
 // Number of jumps at end of track run
 new g_LastRunJumps[MAXPLAYERS] = { -1, ... };
+// Stores the total elapsed time of the player's last run
+new Float:g_LastRunTotalElapsed[MAXPLAYERS] = { INVALID_TIME, ... };
 
 // Whether the player's state is after finishing a map, but before restarting
 // the timer or entering another zone (on staged maps)
@@ -205,6 +207,8 @@ Timer_Init()
     RegisterCommand("sm_crank", ConCommand_CRank, "sm_crank [<partial player name>] | Shows the rank of the specified player (or you if no name specified) based on points earned on any map, restricted to players of the same country.");
     RegisterCommand("sm_pc", ConCommand_Pc, "sm_pc [<partial player name>] | Shows the percent completion of all maps and bonuses for the specified player (or you if no player specified).");
     RegisterCommand("sm_pr", ConCommand_Pr, "sm_pr [<partial map name>] | Shows your best normal style times on the specified map (or current map with no arguments).");
+    
+    RegisterCommand("sm_clearmaprecords", ConCommand_ClearMapRecords, "sm_clearmaprecords | Clear all the recorded times and records for the current map.", 0, ADMFLAG_GENERIC, "wtxdatabase");
 
 #if defined(WINTOX_BHOP) || defined(WINTOX_SURF)
     RegisterCommand("sm_topsw", ConCommand_TopSW, "sm_topsw [<partial map name>] | Shows the top sideways times for specified map (or the current map if none specified).");
@@ -326,6 +330,7 @@ Timer_DeinitPlayer(client)
     g_PlusMinusStyle[client] = STYLE_NORMAL;
     
     g_LastRunJumps[client] = -1;
+    g_LastRunTotalElapsed[client] = INVALID_TIME;
     
     g_TimerTopStart[client] = 0;
 }
@@ -552,6 +557,8 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
         return;
     
     Client_SetScore(client, Client_GetScore(client) + 1);
+    
+    g_LastRunTotalElapsed[client] = total_time;
     
     new Float:record = g_TrackRecords[client][track][style];
     
@@ -1597,6 +1604,15 @@ public Action:ConCommand_Pr(client, args)
     GetCmdArgString(STR(partial));
     
     ShowPersonalRecords(client, STYLE_NORMAL, partial);
+    
+    return Plugin_Handled;
+}
+
+public Action:ConCommand_ClearMapRecords(client, args)
+{
+    NO_ARGS()
+    
+    win_SQL_ClearMapRecords(client);
     
     return Plugin_Handled;
 }
@@ -2653,6 +2669,19 @@ public T_GetPlayerCountryRank(Handle:owner, Handle:hndl, const String:error[], a
     Timer_Reply(client, "{G}%s{N}, Country%s Rank: {G}%d{N} | Points: {G}%d{N} | MC: {G}%d{N} | MR: {G}%d{N} | BC: {G}%d{N} | BR: {G}%d{N}", \
         latest_name, sz_country, rank, grosspoints, maps_completed, map_records, bonuses_completed, bonus_wr);
 #endif
+}
+
+win_SQL_ClearMapRecords(client, const String:mapname[]="")
+{
+#pragma unused mapname
+    
+    decl String:query[512];
+    
+    SQLF_F_D(ClearMapTopRecords, g_CurMapID);
+    SQLF_F_D(ClearMapTrackRecords, g_CurMapID);
+    SQLF_F_D(ClearMapZoneRecords, g_CurMapID);
+    
+    Zone_Reply(client, "Removed {G}all{N} {OG}recorded times{N} for the {OG}current map{N}.");
 }
 
 

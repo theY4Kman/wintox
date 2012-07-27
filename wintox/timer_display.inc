@@ -427,8 +427,10 @@ FILTERFUNC(FinishedTrack)
     decl Float:time;
     if (g_CurMapStaged)
         time = g_LastRunZoneElapsed[client][g_EndZone[track]];
-    else
+    else if (g_LastRunTotalElapsed[client] == INVALID_TIME)
         time = g_StartTimes[client][g_EndZone[track]] - g_StartTimes[client][0];
+    else
+        time = g_LastRunTotalElapsed[client];
     
     SetTrieValue(opts, TIMER_OPT_TIME, time);
     SetTrieValue(opts, TIMER_OPT_JUMPS, g_LastRunJumps[client]);
