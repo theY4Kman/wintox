@@ -721,10 +721,11 @@ NEW_SQL_QUERY_PARAMS(GetWorldRecordStagePartial,5) = {
 };
 
 NEW_SQL_QUERY_PARAMS(GetTrackTotalTopRecords,1) = {
-    SQLITE_MYSQL("SELECT `track`, `type`, `time` \
-                        FROM `wintox_track_records` \
-                        WHERE fk_map = %d \
-                        GROUP BY type, track;")
+    SQLITE_MYSQL("SELECT wtr.`track`, wtr.`type`, wtr.`time` \
+                        FROM `wintox_top_records` AS wtopr \
+                        JOIN `wintox_track_records` AS wtr ON wtr.id = wtopr.fk_record \
+                        WHERE wtr.fk_map = %d \
+                        GROUP BY wtr.type, wtr.track;")
 };
 
 
