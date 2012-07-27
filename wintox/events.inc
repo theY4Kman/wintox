@@ -105,7 +105,18 @@ public OnMapStart()
     
     // Clear all player variables at map start
     for (new client=1; client<MaxClients; client++)
+    {
         ResetPlayerVariables(client);
+    
+#if defined(WINTOX_BHOP)
+        // Just for good measure, let's discover the low grav state of all the clients
+        if (!IsClientConnected(client) || !IsClientInGame(client))
+            continue;
+        
+        if (GetEntPropFloat(client, Prop_Data, "m_flGravity") != 1.0)
+            g_PlayerLowGrav[client] = true;
+#endif//WINTOX_BHOP
+    }
 
     // Precache the laser every map change
     if (!(g_mdlBeam = PrecacheModel("materials/sprites/laser.vmt")))

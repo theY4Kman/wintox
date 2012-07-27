@@ -108,21 +108,6 @@ Wintox_Init()
     HookConVarChange(cvar_low_grav, ConVar_LowGravMultiplier);
 #endif
     
-    if (g_wintoxLateLoad)
-    {
-        // Just for good measure, let's discover the low grav state of all the clients
-        for (new client=1; client<MaxClients; client++)
-        {
-            if (!IsClientConnected(client) || !IsClientInGame(client))
-                continue;
-            
-#if defined(WINTOX_BHOP)
-            if (GetEntPropFloat(client, Prop_Data, "m_flGravity") == g_LowGravMultiplier)
-                g_PlayerLowGrav[client] = true;
-#endif
-        }
-    }
-    
     new bool:manual_test = true;
     if (CanTestFeatures())
     {
