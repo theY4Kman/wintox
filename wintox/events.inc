@@ -107,15 +107,14 @@ public OnMapStart()
     for (new client=1; client<MaxClients; client++)
     {
         ResetPlayerVariables(client);
-    
+        
 #if defined(WINTOX_BHOP)
-        // Just for good measure, let's discover the low grav state of all the clients
         if (!IsClientConnected(client) || !IsClientInGame(client))
             continue;
         
-        if (GetEntPropFloat(client, Prop_Data, "m_flGravity") != 1.0)
-            g_PlayerLowGrav[client] = true;
-#endif//WINTOX_BHOP
+        // Make sure everyone begins with normal gravity
+        SetEntPropFloat(client, Prop_Data, "m_flGravity", 1.0);
+#endif
     }
 
     // Precache the laser every map change
