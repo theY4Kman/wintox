@@ -304,7 +304,7 @@ GetZonesToCheck(client, track, zones[MAX_ZONES])
     
 #else
 #pragma unused track
-    zones[0] = GetPlayerCurrentZone(client);
+    zones[0] = GetPlayerCurrentZone(client, START_ZONE);
     zones[1] = GetPlayerNextZone(client);
     return 2;
     
