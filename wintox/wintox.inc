@@ -446,36 +446,35 @@ public OnGameFrame()
         if (!IsClientConnected(client) || !IsClientInGame(client) || IsFakeClient(client))
             continue;
         
-        if (!IS_PLAYING_TEAM(GetClientTeam(client)))
-            continue;
-        
-        CheckPlayerInTrackStarts(client);
-        new track = GetPlayerCurrentTrack(client);
-        
-        if (!IS_PAUSED(client) && PlayerCanTime(client))
+        if (IS_PLAYING_TEAM(GetClientTeam(client)))
         {
-            decl zones_to_check[MAX_ZONES];
-            decl num_zones;
-            decl zone_found;
+            CheckPlayerInTrackStarts(client);
+            new track = GetPlayerCurrentTrack(client);
             
-            g_PlayerWasInZone[client] = g_PlayerCurrentlyInZone[client];
-            
-            num_zones = GetZonesToCheck(client, track, zones_to_check);
-            zone_found = CheckPlayerInZones(client, track, zones_to_check, num_zones);
-            
-            if (zone_found != INVALID_ZONE)
+            if (!IS_PAUSED(client) && PlayerCanTime(client))
             {
-                PlayerInZone(client, track, zone_found);
+                decl zones_to_check[MAX_ZONES];
+                decl num_zones;
+                decl zone_found;
                 
-                g_PlayerCurrentlyInZone[client] = true;
-                SetPlayerCurrentZone(client, zone_found, track);
+                g_PlayerWasInZone[client] = g_PlayerCurrentlyInZone[client];
+                
+                num_zones = GetZonesToCheck(client, track, zones_to_check);
+                zone_found = CheckPlayerInZones(client, track, zones_to_check, num_zones);
+                
+                if (zone_found != INVALID_ZONE)
+                {
+                    PlayerInZone(client, track, zone_found);
+                    
+                    g_PlayerCurrentlyInZone[client] = true;
+                    SetPlayerCurrentZone(client, zone_found, track);
+                }
+                else
+                {
+                    PlayerNotInZone(client);
+                    g_PlayerCurrentlyInZone[client] = false;
+                }
             }
-            else
-            {
-                PlayerNotInZone(client);
-                g_PlayerCurrentlyInZone[client] = false;
-            }
-            
         }
         
         // Display the timer hint text every other frame

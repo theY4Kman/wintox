@@ -977,6 +977,9 @@ DisplayTimer(display_client)
             render_client = obs_target;
     }
     
+    if (!IS_PLAYING_TEAM(GetClientTeam(render_client)))
+        return;
+    
     // Fill out our opts trie (overwrite old common values)
     static Handle:opts = INVALID_HANDLE;
     if (opts == INVALID_HANDLE)
@@ -996,6 +999,9 @@ DisplayTimer(display_client)
     
     // Rrrrrender (in a Nixon voice)
     RenderTimerDisplayTemplate(opts, template, template_size, STR(sz_timer));
+    
+    if (render_client != display_client)
+        Format(STR(sz_timer), "[Observing %N]%s%s", render_client, IS_STR_EMPTY(sz_timer) ? "" : "\n", sz_timer);
     
     // And now we send it! Yay! Pop some bottles
     PrintHintText(display_client, "%s", sz_timer);
