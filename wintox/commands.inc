@@ -63,6 +63,7 @@ Commands_Init()
     g_CommandDescriptions = CreateTrie();
     
     RegisterCommand("sm_commands", Command_Commands, "sm_commands | Displays all the public commands");
+    RegisterCommand("sm_help", Command_Commands, "sm_help | Displays all the public commands");
     RegisterCommand("sm_admcommands", Command_AdmCommands, "sm_admcommands | Displays all the admin commands", 0, ADMFLAG_GENERIC);
     RegisterCommand("sm_cmd", Command_Cmd, "sm_cmd <command> | Prints the usage of specified command.");
 }
