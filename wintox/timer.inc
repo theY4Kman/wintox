@@ -541,13 +541,11 @@ public fwd_Timer_OnPlayerReachedZone(client, track, zone_id, Float:elapsed, styl
         win_SQL_UpsertZoneRecord(client, track, zone_id, elapsed, STYLE_NAMES[style]);
     }
     
-    if (g_CurMapStaged)
-    {
-        if (!IS_END_ZONE_T(track, zone_id))
-            ZONE_TIME[client][zone_id] = 0.0;
-        g_LastRunZoneStyle[client][zone_id] = style;
-        g_LastRunZoneElapsed[client][zone_id] = elapsed;
-    }
+    if (g_CurMapStaged && !IS_END_ZONE_T(track, zone_id))
+        ZONE_TIME[client][zone_id] = 0.0;
+    
+    g_LastRunZoneStyle[client][zone_id] = style;
+    g_LastRunZoneElapsed[client][zone_id] = elapsed;
 }
 
 public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
@@ -558,6 +556,7 @@ public fwd_Timer_OnPlayerReachedEnd(client, track, Float:total_time, style)
     
     Client_SetScore(client, Client_GetScore(client) + 1);
     
+    g_LastRunZoneStyle[client][g_EndZone[track]] = style;
     g_LastRunTotalElapsed[client] = total_time;
     
     new Float:record = g_TrackRecords[client][track][style];

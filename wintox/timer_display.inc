@@ -402,7 +402,7 @@ TEMPLATE(FinishedTrack)
 {
     TimerDisplay_AllHeaders,
     TimerDisplay_Time|TimerDisplay:DisplayFlag_ShowFinal,
-    TimerDisplay_Style,
+    TimerDisplay_Style|TimerDisplay:DisplayFlag_ShowFinal,
     TimerDisplay_Jumps
 };
 #else
@@ -419,10 +419,10 @@ FILTERFUNC(FinishedTrack)
     FILTER_CONDITION(HasPlayerReachedEnd(client));
     
     decl track;
-    decl style;
-    
     GetTrieValue(opts, TIMER_OPT_TRACK, track);
-    GetTrieValue(opts, TIMER_OPT_STYLE, style);
+    
+    new style = g_LastRunZoneStyle[client][g_EndZone[track]];
+    SetTrieValue(opts, TIMER_OPT_STYLE, style);
     
     decl Float:time;
     if (g_CurMapStaged)
