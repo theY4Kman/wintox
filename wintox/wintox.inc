@@ -514,7 +514,7 @@ Handle:BuildSpecMenu(client)
     new Handle:menu = CreateMenu(MenuHandler_FpsMenu);
     
     new observers = 0;
-    LOOP_OBSERVERS(client,observer)
+    LOOP_OBSERVERS(client,observer,CLIENTFILTER_INGAME)
     {
         decl String:name[64];
         decl String:sz_userid[16];
